@@ -120,8 +120,11 @@ interface StatsDao {
     @Insert
     suspend fun insertSession(session: ListeningStatEntity)
 
-    @Query("SELECT COUNT(DISTINCT surahNumber) FROM listening_stats")
-    fun getDistinctSurahsCount(): Flow<Int>
+    @Query("SELECT DISTINCT surahNumber FROM listening_stats ORDER BY timestamp DESC LIMIT :limit")
+    fun getRecentSurahNumbers(limit: Int = 8): Flow<List<Int>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSessions(sessions: List<ListeningStatEntity>)
 
     @Query("DELETE FROM listening_stats")
     suspend fun clearAllStats()

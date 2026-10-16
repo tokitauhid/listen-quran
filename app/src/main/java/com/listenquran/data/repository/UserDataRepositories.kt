@@ -196,9 +196,42 @@ class StatsRepository @Inject constructor(
         }
     }
 
+    fun getRecentSurahNumbers(limit: Int = 8): Flow<List<Int>> {
+        return statsDao.getRecentSurahNumbers(limit)
+    }
+
+    suspend fun clearStats() {
+        statsDao.clearAllStats()
+    }
+
     suspend fun exportStatsJson(): String {
         val sessions = statsDao.getAllSessions().first()
         val adapter = moshi.adapter(List::class.java)
         return adapter.toJson(sessions.map { mapOf("surah" to it.surahNumber, "reciter" to it.reciterId, "duration" to it.durationSeconds, "timestamp" to it.timestamp) })
+    }
+
+    suspend fun importStatsJson(json: String): Boolean {
+        return try {
+            val adapter = moshi.adapter(List::class.java)
+            val list = adapter.fromJson(json) as? List<Map<String, Any>> ?: return false
+            val entities = list.mapNotNull { map ->
+                val surah = (map["surah"] as? Number)?.toInt() ?: return@mapNotNull null
+                val reciter = (map["reciter"] as? Number)?.toInt() ?: 7
+                val duration = (map["duration"] as? Number)?.toLong() ?: 60L
+                val timestamp = (map["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                ListeningStatEntity(
+                    surahNumber = surah,
+                    reciterId = reciter,
+                    durationSeconds = duration,
+                    timestamp = timestamp
+                )
+            }
+            if (entities.isNotEmpty()) {
+                statsDao.insertSessions(entities)
+                true
+            } else false
+        } catch (_: Exception) {
+            false
+        }
     }
 }

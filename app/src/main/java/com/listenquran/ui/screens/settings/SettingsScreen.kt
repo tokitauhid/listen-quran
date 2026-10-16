@@ -32,12 +32,20 @@ fun SettingsScreen(
     onSelectQuality: (AudioQuality) -> Unit,
     onToggleNotifications: (Boolean) -> Unit,
     onExportStats: () -> Unit,
+    onImportStats: (String) -> Unit = {},
     onExportPlaylists: () -> Unit,
+    onImportPlaylists: (String) -> Unit = {},
+    onClearAudioCache: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var showThemeDialog by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
+    var showImportPlaylistsDialog by remember { mutableStateOf(false) }
+    var importPlaylistsText by remember { mutableStateOf("") }
+    var showImportStatsDialog by remember { mutableStateOf(false) }
+    var importStatsText by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -135,10 +143,10 @@ fun SettingsScreen(
                 )
             }
 
-            // Audio & Downloads
+            // Audio & Downloads (plan.md §1.5: Manage Downloads & Quality)
             item {
                 Text(
-                    text = "Audio & Streaming",
+                    text = "Downloads & Streaming",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -151,6 +159,15 @@ fun SettingsScreen(
                     subtitle = if (currentQuality == AudioQuality.HIGH) "High Quality (192 kbps)" else "Standard MP3 (128 kbps)",
                     icon = Icons.Rounded.HighQuality,
                     onClick = { showQualityDialog = true }
+                )
+            }
+
+            item {
+                SettingCard(
+                    title = "Manage Downloads & Offline Storage",
+                    subtitle = "Clear temporary and cached audio files to free storage",
+                    icon = Icons.Rounded.Storage,
+                    onClick = { showClearCacheDialog = true }
                 )
             }
 
@@ -207,7 +224,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Backup & Export
+            // Backup & Export (plan.md §1.5: Import/Export Playlists & Stats)
             item {
                 Text(
                     text = "Backup & Data",
@@ -218,32 +235,57 @@ fun SettingsScreen(
             }
 
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            onExportPlaylists()
-                            Toast.makeText(context, "Playlists exported to JSON", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.weight(1f)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export Playlists")
+                        OutlinedButton(
+                            onClick = {
+                                onExportPlaylists()
+                                Toast.makeText(context, "Playlists exported to JSON", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Export Playlists")
+                        }
+
+                        Button(
+                            onClick = { showImportPlaylistsDialog = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Playlists")
+                        }
                     }
 
-                    OutlinedButton(
-                        onClick = {
-                            onExportStats()
-                            Toast.makeText(context, "Stats exported to JSON", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier.weight(1f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Rounded.Assessment, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export Stats")
+                        OutlinedButton(
+                            onClick = {
+                                onExportStats()
+                                Toast.makeText(context, "Stats exported to JSON", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.Assessment, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Export Stats")
+                        }
+
+                        Button(
+                            onClick = { showImportStatsDialog = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Stats")
+                        }
                     }
                 }
             }
@@ -331,6 +373,106 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showQualityDialog = false }) { Text("Done") }
+            }
+        )
+    }
+
+    // Clear Cache Dialog
+    if (showClearCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheDialog = false },
+            title = { Text("Clear Offline Audio Cache") },
+            text = { Text("This will delete locally cached recitations and chapter audio to reclaim storage space. Your playlists, bookmarks, and Khatma progress will NOT be touched.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearAudioCache()
+                        showClearCacheDialog = false
+                        Toast.makeText(context, "Audio cache cleared", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Clear Storage")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Import Playlists Dialog
+    if (showImportPlaylistsDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportPlaylistsDialog = false },
+            title = { Text("Import Playlists from JSON") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paste previously exported playlist JSON below to restore:")
+                    OutlinedTextField(
+                        value = importPlaylistsText,
+                        onValueChange = { importPlaylistsText = it },
+                        placeholder = { Text("[{\"name\": \"My Playlist\", ...}]") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (importPlaylistsText.isNotBlank()) {
+                            onImportPlaylists(importPlaylistsText.trim())
+                            importPlaylistsText = ""
+                            showImportPlaylistsDialog = false
+                            Toast.makeText(context, "Playlists imported successfully", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportPlaylistsDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Import Stats Dialog
+    if (showImportStatsDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportStatsDialog = false },
+            title = { Text("Import Listening Stats from JSON") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paste previously exported stats JSON below:")
+                    OutlinedTextField(
+                        value = importStatsText,
+                        onValueChange = { importStatsText = it },
+                        placeholder = { Text("[{\"surah\": 1, \"duration\": 120, ...}]") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (importStatsText.isNotBlank()) {
+                            onImportStats(importStatsText.trim())
+                            importStatsText = ""
+                            showImportStatsDialog = false
+                            Toast.makeText(context, "Stats imported successfully", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Import")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportStatsDialog = false }) { Text("Cancel") }
             }
         )
     }

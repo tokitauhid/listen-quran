@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,6 +15,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -38,12 +39,14 @@ fun HomeScreen(
     playlists: List<Playlist>,
     radioStations: List<RadioStation>,
     khatmaProgress: KhatmaProgress,
+    recentSurahs: List<Surah> = emptyList(),
     onSurahClick: (Surah) -> Unit,
     onReciterClick: (Reciter) -> Unit,
     onRadioClick: (RadioStation) -> Unit,
     onPlaylistClick: (Playlist) -> Unit,
     onContinueKhatma: () -> Unit,
     onOpenSettings: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
@@ -132,17 +135,83 @@ fun HomeScreen(
                 }
             }
 
-            // Quick Access 2x4 Tile Grid
+            // 1. Playlists (Liked on Top, Custom Playlists Carousel - plan.md §1.1.1 & §1.1.2)
+            if (selectedFilter in listOf("All", "Playlists") && playlists.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "Your Playlists")
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(playlists) { playlist ->
+                            Surface(
+                                modifier = Modifier
+                                    .width(148.dp)
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { onPlaylistClick(playlist) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            if (playlist.isLikedCollection) {
+                                                Brush.verticalGradient(
+                                                    listOf(Color(0xFF005237), Color(0xFF1D211F))
+                                                )
+                                            } else {
+                                                Brush.verticalGradient(
+                                                    listOf(Color(0xFF334B3F), Color(0xFF191C1B))
+                                                )
+                                            }
+                                        )
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Icon(
+                                        imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.Rounded.QueueMusic,
+                                        contentDescription = null,
+                                        tint = if (playlist.isLikedCollection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = playlist.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (playlist.isLikedCollection) "Pinned" else "Playlist",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Recently Listened 2x3 Tile Grid (plan.md §1.1.4)
             if (selectedFilter in listOf("All", "Surahs")) {
                 item {
+                    SectionHeader(title = "Recently Listened")
+                    Spacer(modifier = Modifier.height(4.dp))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val quickSurahs = surahs.take(6)
-                        val pairs = quickSurahs.chunked(2)
+                        val displaySurahs = if (recentSurahs.isNotEmpty()) recentSurahs.take(6) else surahs.take(6)
+                        val pairs = displaySurahs.chunked(2)
 
                         for (pair in pairs) {
                             Row(
@@ -166,7 +235,7 @@ fun HomeScreen(
                 }
             }
 
-            // Khatma Tracking Card
+            // 3. Khatma Tracking Card (plan.md §1.1.7)
             if (selectedFilter in listOf("All", "Surahs")) {
                 item {
                     KhatmaWidget(
@@ -177,7 +246,7 @@ fun HomeScreen(
                 }
             }
 
-            // Trending Daily / Weekly Mixes
+            // 4. Trending Daily / Weekly Mixes (plan.md §1.1.3)
             if (selectedFilter in listOf("All", "Playlists")) {
                 item {
                     SectionHeader(title = "Trending from Quran.com")
@@ -188,7 +257,7 @@ fun HomeScreen(
                     ) {
                         item {
                             MixCard(
-                                title = "Daily Mix 1",
+                                title = "Daily Mix",
                                 subtitle = "Al-Kahf • Yasin • Mulk",
                                 gradient = listOf(Color(0xFF005237), Color(0xFF1D211F)),
                                 onClick = { surahs.firstOrNull()?.let(onSurahClick) }
@@ -196,7 +265,7 @@ fun HomeScreen(
                         }
                         item {
                             MixCard(
-                                title = "Tahajjud & Night",
+                                title = "Weekly Mix",
                                 subtitle = "Ar-Rahman • Al-Waqi'ah",
                                 gradient = listOf(Color(0xFF334B3F), Color(0xFF191C1B)),
                                 onClick = { surahs.getOrNull(54)?.let(onSurahClick) }
@@ -204,17 +273,25 @@ fun HomeScreen(
                         }
                         item {
                             MixCard(
-                                title = "Ruqyah & Peace",
-                                subtitle = "Protection verses & Duas",
+                                title = "Friday Surahs",
+                                subtitle = "Surah Al-Kahf recitation",
                                 gradient = listOf(Color(0xFF5F4100), Color(0xFF1D211F)),
-                                onClick = { surahs.firstOrNull()?.let(onSurahClick) }
+                                onClick = { surahs.find { it.id == 18 }?.let(onSurahClick) }
+                            )
+                        }
+                        item {
+                            MixCard(
+                                title = "Tahajjud Mix",
+                                subtitle = "Deep contemplation recitations",
+                                gradient = listOf(Color(0xFF004D40), Color(0xFF111413)),
+                                onClick = { surahs.getOrNull(66)?.let(onSurahClick) }
                             )
                         }
                     }
                 }
             }
 
-            // Radio from Quran.com
+            // 5. Radio from Quran.com (plan.md §1.1.5)
             if (selectedFilter in listOf("All", "Radio")) {
                 item {
                     SectionHeader(title = "Radio from Quran.com")
@@ -233,7 +310,7 @@ fun HomeScreen(
                 }
             }
 
-            // Recommended Reciters
+            // 6. Recommended Reciters (plan.md §1.1.6)
             if (selectedFilter in listOf("All", "Reciters")) {
                 item {
                     SectionHeader(title = "Recommended Reciters")
@@ -252,17 +329,30 @@ fun HomeScreen(
                 }
             }
 
-            // Complete Surahs List
-            if (selectedFilter in listOf("All", "Surahs")) {
+            // 7. Surahs Shortcut (clean & fast, no 114 items lag!)
+            if (selectedFilter == "Surahs") {
                 item {
-                    SectionHeader(title = "All 114 Surahs")
+                    SectionHeader(title = "Popular Surahs")
                 }
-                items(surahs) { surah ->
+                val featuredSurahs = surahs.filter { it.id in listOf(1, 2, 18, 36, 55, 56, 67, 112, 113, 114) }
+                items(featuredSurahs) { surah ->
                     SurahListItem(
                         surah = surah,
                         onClick = { onSurahClick(surah) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
+                }
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        OutlinedButton(onClick = onNavigateToSearch) {
+                            Text("Browse All 114 Surahs in Search")
+                        }
+                    }
                 }
             }
         }
@@ -334,7 +424,6 @@ fun KhatmaWidget(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Circular progress
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.size(64.dp)
@@ -356,7 +445,6 @@ fun KhatmaWidget(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Text Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Daily Khatma Tracker",
@@ -376,7 +464,6 @@ fun KhatmaWidget(
                 )
             }
 
-            // Continue FAB
             FilledIconButton(
                 onClick = onContinue,
                 shape = RoundedCornerShape(14.dp),

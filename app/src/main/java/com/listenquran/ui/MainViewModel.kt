@@ -1,5 +1,6 @@
 package com.listenquran.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.listenquran.data.local.preferences.UserPreferencesRepository
@@ -8,12 +9,15 @@ import com.listenquran.domain.model.*
 import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.PlaybackState
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val quranRepository: QuranRepository,
     private val reciterRepository: ReciterRepository,
     private val playlistRepository: PlaylistRepository,
@@ -44,6 +48,14 @@ class MainViewModel @Inject constructor(
 
     val statsSummary: StateFlow<ListeningStatsSummary> = statsRepository.getSummary()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ListeningStatsSummary())
+
+    val recentSurahs: StateFlow<List<Surah>> = combine(
+        statsRepository.getRecentSurahNumbers(),
+        quranRepository.getSurahs()
+    ) { recentIds, allSurahs ->
+        val matched = recentIds.mapNotNull { id -> allSurahs.find { it.id == id } }
+        if (matched.isNotEmpty()) matched else allSurahs.take(6)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val themeMode: StateFlow<ThemeMode> = userPreferencesRepository.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.DARK)
@@ -184,5 +196,145 @@ class MainViewModel @Inject constructor(
         val progress = khatmaProgress.value
         val surah = surahs.value.find { it.id == progress.lastSurahNumber } ?: surahs.value.firstOrNull() ?: return
         playSurah(surah, startAyah = progress.lastAyahNumber)
+    }
+
+    fun toggleShuffle() {
+        playerManager.toggleShuffle()
+    }
+
+    fun toggleRepeat() {
+        playerManager.toggleRepeat()
+    }
+
+    fun addToQueue(surah: Surah) {
+        playerManager.addToQueue(surah)
+    }
+
+    fun removeFromQueue(index: Int) {
+        playerManager.removeFromQueue(index)
+    }
+
+    fun clearQueue() {
+        playerManager.clearQueue()
+    }
+
+    fun setSleepTimerUntilTime(hour: Int, minute: Int) {
+        playerManager.setSleepTimerUntilTime(hour, minute)
+    }
+
+    fun addToPlaylist(playlistId: Long, surah: Surah) {
+        val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        viewModelScope.launch {
+            playlistRepository.addToPlaylist(
+                playlistId = playlistId,
+                surahNumber = surah.id,
+                surahName = surah.nameSimple,
+                surahArabic = surah.nameArabic,
+                reciterId = reciter.id,
+                reciterName = reciter.englishName,
+            )
+        }
+    }
+
+    fun createAndAddToPlaylist(playlistName: String, surah: Surah) {
+        val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        viewModelScope.launch {
+            val plId = playlistRepository.createPlaylist(playlistName)
+            playlistRepository.addToPlaylist(
+                playlistId = plId,
+                surahNumber = surah.id,
+                surahName = surah.nameSimple,
+                surahArabic = surah.nameArabic,
+                reciterId = reciter.id,
+                reciterName = reciter.englishName,
+            )
+        }
+    }
+
+    fun deletePlaylist(playlistId: Long) {
+        viewModelScope.launch {
+            playlistRepository.deletePlaylist(playlistId)
+        }
+    }
+
+    fun deletePlaylistItem(itemId: Long) {
+        viewModelScope.launch {
+            playlistRepository.deletePlaylistItem(itemId)
+        }
+    }
+
+    fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
+        return playlistRepository.getPlaylistItems(playlistId)
+    }
+
+    fun playPlaylistItem(item: PlaylistItem) {
+        val surah = surahs.value.find { it.id == item.surahNumber } ?: return
+        val reciter = reciters.value.find { it.id == item.reciterId } ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        playSurah(surah, reciter, item.startAyah)
+    }
+
+    fun playAllPlaylist(items: List<PlaylistItem>) {
+        if (items.isEmpty()) return
+        playerManager.clearQueue()
+        val first = items.first()
+        for (i in 1 until items.size) {
+            val item = items[i]
+            surahs.value.find { it.id == item.surahNumber }?.let {
+                playerManager.addToQueue(it)
+            }
+        }
+        playPlaylistItem(first)
+    }
+
+    fun toggleFavoriteReciter(reciter: Reciter) {
+        viewModelScope.launch {
+            reciterRepository.toggleFavorite(reciter.id, !reciter.isFavorite)
+        }
+    }
+
+    fun playAllWithReciter(reciter: Reciter) {
+        val allSurahs = surahs.value
+        if (allSurahs.isEmpty()) return
+        playerManager.clearQueue()
+        for (i in 1 until allSurahs.size) {
+            playerManager.addToQueue(allSurahs[i])
+        }
+        playSurah(allSurahs.first(), reciter)
+    }
+
+    fun startReciterRadio(reciter: Reciter) {
+        val allSurahs = surahs.value.shuffled()
+        if (allSurahs.isEmpty()) return
+        playerManager.clearQueue()
+        for (i in 1 until allSurahs.size) {
+            playerManager.addToQueue(allSurahs[i])
+        }
+        playSurah(allSurahs.first(), reciter)
+    }
+
+    fun exportPlaylists() {
+        viewModelScope.launch {
+            playlistRepository.exportPlaylistsJson()
+        }
+    }
+
+    fun importPlaylists(json: String) {
+        viewModelScope.launch {
+            playlistRepository.importPlaylistsJson(json)
+        }
+    }
+
+    fun importStats(json: String) {
+        viewModelScope.launch {
+            statsRepository.importStatsJson(json)
+        }
+    }
+
+    fun clearAudioCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                context.cacheDir.deleteRecursively()
+            } catch (_: Exception) {}
+        }
     }
 }

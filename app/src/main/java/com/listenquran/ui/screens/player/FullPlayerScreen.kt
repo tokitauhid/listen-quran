@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.common.Player
 import com.listenquran.player.PlaybackState
 import com.listenquran.ui.theme.AmiriQuranFont
 import java.util.Locale
@@ -35,9 +37,13 @@ fun FullPlayerScreen(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onToggleLike: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onToggleRepeat: () -> Unit,
     onSetPlaybackSpeed: (Float) -> Unit,
     onOpenVersesSheet: () -> Unit,
+    onOpenQueue: () -> Unit,
     onOpenSleepTimer: () -> Unit,
+    onOpenActionsMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -95,12 +101,21 @@ fun FullPlayerScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                IconButton(onClick = onOpenSleepTimer) {
-                    Icon(
-                        imageVector = if (playbackState.sleepTimerRemainingSeconds != null) Icons.Filled.Timer else Icons.Outlined.Timer,
-                        contentDescription = "Sleep Timer",
-                        tint = if (playbackState.sleepTimerRemainingSeconds != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onOpenSleepTimer) {
+                        Icon(
+                            imageVector = if (playbackState.sleepTimerRemainingSeconds != null || playbackState.stopAtEndOfSurah) Icons.Filled.Timer else Icons.Outlined.Timer,
+                            contentDescription = "Sleep Timer",
+                            tint = if (playbackState.sleepTimerRemainingSeconds != null || playbackState.stopAtEndOfSurah) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(onClick = onOpenActionsMenu) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
 
@@ -109,7 +124,7 @@ fun FullPlayerScreen(
             // Hero Artwork (312x312dp container, 28dp M3 extra-large corners)
             Box(
                 modifier = Modifier
-                    .size(300.dp)
+                    .size(290.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(
                         Brush.verticalGradient(
@@ -281,7 +296,17 @@ fun FullPlayerScreen(
                     )
                 }
 
-                if (playbackState.sleepTimerRemainingSeconds != null) {
+                if (playbackState.stopAtEndOfSurah) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SuggestionChip(
+                        onClick = onOpenSleepTimer,
+                        label = { Text("Stops End of Surah") },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    )
+                } else if (playbackState.sleepTimerRemainingSeconds != null) {
                     Spacer(modifier = Modifier.width(8.dp))
                     val mins = playbackState.sleepTimerRemainingSeconds / 60
                     val secs = playbackState.sleepTimerRemainingSeconds % 60
@@ -296,7 +321,7 @@ fun FullPlayerScreen(
                 }
             }
 
-            // Media Control Bar
+            // Media Control Bar (plan.md §1.4 Core Player Controls: Shuffle, Prev, Play/Pause, Next, Repeat)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -304,12 +329,12 @@ fun FullPlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                // Shuffle / Loop toggle
-                IconButton(onClick = {}) {
+                // Shuffle toggle
+                IconButton(onClick = onToggleShuffle) {
                     Icon(
                         imageVector = Icons.Rounded.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (playbackState.isShuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -365,53 +390,94 @@ fun FullPlayerScreen(
                 }
 
                 // Repeat toggle
-                IconButton(onClick = {}) {
+                IconButton(onClick = onToggleRepeat) {
+                    val icon = if (playbackState.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat
+                    val isRepeatActive = playbackState.repeatMode != Player.REPEAT_MODE_OFF
                     Icon(
-                        imageVector = Icons.Rounded.Repeat,
+                        imageVector = icon,
                         contentDescription = "Repeat",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isRepeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Bottom Action Dock: Verses Sheet Peek Button
-            Surface(
+            // Bottom Action Dock: Queue and Verses Sheet Peek Buttons
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable(onClick = onOpenVersesSheet),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
+                // Queue Button
+                Surface(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .weight(0.35f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(onClick = onOpenQueue),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.MenuBook,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                            imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Verses & Translation",
+                            text = "Queue (${playbackState.queue.size})",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
+                }
 
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Open Verses",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // Verses Sheet Peek Button
+                Surface(
+                    modifier = Modifier
+                        .weight(0.65f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable(onClick = onOpenVersesSheet),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoStories,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Verses & Translation",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Open Verses",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

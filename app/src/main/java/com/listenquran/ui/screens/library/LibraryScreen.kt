@@ -40,6 +40,7 @@ fun LibraryScreen(
     onReciterClick: (Reciter) -> Unit,
     onStartHifzLoop: (HifzLoopConfig) -> Unit,
     onSetSleepTimer: (Int) -> Unit,
+    onSetSleepTimerUntilTime: (Int, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("Playlists") }
@@ -48,6 +49,10 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var newPlaylistDesc by remember { mutableStateOf("") }
+
+    var showSpecificTimeDialog by remember { mutableStateOf(false) }
+    var targetHourStr by remember { mutableStateOf("23") }
+    var targetMinuteStr by remember { mutableStateOf("30") }
 
     // Hifz configuration state
     var hifzSurahId by remember { mutableIntStateOf(1) }
@@ -538,16 +543,27 @@ fun LibraryScreen(
                         Spacer(modifier = Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            listOf(15 to "15m", 30 to "30m", 45 to "45m", 60 to "1h").forEach { (minutes, label) ->
+                            listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (minutes, label) ->
                                 OutlinedButton(
                                     onClick = { onSetSleepTimer(minutes) },
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Text(label)
                                 }
                             }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        FilledTonalButton(
+                            onClick = { showSpecificTimeDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Schedule, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Stop at Specific Time (e.g. 11:30 PM / Fajr)")
                         }
                     }
                 }
@@ -593,6 +609,59 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Specific Stop Time Dialog (plan.md §1.3: Time Until - Specific Time)
+    if (showSpecificTimeDialog) {
+        AlertDialog(
+            onDismissRequest = { showSpecificTimeDialog = false },
+            title = { Text("Set Specific Stop Time") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Playback will automatically stop when this clock time is reached.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = targetHourStr,
+                            onValueChange = { targetHourStr = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Hour (0-23)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = targetMinuteStr,
+                            onValueChange = { targetMinuteStr = it.filter { c -> c.isDigit() }.take(2) },
+                            label = { Text("Minute (0-59)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val h = targetHourStr.toIntOrNull()?.coerceIn(0, 23) ?: 23
+                        val m = targetMinuteStr.toIntOrNull()?.coerceIn(0, 59) ?: 30
+                        onSetSleepTimerUntilTime(h, m)
+                        showSpecificTimeDialog = false
+                    }
+                ) {
+                    Text("Set Stop Time")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSpecificTimeDialog = false }) {
                     Text("Cancel")
                 }
             }

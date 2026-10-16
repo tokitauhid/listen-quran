@@ -5,14 +5,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -36,28 +34,38 @@ data class BrowseCategory(
     val surahTargetId: Int,
 )
 
+data class ParsedVerseQuery(
+    val surahNumber: Int,
+    val ayahNumber: Int,
+    val surah: Surah?,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     surahs: List<Surah>,
     reciters: List<Reciter>,
     onSurahClick: (Surah) -> Unit,
+    onVerseClick: (Surah, Int) -> Unit,
     onReciterClick: (Reciter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var searchFilter by remember { mutableStateOf("All") }
+    val searchFilters = listOf("All", "Surahs", "Verses", "Reciters")
 
     val popularShortcuts = listOf(
-        "Ayatul Kursi (2:255)" to 2,
-        "Surah Al-Mulk" to 67,
-        "Surah Yasin" to 36,
-        "Surah Ar-Rahman" to 55,
-        "Surah Al-Waqi'ah" to 56,
-        "Surah Al-Kahf" to 18,
+        Triple("Ayatul Kursi (2:255)", 2, 255),
+        Triple("Surah Al-Mulk", 67, 1),
+        Triple("Surah Yasin", 36, 1),
+        Triple("Surah Ar-Rahman", 55, 1),
+        Triple("Surah Al-Waqi'ah", 56, 1),
+        Triple("Surah Al-Kahf", 18, 1),
+        Triple("The 4 Quls (112:1)", 112, 1),
     )
 
     val categories = listOf(
-        BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.MenuBook, 1),
+        BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.AutoStories, 1),
         BrowseCategory("Ruqyah & Peace", "Protection & calming verses", Icons.Rounded.HealthAndSafety, 1),
         BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67),
         BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55),
@@ -65,11 +73,28 @@ fun SearchScreen(
         BrowseCategory("The 4 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112),
     )
 
+    // Detect Surah:Ayah pattern e.g. "2:255" or "18:10"
+    val parsedVerse: ParsedVerseQuery? = remember(searchQuery, surahs) {
+        val trimmed = searchQuery.trim()
+        val parts = trimmed.split(":", " ")
+        if (parts.size == 2) {
+            val sNum = parts[0].toIntOrNull()
+            val aNum = parts[1].toIntOrNull()
+            if (sNum != null && aNum != null && sNum in 1..114) {
+                val matchedSurah = surahs.find { it.id == sNum }
+                if (matchedSurah != null && aNum in 1..matchedSurah.versesCount) {
+                    ParsedVerseQuery(sNum, aNum, matchedSurah)
+                } else null
+            } else null
+        } else null
+    }
+
     val filteredSurahs = remember(searchQuery, surahs) {
         if (searchQuery.isBlank()) emptyList()
         else surahs.filter {
             it.nameSimple.contains(searchQuery, ignoreCase = true) ||
             it.translatedName.contains(searchQuery, ignoreCase = true) ||
+            it.nameComplex.contains(searchQuery, ignoreCase = true) ||
             it.id.toString() == searchQuery.trim() ||
             it.nameArabic.contains(searchQuery)
         }
@@ -97,7 +122,7 @@ fun SearchScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
@@ -118,7 +143,7 @@ fun SearchScreen(
                         onValueChange = { searchQuery = it },
                         placeholder = {
                             Text(
-                                "Search surahs, ayahs, reciters...",
+                                "Search surahs, ayahs (e.g. 2:255), reciters...",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -147,32 +172,91 @@ fun SearchScreen(
 
             // If searching: display results
             if (searchQuery.isNotBlank()) {
+                // Filter chips when searching
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(searchFilters) { filter ->
+                        FilterChip(
+                            selected = searchFilter == filter,
+                            onClick = { searchFilter = filter },
+                            label = { Text(filter) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        )
+                    }
+                }
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (filteredSurahs.isEmpty() && filteredReciters.isEmpty()) {
+                    // 1. Direct Verse Match (plan.md §1.2: "Any Verse / Ayah by surah and ayah number")
+                    if (parsedVerse != null && parsedVerse.surah != null && searchFilter in listOf("All", "Verses")) {
                         item {
-                            Box(
+                            Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 48.dp),
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        onVerseClick(parsedVerse.surah, parsedVerse.ayahNumber)
+                                    },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
                             ) {
-                                Text(
-                                    text = "No results found for \"$searchQuery\"",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Direct Ayah Match",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = "Surah ${parsedVerse.surah.nameSimple} : Ayah ${parsedVerse.ayahNumber}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "Tap to listen directly from this verse",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    FilledIconButton(
+                                        onClick = {
+                                            onVerseClick(parsedVerse.surah, parsedVerse.ayahNumber)
+                                        },
+                                        colors = IconButtonDefaults.filledIconButtonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = "Play Verse")
+                                    }
+                                }
                             }
                         }
                     }
 
-                    if (filteredSurahs.isNotEmpty()) {
+                    // 2. Surah Results
+                    if (searchFilter in listOf("All", "Surahs") && filteredSurahs.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Surahs",
+                                text = "Surahs (${filteredSurahs.size})",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -184,11 +268,12 @@ fun SearchScreen(
                         }
                     }
 
-                    if (filteredReciters.isNotEmpty()) {
+                    // 3. Reciter Results
+                    if (searchFilter in listOf("All", "Reciters") && filteredReciters.isNotEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Reciters",
+                                text = "Reciters (${filteredReciters.size})",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -213,7 +298,7 @@ fun SearchScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(40.dp)
+                                            .size(44.dp)
                                             .clip(CircleShape)
                                             .background(MaterialTheme.colorScheme.primaryContainer),
                                         contentAlignment = Alignment.Center
@@ -224,20 +309,43 @@ fun SearchScreen(
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = reciter.englishName,
                                             style = MaterialTheme.typography.titleMedium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = reciter.name,
-                                            fontFamily = AmiriQuranFont,
+                                            text = "${reciter.qiraah} • ${reciter.style ?: "Murattal"}",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    Text(
+                                        text = reciter.name,
+                                        fontFamily = AmiriQuranFont,
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
+                            }
+                        }
+                    }
+
+                    // Empty State
+                    if (parsedVerse == null && filteredSurahs.isEmpty() && filteredReciters.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No results found for \"$searchQuery\"",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -249,7 +357,7 @@ fun SearchScreen(
                     contentPadding = PaddingValues(bottom = 90.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // Popular Ayahs Shortcuts
+                    // Popular Ayahs Shortcuts (plan.md §1.2: Popular Ayahs shortcuts)
                     item {
                         Text(
                             text = "Popular Recitations",
@@ -263,10 +371,16 @@ fun SearchScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(popularShortcuts) { (name, targetId) ->
+                            items(popularShortcuts) { (name, targetId, startAyah) ->
                                 AssistChip(
                                     onClick = {
-                                        surahs.find { it.id == targetId }?.let(onSurahClick)
+                                        surahs.find { it.id == targetId }?.let { surah ->
+                                            if (startAyah > 1) {
+                                                onVerseClick(surah, startAyah)
+                                            } else {
+                                                onSurahClick(surah)
+                                            }
+                                        }
                                     },
                                     label = { Text(name) },
                                     colors = AssistChipDefaults.assistChipColors(
@@ -317,6 +431,25 @@ fun SearchScreen(
                                 }
                             }
                         }
+                    }
+
+                    // All 114 Surahs catalog in Search
+                    item {
+                        Text(
+                            text = "All 114 Surahs",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    items(surahs) { surah ->
+                        SurahListItem(
+                            surah = surah,
+                            onClick = { onSurahClick(surah) },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }

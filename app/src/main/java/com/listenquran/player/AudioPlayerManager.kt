@@ -2,7 +2,6 @@ package com.listenquran.player
 
 import android.content.Context
 import android.content.Intent
-import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -17,6 +16,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,9 +35,12 @@ data class PlaybackState(
     val hifzConfig: HifzLoopConfig? = null,
     val hifzCurrentLoop: Int = 0,
     val sleepTimerRemainingSeconds: Long? = null,
+    val stopAtEndOfSurah: Boolean = false,
     val isRadio: Boolean = false,
     val radioStation: RadioStation? = null,
     val queue: List<Surah> = emptyList(),
+    val isShuffleEnabled: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
 )
 
 @Singleton
@@ -55,7 +58,6 @@ class AudioPlayerManager @Inject constructor(
 
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
-    private var hifzLoopJob: Job? = null
     private var sessionStartTime: Long = 0L
 
     init {
@@ -79,7 +81,15 @@ class AudioPlayerManager @Inject constructor(
                     durationMs = duration
                 )
                 if (playbackState == Player.STATE_ENDED) {
-                    playNext()
+                    if (_playbackState.value.stopAtEndOfSurah) {
+                        _playbackState.value = _playbackState.value.copy(stopAtEndOfSurah = false)
+                        player.pause()
+                    } else if (_playbackState.value.repeatMode == Player.REPEAT_MODE_ONE) {
+                        player.seekTo(0)
+                        player.play()
+                    } else {
+                        playNext()
+                    }
                 }
             }
         })
@@ -191,10 +201,57 @@ class AudioPlayerManager @Inject constructor(
         _playbackState.value = _playbackState.value.copy(playbackSpeed = speed)
     }
 
+    fun addToQueue(surah: Surah) {
+        val currentQueue = _playbackState.value.queue.toMutableList()
+        currentQueue.add(surah)
+        _playbackState.value = _playbackState.value.copy(queue = currentQueue)
+    }
+
+    fun removeFromQueue(index: Int) {
+        val currentQueue = _playbackState.value.queue.toMutableList()
+        if (index in currentQueue.indices) {
+            currentQueue.removeAt(index)
+            _playbackState.value = _playbackState.value.copy(queue = currentQueue)
+        }
+    }
+
+    fun clearQueue() {
+        _playbackState.value = _playbackState.value.copy(queue = emptyList())
+    }
+
+    fun toggleShuffle() {
+        val newShuffle = !_playbackState.value.isShuffleEnabled
+        _playbackState.value = _playbackState.value.copy(isShuffleEnabled = newShuffle)
+    }
+
+    fun toggleRepeat() {
+        val nextRepeat = when (_playbackState.value.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+        player.repeatMode = nextRepeat
+        _playbackState.value = _playbackState.value.copy(repeatMode = nextRepeat)
+    }
+
     fun playNext() {
-        val current = _playbackState.value.currentSurah ?: return
-        val nextId = if (current.id < 114) current.id + 1 else 1
+        val q = _playbackState.value.queue
         val reciter = _playbackState.value.currentReciter ?: return
+
+        if (q.isNotEmpty()) {
+            val nextSurah = q.first()
+            _playbackState.value = _playbackState.value.copy(queue = q.drop(1))
+            playSurah(nextSurah, reciter)
+            return
+        }
+
+        val current = _playbackState.value.currentSurah ?: return
+        val nextId = if (_playbackState.value.isShuffleEnabled) {
+            (1..114).random()
+        } else {
+            if (current.id < 114) current.id + 1 else 1
+        }
+
         scope.launch {
             val nextSurah = quranRepository.getSurahById(nextId)
             if (nextSurah != null) {
@@ -235,8 +292,17 @@ class AudioPlayerManager @Inject constructor(
         )
     }
 
+    fun setStopAtEndOfSurah(enable: Boolean) {
+        _playbackState.value = _playbackState.value.copy(
+            stopAtEndOfSurah = enable,
+            sleepTimerRemainingSeconds = null
+        )
+    }
+
     fun setSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
+        _playbackState.value = _playbackState.value.copy(stopAtEndOfSurah = false)
+
         if (minutes <= 0) {
             _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
             return
@@ -255,6 +321,20 @@ class AudioPlayerManager @Inject constructor(
             player.pause()
             _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
         }
+    }
+
+    fun setSleepTimerUntilTime(targetHour: Int, targetMinute: Int) {
+        val now = Calendar.getInstance()
+        val target = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, targetHour)
+            set(Calendar.MINUTE, targetMinute)
+            set(Calendar.SECOND, 0)
+            if (before(now)) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+        val diffMinutes = ((target.timeInMillis - now.timeInMillis) / 60000L).toInt().coerceAtLeast(1)
+        setSleepTimer(diffMinutes)
     }
 
     private fun startProgressTracker() {

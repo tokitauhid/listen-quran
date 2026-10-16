@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.listenquran.domain.model.*
 import com.listenquran.ui.MainViewModel
 import com.listenquran.ui.screens.home.HomeScreen
 import com.listenquran.ui.screens.library.LibraryScreen
@@ -15,15 +16,18 @@ import com.listenquran.ui.screens.settings.SettingsScreen
 fun ListenQuranNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
-    surahs: List<com.listenquran.domain.model.Surah>,
-    reciters: List<com.listenquran.domain.model.Reciter>,
-    playlists: List<com.listenquran.domain.model.Playlist>,
-    bookmarks: List<com.listenquran.domain.model.Bookmark>,
-    khatmaProgress: com.listenquran.domain.model.KhatmaProgress,
-    statsSummary: com.listenquran.domain.model.ListeningStatsSummary,
-    themeMode: com.listenquran.domain.model.ThemeMode,
-    audioQuality: com.listenquran.domain.model.AudioQuality,
+    surahs: List<Surah>,
+    reciters: List<Reciter>,
+    playlists: List<Playlist>,
+    bookmarks: List<Bookmark>,
+    khatmaProgress: KhatmaProgress,
+    statsSummary: ListeningStatsSummary,
+    recentSurahs: List<Surah>,
+    themeMode: ThemeMode,
+    audioQuality: AudioQuality,
     notificationsEnabled: Boolean,
+    onOpenPlaylistDetail: (Playlist) -> Unit,
+    onOpenReciterProfile: (Reciter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -38,23 +42,14 @@ fun ListenQuranNavHost(
                 playlists = playlists,
                 radioStations = viewModel.radioStations,
                 khatmaProgress = khatmaProgress,
+                recentSurahs = recentSurahs,
                 onSurahClick = { viewModel.playSurah(it) },
-                onReciterClick = { reciter ->
-                    surahs.firstOrNull()?.let { viewModel.playSurah(it, reciter) }
-                },
+                onReciterClick = onOpenReciterProfile,
                 onRadioClick = { viewModel.playRadio(it) },
-                onPlaylistClick = { playlist ->
-                    val firstItem = playlist.items.firstOrNull()
-                    if (firstItem != null) {
-                        surahs.find { it.id == firstItem.surahNumber }?.let {
-                            viewModel.playSurah(it)
-                        }
-                    } else {
-                        surahs.firstOrNull()?.let { viewModel.playSurah(it) }
-                    }
-                },
+                onPlaylistClick = onOpenPlaylistDetail,
                 onContinueKhatma = { viewModel.continueKhatma() },
                 onOpenSettings = { navController.navigate(TopLevelDestination.SETTINGS.route) },
+                onNavigateToSearch = { navController.navigate(TopLevelDestination.SEARCH.route) },
             )
         }
         composable(TopLevelDestination.SEARCH.route) {
@@ -62,9 +57,8 @@ fun ListenQuranNavHost(
                 surahs = surahs,
                 reciters = reciters,
                 onSurahClick = { viewModel.playSurah(it) },
-                onReciterClick = { reciter ->
-                    surahs.firstOrNull()?.let { viewModel.playSurah(it, reciter) }
-                },
+                onVerseClick = { surah, ayah -> viewModel.playSurah(surah, startAyah = ayah) },
+                onReciterClick = onOpenReciterProfile,
             )
         }
         composable(TopLevelDestination.LIBRARY.route) {
@@ -73,9 +67,7 @@ fun ListenQuranNavHost(
                 bookmarks = bookmarks,
                 favoriteReciters = reciters.filter { it.isFavorite },
                 surahs = surahs,
-                onPlaylistClick = { playlist ->
-                    surahs.firstOrNull()?.let { viewModel.playSurah(it) }
-                },
+                onPlaylistClick = onOpenPlaylistDetail,
                 onCreatePlaylist = { name, desc ->
                     viewModel.createPlaylist(name, desc)
                 },
@@ -87,14 +79,15 @@ fun ListenQuranNavHost(
                 onUpdateBookmarkNote = { id, note ->
                     viewModel.updateBookmarkNote(id, note)
                 },
-                onReciterClick = { reciter ->
-                    surahs.firstOrNull()?.let { viewModel.playSurah(it, reciter) }
-                },
+                onReciterClick = onOpenReciterProfile,
                 onStartHifzLoop = { config ->
                     viewModel.startHifzLoop(config)
                 },
                 onSetSleepTimer = { minutes ->
                     viewModel.setSleepTimer(minutes)
+                },
+                onSetSleepTimerUntilTime = { hour, minute ->
+                    viewModel.setSleepTimerUntilTime(hour, minute)
                 },
             )
         }
@@ -108,7 +101,10 @@ fun ListenQuranNavHost(
                 onSelectQuality = { viewModel.setAudioQuality(it) },
                 onToggleNotifications = { viewModel.setNotificationsEnabled(it) },
                 onExportStats = { viewModel.exportStats() },
-                onExportPlaylists = { /* Export */ },
+                onImportStats = { viewModel.importStats(it) },
+                onExportPlaylists = { viewModel.exportPlaylists() },
+                onImportPlaylists = { viewModel.importPlaylists(it) },
+                onClearAudioCache = { viewModel.clearAudioCache() },
             )
         }
     }
