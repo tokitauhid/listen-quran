@@ -56,6 +56,9 @@ class AudioPlayerManager @Inject constructor(
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
+    private val _currentPositionMs = MutableStateFlow(0L)
+    val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
+
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var sessionStartTime: Long = 0L
@@ -98,12 +101,15 @@ class AudioPlayerManager @Inject constructor(
     private fun ensureServiceRunning() {
         try {
             val intent = Intent(context, ListenQuranMediaService::class.java)
-            context.startService(intent)
-        } catch (_: Exception) {}
+            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+        } catch (e: Exception) {
+            android.util.Log.e("AudioPlayerManager", "Failed to start media service", e)
+        }
     }
 
     fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
         ensureServiceRunning()
+        _currentPositionMs.value = 0L
         scope.launch {
             _playbackState.value = _playbackState.value.copy(
                 currentSurah = surah,
@@ -116,10 +122,19 @@ class AudioPlayerManager @Inject constructor(
 
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
             if (audioData != null) {
+                val artworkUri = android.net.Uri.parse("android.resource://${context.packageName}/${com.listenquran.R.mipmap.ic_launcher}")
                 val mediaMetadata = MediaMetadata.Builder()
                     .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
                     .setArtist(reciter.englishName)
-                    .setDisplayTitle(surah.nameSimple)
+                    .setAlbumTitle("The Holy Quran")
+                    .setAlbumArtist(reciter.englishName)
+                    .setDisplayTitle("${surah.id}. ${surah.nameSimple}")
+                    .setSubtitle("${reciter.englishName} • Ayah $startAyah")
+                    .setDescription("${surah.translatedName} • ${surah.revelationPlace.replaceFirstChar { it.uppercase() }} • ${surah.versesCount} Verses")
+                    .setArtworkUri(artworkUri)
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                     .build()
 
                 val mediaItem = MediaItem.Builder()
@@ -138,6 +153,7 @@ class AudioPlayerManager @Inject constructor(
                     val targetTiming = audioData.timestamps.find { it.verseKey == "${surah.id}:$startAyah" }
                     if (targetTiming != null) {
                         player.seekTo(targetTiming.timestampFrom)
+                        _currentPositionMs.value = targetTiming.timestampFrom
                     }
                 }
 
@@ -148,6 +164,7 @@ class AudioPlayerManager @Inject constructor(
 
     fun playRadio(station: RadioStation) {
         ensureServiceRunning()
+        _currentPositionMs.value = 0L
         scope.launch {
             _playbackState.value = _playbackState.value.copy(
                 isRadio = true,
@@ -158,10 +175,19 @@ class AudioPlayerManager @Inject constructor(
                 isBuffering = true,
             )
 
+            val artworkUri = android.net.Uri.parse("android.resource://${context.packageName}/${com.listenquran.R.mipmap.ic_launcher}")
             val mediaMetadata = MediaMetadata.Builder()
                 .setTitle(station.name)
                 .setArtist(station.reciterName ?: "Quran Radio")
+                .setAlbumTitle("Quran Radio Live")
+                .setAlbumArtist(station.reciterName ?: "Quran Radio")
                 .setDisplayTitle(station.name)
+                .setSubtitle(station.reciterName ?: "24/7 Live Stream")
+                .setDescription("24/7 Live Quran Stream")
+                .setArtworkUri(artworkUri)
+                .setIsPlayable(true)
+                .setIsBrowsable(false)
+                .setMediaType(MediaMetadata.MEDIA_TYPE_RADIO_STATION)
                 .build()
 
             val mediaItem = MediaItem.Builder()
@@ -185,6 +211,7 @@ class AudioPlayerManager @Inject constructor(
 
     fun seekTo(positionMs: Long) {
         player.seekTo(positionMs)
+        _currentPositionMs.value = positionMs
         updateAyahAtPosition(positionMs)
     }
 
@@ -343,13 +370,18 @@ class AudioPlayerManager @Inject constructor(
             while (isActive) {
                 val pos = player.currentPosition
                 val dur = if (player.duration > 0) player.duration else _playbackState.value.durationMs
-                _playbackState.value = _playbackState.value.copy(
-                    currentPositionMs = pos,
-                    durationMs = dur,
-                )
+
+                // High-frequency position update decoupled from main PlaybackState
+                _currentPositionMs.value = pos
+
+                // Only update duration if it transitioned from 0 or changed significantly
+                if (_playbackState.value.durationMs != dur && dur > 0) {
+                    _playbackState.value = _playbackState.value.copy(durationMs = dur)
+                }
+
                 updateAyahAtPosition(pos)
                 checkHifzLoop(pos)
-                delay(100L)
+                delay(200L)
             }
         }
     }
@@ -375,10 +407,15 @@ class AudioPlayerManager @Inject constructor(
                     break
                 }
             }
-            _playbackState.value = _playbackState.value.copy(
-                currentAyahNumber = ayahNum,
-                currentWordIndex = wordIdx,
-            )
+            // CRITICAL: Only emit state update when ayah or word index actually changes!
+            // Previously this assigned _playbackState.value 10-20 times per second unconditionally,
+            // triggering a recomposition storm across the entire app tree!
+            if (_playbackState.value.currentAyahNumber != ayahNum || _playbackState.value.currentWordIndex != wordIdx) {
+                _playbackState.value = _playbackState.value.copy(
+                    currentAyahNumber = ayahNum,
+                    currentWordIndex = wordIdx,
+                )
+            }
         }
     }
 

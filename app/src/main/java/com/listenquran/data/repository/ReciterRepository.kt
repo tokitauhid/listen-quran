@@ -59,6 +59,8 @@ class ReciterRepository @Inject constructor(
         }
     }
 
+    fun getDefaultReciter(): Reciter = defaultReciters.first().toDomain()
+
     suspend fun getReciterById(id: Int): Reciter? {
         val entity = reciterDao.getReciterById(id)
         return entity?.toDomain() ?: defaultReciters.find { it.id == id }?.toDomain()

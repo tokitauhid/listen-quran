@@ -73,10 +73,10 @@ fun ListenQuranApp(
         Scaffold(
             bottomBar = {
                 Column {
-                    // Floating Mini-Player (shows when a surah or radio is active)
                     if (playbackState.currentSurah != null || playbackState.radioStation != null) {
                         MiniPlayer(
                             playbackState = playbackState,
+                            currentPositionProvider = { viewModel.currentPositionMs.value },
                             isLiked = false,
                             onTogglePlayPause = { viewModel.togglePlayPause() },
                             onToggleLike = { viewModel.toggleLikeCurrentSurah() },
@@ -160,6 +160,7 @@ fun ListenQuranApp(
             FullPlayerScreen(
                 playbackState = playbackState,
                 isLiked = false,
+                currentPositionMsFlow = viewModel.currentPositionMs,
                 onCollapse = { showFullPlayer = false },
                 onTogglePlayPause = { viewModel.togglePlayPause() },
                 onSeekTo = { viewModel.seekTo(it) },

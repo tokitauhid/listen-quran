@@ -178,7 +178,7 @@ fun SearchScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(searchFilters) { filter ->
+                    items(searchFilters, key = { it }) { filter ->
                         FilterChip(
                             selected = searchFilter == filter,
                             onClick = { searchFilter = filter },
@@ -263,7 +263,7 @@ fun SearchScreen(
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
-                        items(filteredSurahs) { surah ->
+                        items(filteredSurahs, key = { it.id }) { surah ->
                             SurahListItem(surah = surah, onClick = { onSurahClick(surah) })
                         }
                     }
@@ -280,7 +280,7 @@ fun SearchScreen(
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
-                        items(filteredReciters) { reciter ->
+                        items(filteredReciters, key = { it.id }) { reciter ->
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -371,7 +371,7 @@ fun SearchScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(popularShortcuts) { (name, targetId, startAyah) ->
+                            items(popularShortcuts, key = { it.first }) { (name, targetId, startAyah) ->
                                 AssistChip(
                                     onClick = {
                                         surahs.find { it.id == targetId }?.let { surah ->
@@ -444,7 +444,7 @@ fun SearchScreen(
                         )
                     }
 
-                    items(surahs) { surah ->
+                    items(surahs, key = { it.id }) { surah ->
                         SurahListItem(
                             surah = surah,
                             onClick = { onSurahClick(surah) },

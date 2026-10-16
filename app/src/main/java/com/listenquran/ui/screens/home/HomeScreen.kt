@@ -118,7 +118,7 @@ fun HomeScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filterCategories) { category ->
+                    items(filterCategories, key = { it }) { category ->
                         FilterChip(
                             selected = selectedFilter == category,
                             onClick = { selectedFilter = category },
@@ -144,7 +144,7 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(playlists) { playlist ->
+                        items(playlists, key = { it.id }) { playlist ->
                             Surface(
                                 modifier = Modifier
                                     .width(148.dp)
@@ -300,7 +300,7 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(radioStations) { station ->
+                        items(radioStations, key = { it.id }) { station ->
                             RadioStationCard(
                                 station = station,
                                 onClick = { onRadioClick(station) }
@@ -319,7 +319,7 @@ fun HomeScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(reciters) { reciter ->
+                        items(reciters, key = { it.id }) { reciter ->
                             ReciterAvatarCard(
                                 reciter = reciter,
                                 onClick = { onReciterClick(reciter) }
@@ -335,7 +335,7 @@ fun HomeScreen(
                     SectionHeader(title = "Popular Surahs")
                 }
                 val featuredSurahs = surahs.filter { it.id in listOf(1, 2, 18, 36, 55, 56, 67, 112, 113, 114) }
-                items(featuredSurahs) { surah ->
+                items(featuredSurahs, key = { it.id }) { surah ->
                     SurahListItem(
                         surah = surah,
                         onClick = { onSurahClick(surah) },

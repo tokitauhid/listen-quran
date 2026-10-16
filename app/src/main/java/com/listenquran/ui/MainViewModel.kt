@@ -67,6 +67,7 @@ class MainViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
+    val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
 
     private val _currentVerses = MutableStateFlow<List<Ayah>>(emptyList())
     val currentVerses: StateFlow<List<Ayah>> = _currentVerses.asStateFlow()
@@ -92,6 +93,16 @@ class MainViewModel @Inject constructor(
     fun playSurah(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
         val targetReciter = reciter ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
         playerManager.playSurah(surah, targetReciter, startAyah)
+    }
+
+    fun playSurahById(surahId: Int, startAyah: Int = 1) {
+        viewModelScope.launch {
+            val surah = quranRepository.getSurahById(surahId) ?: return@launch
+            val targetReciter = playbackState.value.currentReciter
+                ?: reciters.value.firstOrNull()
+                ?: reciterRepository.getDefaultReciter()
+            playerManager.playSurah(surah, targetReciter, startAyah)
+        }
     }
 
     fun playRadio(station: RadioStation) {

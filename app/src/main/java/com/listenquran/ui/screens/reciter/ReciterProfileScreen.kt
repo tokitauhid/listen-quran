@@ -189,7 +189,7 @@ fun ReciterProfileScreen(
             }
 
             // Surahs list
-            items(surahs) { surah ->
+            items(surahs, key = { it.id }) { surah ->
                 SurahListItem(
                     surah = surah,
                     onClick = { onPlaySurah(surah, reciter) },

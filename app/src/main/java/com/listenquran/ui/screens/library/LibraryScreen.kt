@@ -103,7 +103,7 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filters) { filter ->
+                    items(filters, key = { it }) { filter ->
                         FilterChip(
                             selected = selectedFilter == filter,
                             onClick = { selectedFilter = filter },
@@ -224,7 +224,7 @@ fun LibraryScreen(
                         }
                     }
                 } else {
-                    items(custom) { playlist ->
+                    items(custom, key = { it.id }) { playlist ->
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -303,7 +303,7 @@ fun LibraryScreen(
                         }
                     }
                 } else {
-                    items(bookmarks) { bookmark ->
+                    items(bookmarks, key = { it.id }) { bookmark ->
                         var isEditingNote by remember { mutableStateOf(false) }
                         var editedNote by remember { mutableStateOf(bookmark.note) }
 

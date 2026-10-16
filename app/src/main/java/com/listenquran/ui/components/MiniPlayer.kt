@@ -25,6 +25,7 @@ import com.listenquran.player.PlaybackState
 @Composable
 fun MiniPlayer(
     playbackState: PlaybackState,
+    currentPositionProvider: () -> Long,
     isLiked: Boolean,
     onTogglePlayPause: () -> Unit,
     onToggleLike: () -> Unit,
@@ -43,10 +44,6 @@ fun MiniPlayer(
     } else {
         radio?.reciterName ?: "24/7 Live Stream"
     }
-
-    val progress = if (playbackState.durationMs > 0) {
-        (playbackState.currentPositionMs.toFloat() / playbackState.durationMs.toFloat()).coerceIn(0f, 1f)
-    } else 0f
 
     Surface(
         modifier = modifier
@@ -151,7 +148,12 @@ fun MiniPlayer(
             // Bottom edge linear progress indicator
             if (playbackState.durationMs > 0 && !playbackState.isRadio) {
                 LinearProgressIndicator(
-                    progress = { progress },
+                    progress = {
+                        val dur = playbackState.durationMs
+                        if (dur > 0) {
+                            (currentPositionProvider().toFloat() / dur.toFloat()).coerceIn(0f, 1f)
+                        } else 0f
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),

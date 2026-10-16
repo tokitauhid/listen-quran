@@ -46,6 +46,7 @@ object MediaModule {
     fun provideMediaSession(
         @ApplicationContext context: Context,
         player: ExoPlayer,
+        playerManagerProvider: javax.inject.Provider<com.listenquran.player.AudioPlayerManager>,
     ): MediaSession {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -56,8 +57,29 @@ object MediaModule {
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return MediaSession.Builder(context, player)
+
+        val forwardingPlayer = com.listenquran.player.QuranForwardingPlayer(player, playerManagerProvider)
+
+        val sessionCallback = object : MediaSession.Callback {
+            override fun onConnect(
+                session: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): MediaSession.ConnectionResult {
+                val playerCommands = session.player.availableCommands.buildUpon()
+                    .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT)
+                    .add(androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                    .add(androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS)
+                    .add(androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                    .build()
+                return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                    .setAvailablePlayerCommands(playerCommands)
+                    .build()
+            }
+        }
+
+        return MediaSession.Builder(context, forwardingPlayer)
             .setSessionActivity(pendingIntent)
+            .setCallback(sessionCallback)
             .build()
     }
 }

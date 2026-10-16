@@ -21,9 +21,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import com.listenquran.player.PlaybackState
 import com.listenquran.ui.theme.AmiriQuranFont
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +34,7 @@ import java.util.Locale
 fun FullPlayerScreen(
     playbackState: PlaybackState,
     isLiked: Boolean,
+    currentPositionMsFlow: StateFlow<Long>? = null,
     onCollapse: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onSeekTo: (Long) -> Unit,
@@ -50,6 +54,9 @@ fun FullPlayerScreen(
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderDragPosition by remember { mutableFloatStateOf(0f) }
 
+    val continuousPos by (currentPositionMsFlow ?: remember { MutableStateFlow(playbackState.currentPositionMs) })
+        .collectAsStateWithLifecycle()
+
     val surah = playbackState.currentSurah
     val radio = playbackState.radioStation
     val reciter = playbackState.currentReciter
@@ -57,7 +64,7 @@ fun FullPlayerScreen(
     val currentPosition = if (isDraggingSlider) {
         (sliderDragPosition * playbackState.durationMs).toLong()
     } else {
-        playbackState.currentPositionMs
+        continuousPos
     }
 
     val sliderProgress = if (playbackState.durationMs > 0) {
