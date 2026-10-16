@@ -59,7 +59,6 @@ class AudioPlayerManager @Inject constructor(
     private var sessionStartTime: Long = 0L
 
     init {
-        startService()
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
@@ -86,14 +85,15 @@ class AudioPlayerManager @Inject constructor(
         })
     }
 
-    private fun startService() {
+    private fun ensureServiceRunning() {
         try {
             val intent = Intent(context, ListenQuranMediaService::class.java)
-            ContextCompat.startForegroundService(context, intent)
+            context.startService(intent)
         } catch (_: Exception) {}
     }
 
     fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
+        ensureServiceRunning()
         scope.launch {
             _playbackState.value = _playbackState.value.copy(
                 currentSurah = surah,
@@ -137,6 +137,7 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playRadio(station: RadioStation) {
+        ensureServiceRunning()
         scope.launch {
             _playbackState.value = _playbackState.value.copy(
                 isRadio = true,
