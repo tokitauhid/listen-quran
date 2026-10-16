@@ -1,1 +1,57 @@
+# Project private directories
 internal/
+.agents/
+
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle
+.gradle/
+build/
+*.hprof
+
+# Gradle wrapper (downloaded by users)
+!gradle/wrapper/gradle-wrapper.properties
+
+# Local configuration file
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+.navigation/
+captures/
+
+# Keystore files (never commit signing keys)
+*.jks
+*.keystore
+
+# Google Services (contains API keys)
+google-services.json
+
+# External native build
+.cxx/
+.externalNativeBuild/
+
+# OS generated
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
