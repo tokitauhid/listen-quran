@@ -179,6 +179,9 @@ fun ListenQuranApp(
 
         // Synced Scripture Bottom Sheet
         if (showVersesSheet) {
+            LaunchedEffect(playbackState.currentSurah?.id) {
+                viewModel.loadVersesForCurrentSurah()
+            }
             SyncedAyahsBottomSheet(
                 playbackState = playbackState,
                 verses = currentVerses,
@@ -194,6 +197,7 @@ fun ListenQuranApp(
             QueueModalSheet(
                 playbackState = playbackState,
                 onDismiss = { showQueueSheet = false },
+                onPlayQueueItem = { viewModel.playQueueItem(it) },
                 onRemoveFromQueue = { viewModel.removeFromQueue(it) },
                 onClearQueue = { viewModel.clearQueue() },
             )
@@ -204,6 +208,12 @@ fun ListenQuranApp(
             PlayerActionsMenuSheet(
                 playbackState = playbackState,
                 onDismiss = { showActionsMenuSheet = false },
+                onPlayNextInQueue = {
+                    playbackState.currentSurah?.let { viewModel.playNextInQueue(it) }
+                },
+                onAddToQueue = {
+                    playbackState.currentSurah?.let { viewModel.addToQueue(it) }
+                },
                 onShareSurah = {
                     playbackState.currentSurah?.let { surah ->
                         val sendIntent = Intent().apply {

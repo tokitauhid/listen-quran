@@ -75,6 +75,28 @@ object MediaModule {
                     .setAvailablePlayerCommands(playerCommands)
                     .build()
             }
+
+            override fun onPlaybackResumption(
+                mediaSession: MediaSession,
+                controller: MediaSession.ControllerInfo
+            ): com.google.common.util.concurrent.ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+                val currentItem = mediaSession.player.currentMediaItem
+                return if (currentItem != null) {
+                    val startPositionMs = mediaSession.player.currentPosition
+                    val startIndex = mediaSession.player.currentMediaItemIndex
+                    com.google.common.util.concurrent.Futures.immediateFuture(
+                        MediaSession.MediaItemsWithStartPosition(
+                            listOf(currentItem),
+                            startIndex,
+                            startPositionMs
+                        )
+                    )
+                } else {
+                    com.google.common.util.concurrent.Futures.immediateFailedFuture(
+                        UnsupportedOperationException("No media to resume")
+                    )
+                }
+            }
         }
 
         return MediaSession.Builder(context, forwardingPlayer)

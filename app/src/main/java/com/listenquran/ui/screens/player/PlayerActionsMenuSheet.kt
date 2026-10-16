@@ -30,6 +30,8 @@ fun PlayerActionsMenuSheet(
     onGoToReciter: () -> Unit,
     onStartReciterRadio: () -> Unit,
     onOpenSleepTimer: () -> Unit,
+    onPlayNextInQueue: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val surah = playbackState.currentSurah
@@ -62,6 +64,30 @@ fun PlayerActionsMenuSheet(
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (onPlayNextInQueue != null) {
+                ActionItem(
+                    icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                    title = "Play Next",
+                    subtitle = "Add to the top of queue",
+                    onClick = {
+                        onDismiss()
+                        onPlayNextInQueue()
+                    }
+                )
+            }
+
+            if (onAddToQueue != null) {
+                ActionItem(
+                    icon = Icons.Default.PlaylistAdd,
+                    title = "Add to Queue",
+                    subtitle = "Add to the end of queue",
+                    onClick = {
+                        onDismiss()
+                        onAddToQueue()
+                    }
+                )
             }
 
             ActionItem(

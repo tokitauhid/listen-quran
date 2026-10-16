@@ -38,7 +38,7 @@ data class PlaybackState(
     val stopAtEndOfSurah: Boolean = false,
     val isRadio: Boolean = false,
     val radioStation: RadioStation? = null,
-    val queue: List<Surah> = emptyList(),
+    val queue: List<QueueItem> = emptyList(),
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
 )
@@ -62,6 +62,7 @@ class AudioPlayerManager @Inject constructor(
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var sessionStartTime: Long = 0L
+    private val history = mutableListOf<QueueItem>()
 
     init {
         player.addListener(object : Player.Listener {
@@ -95,6 +96,17 @@ class AudioPlayerManager @Inject constructor(
                     }
                 }
             }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("AudioPlayerManager", "ExoPlayer playback error: ${error.errorCodeName}", error)
+                _playbackState.value = _playbackState.value.copy(isBuffering = false)
+                if (_playbackState.value.queue.isNotEmpty()) {
+                    scope.launch {
+                        delay(1200)
+                        playNext()
+                    }
+                }
+            }
         })
     }
 
@@ -108,6 +120,13 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
+        val prevSurah = _playbackState.value.currentSurah
+        val prevReciter = _playbackState.value.currentReciter
+        if (prevSurah != null && prevReciter != null && (prevSurah.id != surah.id || prevReciter.id != reciter.id)) {
+            history.add(QueueItem(surah = prevSurah, reciter = prevReciter))
+            if (history.size > 50) history.removeAt(0)
+        }
+
         ensureServiceRunning()
         _currentPositionMs.value = 0L
         scope.launch {
@@ -228,10 +247,26 @@ class AudioPlayerManager @Inject constructor(
         _playbackState.value = _playbackState.value.copy(playbackSpeed = speed)
     }
 
-    fun addToQueue(surah: Surah) {
-        val currentQueue = _playbackState.value.queue.toMutableList()
-        currentQueue.add(surah)
-        _playbackState.value = _playbackState.value.copy(queue = currentQueue)
+    fun addToQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
+        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
+        val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
+        _playbackState.value = _playbackState.value.copy(queue = _playbackState.value.queue + item)
+    }
+
+    fun playNextInQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
+        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
+        val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
+        _playbackState.value = _playbackState.value.copy(queue = listOf(item) + _playbackState.value.queue)
+    }
+
+    fun playQueueItem(index: Int) {
+        val currentQueue = _playbackState.value.queue
+        if (index in currentQueue.indices) {
+            val target = currentQueue[index]
+            val remaining = currentQueue.toMutableList().apply { removeAt(index) }
+            _playbackState.value = _playbackState.value.copy(queue = remaining)
+            playSurah(target.surah, target.reciter, target.startAyah)
+        }
     }
 
     fun removeFromQueue(index: Int) {
@@ -263,15 +298,14 @@ class AudioPlayerManager @Inject constructor(
 
     fun playNext() {
         val q = _playbackState.value.queue
-        val reciter = _playbackState.value.currentReciter ?: return
-
         if (q.isNotEmpty()) {
-            val nextSurah = q.first()
+            val nextItem = q.first()
             _playbackState.value = _playbackState.value.copy(queue = q.drop(1))
-            playSurah(nextSurah, reciter)
+            playSurah(nextItem.surah, nextItem.reciter, nextItem.startAyah)
             return
         }
 
+        val reciter = _playbackState.value.currentReciter ?: return
         val current = _playbackState.value.currentSurah ?: return
         val nextId = if (_playbackState.value.isShuffleEnabled) {
             (1..114).random()
@@ -288,6 +322,20 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playPrevious() {
+        // Standard player behavior: restart current track if already played > 3 seconds
+        if (player.currentPosition > 3000L) {
+            seekTo(0L)
+            return
+        }
+
+        // Return to last played item from history if available
+        if (history.isNotEmpty()) {
+            val prevItem = history.removeAt(history.lastIndex)
+            playSurah(prevItem.surah, prevItem.reciter, prevItem.startAyah)
+            return
+        }
+
+        // Fallback to sequential previous Surah
         val current = _playbackState.value.currentSurah ?: return
         val prevId = if (current.id > 1) current.id - 1 else 114
         val reciter = _playbackState.value.currentReciter ?: return

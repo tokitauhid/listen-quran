@@ -30,6 +30,7 @@ import com.listenquran.ui.theme.AmiriQuranFont
 fun QueueModalSheet(
     playbackState: PlaybackState,
     onDismiss: () -> Unit,
+    onPlayQueueItem: (Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
     onClearQueue: () -> Unit,
     modifier: Modifier = Modifier,
@@ -165,9 +166,12 @@ fun QueueModalSheet(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(queue) { index, surah ->
+                    itemsIndexed(queue, key = { _, item -> item.id }) { index, item ->
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onPlayQueueItem(index) },
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surfaceContainer
                         ) {
@@ -197,27 +201,38 @@ fun QueueModalSheet(
                                     }
                                     Column {
                                         Text(
-                                            text = surah.nameSimple,
+                                            text = item.surah.nameSimple,
                                             style = MaterialTheme.typography.titleSmall,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "${surah.versesCount} Ayahs",
+                                            text = "${item.reciter.englishName} • ${item.surah.versesCount} Ayahs",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                IconButton(
-                                    onClick = { onRemoveFromQueue(index) },
-                                    modifier = Modifier.size(32.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "Remove",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
+                                    Text(
+                                        text = item.surah.nameArabic,
+                                        fontFamily = AmiriQuranFont,
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
+                                    IconButton(
+                                        onClick = { onRemoveFromQueue(index) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Remove",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

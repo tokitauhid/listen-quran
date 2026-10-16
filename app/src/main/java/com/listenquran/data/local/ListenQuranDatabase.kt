@@ -15,7 +15,7 @@ import com.listenquran.data.local.entity.*
         KhatmaEntity::class,
         ListeningStatEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class ListenQuranDatabase : RoomDatabase() {

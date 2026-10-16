@@ -1,0 +1,2552 @@
+[
+  {
+    "id": 7,
+    "name": "مشاري راشد العفاسي",
+    "englishName": "Mishari Rashid al-`Afasy",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/",
+    "surahsCount": 114,
+    "isFavorite": true
+  },
+  {
+    "id": 2,
+    "name": "عبد الباسط عبد الصمد",
+    "englishName": "AbdulBaset AbdulSamad",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/abdul_baset/murattal/",
+    "surahsCount": 114,
+    "isFavorite": true
+  },
+  {
+    "id": 1,
+    "name": "عبد الباسط عبد الصمد",
+    "englishName": "AbdulBaset AbdulSamad",
+    "style": "Mujawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/abdul_baset/mujawwad/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 3,
+    "name": "عبد الرحمن السديس",
+    "englishName": "Abdur-Rahman as-Sudais",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/abdurrahmaan_as_sudais/murattal/",
+    "surahsCount": 114,
+    "isFavorite": true
+  },
+  {
+    "id": 4,
+    "name": "أبو بكر الشاطري",
+    "englishName": "Abu Bakr al-Shatri",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/abu_bakr_ash-shaatree/murattal/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 5,
+    "name": "هاني الرفاعي",
+    "englishName": "Hani ar-Rifai",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/haani_ar_rifaa3ee/murattal/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 6,
+    "name": "محمود خليل الحصري",
+    "englishName": "Mahmoud Khalil Al-Husary",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/khalil_al_husary/murattal/",
+    "surahsCount": 114,
+    "isFavorite": true
+  },
+  {
+    "id": 12,
+    "name": "محمود خليل الحصري",
+    "englishName": "Mahmoud Khalil Al-Husary",
+    "style": "Muallim",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/khalil_al_husary/muallim/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 9,
+    "name": "محمد صديق المنشاوي",
+    "englishName": "Mohamed Siddiq al-Minshawi",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/siddiq_al-minshawi/murattal/",
+    "surahsCount": 114,
+    "isFavorite": true
+  },
+  {
+    "id": 8,
+    "name": "محمد صديق المنشاوي",
+    "englishName": "Mohamed Siddiq al-Minshawi",
+    "style": "Mujawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/siddiq_al-minshawi/mujawwad/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 10,
+    "name": "سعود الشريم",
+    "englishName": "Sa`ud ash-Shuraym",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/sa3d_al-ghaamidi/murattal/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 11,
+    "name": "محمد محمود الطبلاوي",
+    "englishName": "Mohamed al-Tablawi",
+    "style": "Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://download.quranicaudio.com/qdc/mohammad_altablawi/murattal/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1001,
+    "name": "إبراهيم الأخضر",
+    "englishName": "Ibrahim Al-Akdar",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-akhdar/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1010,
+    "name": "أكرم العلاقمي",
+    "englishName": "Akram Alalaqmi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/akram-alaqmi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1100,
+    "name": "ماجد العنزي",
+    "englishName": "Majed Al-Enezi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/majed-anazi/r1/",
+    "surahsCount": 113,
+    "isFavorite": false
+  },
+  {
+    "id": 1102,
+    "name": "ماهر المعيقلي",
+    "englishName": "Maher Al Meaqli",
+    "style": "Almusshaf Al Mojawwad - Almusshaf Al Mojawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/maher-muaiqly/r3/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1104,
+    "name": "محمد الأيراوي",
+    "englishName": "Mohammad Al-Airawy",
+    "style": "Rewayat Warsh A'n Nafi' Men Tariq Alazraq - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-iraoui/r1/",
+    "surahsCount": 111,
+    "isFavorite": false
+  },
+  {
+    "id": 1105,
+    "name": "محمد البراك",
+    "englishName": "Mohammed Al-Barrak",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-barrak/r1/",
+    "surahsCount": 63,
+    "isFavorite": false
+  },
+  {
+    "id": 1106,
+    "name": "محمد الطبلاوي",
+    "englishName": "Mohammad Al-Tablaway",
+    "style": "Almusshaf Al Mojawwad - Almusshaf Al Mojawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-tablawi/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1107,
+    "name": "محمد اللحيدان",
+    "englishName": "Mohammed Al-Lohaidan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-luhaidan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1108,
+    "name": "محمد المحيسني",
+    "englishName": "Mohammed Al-Muhasny",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-muhaisni/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1109,
+    "name": "محمد أيوب",
+    "englishName": "Mohammed Ayyub",
+    "style": "Rewayat Hafs A'n Assem - Featured Recitation",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-ayyub/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1011,
+    "name": "الحسيني العزازي",
+    "englishName": "Alhusayni Al-Azazi",
+    "style": "Almusshaf Al Mo'lim - Almusshaf Al Mo'lim",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/husayni-azazi/r1/",
+    "surahsCount": 57,
+    "isFavorite": false
+  },
+  {
+    "id": 1110,
+    "name": "محمد صالح عالم شاه",
+    "englishName": "Mohammad Saleh Alim Shah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-shah/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1111,
+    "name": "محمد جبريل",
+    "englishName": "Mohammed Jibreel",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-jibreel/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1112,
+    "name": "محمد صديق المنشاوي",
+    "englishName": "Mohammed Siddiq Al-Minshawi",
+    "style": "Rewayat Hafs A'n Assem - Recorded in 1387 AH (1967 CE)",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-minshawi/r4/",
+    "surahsCount": 110,
+    "isFavorite": false
+  },
+  {
+    "id": 1115,
+    "name": "محمد عبدالكريم",
+    "englishName": "Mohammad Abdullkarem",
+    "style": "Rewayat Warsh A'n Nafi' Men  Tariq Abi Baker Alasbahani - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-abdulkareem/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1116,
+    "name": "محمد عبدالحكيم سعيد العبدالله",
+    "englishName": "Mohammad Al-Abdullah",
+    "style": "Rewayat AlDorai A'n Al-Kisa'ai - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-abdullah/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1118,
+    "name": "محمود خليل الحصري",
+    "englishName": "Mahmoud Khalil Al-Hussary",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-husary/r5/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1012,
+    "name": "إدريس أبكر",
+    "englishName": "Idrees Abkr",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/idrees-abkar/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1121,
+    "name": "محمود علي البنا",
+    "englishName": "Mahmoud Ali  Albanna",
+    "style": "Almusshaf Al Mojawwad - Almusshaf Al Mojawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-banna/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1123,
+    "name": "مشاري العفاسي",
+    "englishName": "Mishary Alafasi",
+    "style": "Rewayat AlDorai A'n Al-Kisa'ai - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mishary-alafasy/r2/",
+    "surahsCount": 6,
+    "isFavorite": false
+  },
+  {
+    "id": 1125,
+    "name": "مصطفى إسماعيل",
+    "englishName": "Mustafa Ismail",
+    "style": "Almusshaf Al Mojawwad - Almusshaf Al Mojawwad",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mustafa-ismail/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1126,
+    "name": "مصطفى اللاهوني",
+    "englishName": "Mustafa Al-Lahoni",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mustafa-lahouni/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1127,
+    "name": "مصطفى رعد العزاوي",
+    "englishName": "Mustafa raad Alazawy",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mustafa-azzawi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1128,
+    "name": "معمر الأندونيسي",
+    "englishName": "Muamar (From Indonesia)",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muammar-za/r1/",
+    "surahsCount": 8,
+    "isFavorite": false
+  },
+  {
+    "id": 1129,
+    "name": "مفتاح السلطني",
+    "englishName": "Muftah Alsaltany",
+    "style": "Ibn Thakwan A'n Ibn Amer - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muftah-saltani/r5/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1013,
+    "name": "الزين محمد أحمد",
+    "englishName": "Alzain Mohammad Ahmad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/zain-ahmad/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1134,
+    "name": "محمد سايد",
+    "englishName": "Mohammad Saayed",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-saayed/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1135,
+    "name": "عبدالرحمن السويّد",
+    "englishName": "Abdulrahman Alsuwayid",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-suwayid/r1/",
+    "surahsCount": 113,
+    "isFavorite": false
+  },
+  {
+    "id": 1136,
+    "name": "عبدالإله بن عون",
+    "englishName": "Abdulelah bin Aoun",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulelah-aoun/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1137,
+    "name": "أحمد طالب بن حميد",
+    "englishName": "Ahmad Talib bin Humaid",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-humaid/r1/",
+    "surahsCount": 107,
+    "isFavorite": false
+  },
+  {
+    "id": 1138,
+    "name": "نورين محمد صديق",
+    "englishName": "Noreen Mohammad Siddiq",
+    "style": "Rewayat Aldori A'n Abi Amr - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/noreen-siddiq/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1139,
+    "name": "ماجد الزامل",
+    "englishName": "Majed Al-Zamil",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/majed-zamil/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1014,
+    "name": "القارئ ياسين",
+    "englishName": "Al-Qaria Yassen",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yassen-jazairi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1149,
+    "name": "ماهر شخاشيرو",
+    "englishName": "Maher Shakhashero",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/maher-shakhashiro/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1015,
+    "name": "العشري عمران",
+    "englishName": "Alashri Omran",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ashri-omran/r1/",
+    "surahsCount": 113,
+    "isFavorite": false
+  },
+  {
+    "id": 1150,
+    "name": "محمد المنشد",
+    "englishName": "Mohammad AlMonshed",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-monshed/r1/",
+    "surahsCount": 110,
+    "isFavorite": false
+  },
+  {
+    "id": 1151,
+    "name": "محمود الشيمي",
+    "englishName": "Mahmood AlSheimy",
+    "style": "Rewayat AlDorai A'n Al-Kisa'ai - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-sheimy/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1152,
+    "name": "ياسر سلامة",
+    "englishName": "Yasser Salamah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yasser-salama/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1153,
+    "name": "أخيل عبدالحي روا",
+    "englishName": "Akhil Abdulhayy Rawa",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/akhil-rawa/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1154,
+    "name": "أستاذ زامري",
+    "englishName": "Ustaz Zamri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/zamri-abdullah/r1/",
+    "surahsCount": 7,
+    "isFavorite": false
+  },
+  {
+    "id": 1159,
+    "name": "خالد المهنا",
+    "englishName": "Khalid Almohana",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-mohanna/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1016,
+    "name": "العيون الكوشي",
+    "englishName": "Aloyoon Al-Koshi",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/laayoun-kouchi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1160,
+    "name": "عادل الكلباني",
+    "englishName": "Adel Al-Khalbany",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/adel-kalbani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1161,
+    "name": "موسى بلال",
+    "englishName": "Mousa Bilal",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/musa-bilal/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1162,
+    "name": "حسين آل الشيخ",
+    "englishName": "Hussain Alshaik",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hussain-sheikh/r1/",
+    "surahsCount": 59,
+    "isFavorite": false
+  },
+  {
+    "id": 1163,
+    "name": "حاتم فريد الواعر",
+    "englishName": "Hatem Fareed Alwaer",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hatem-waer/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1164,
+    "name": "إبراهيم الجرمي",
+    "englishName": "Ibrahim Aljormy",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-jormy/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1165,
+    "name": "محمود الرفاعي",
+    "englishName": "Mahmood Al rifai",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-rifai/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1166,
+    "name": "ناصر العبيد",
+    "englishName": "Nasser Al obaid",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nasser-obaid/r1/",
+    "surahsCount": 67,
+    "isFavorite": false
+  },
+  {
+    "id": 1167,
+    "name": "واصل المذن",
+    "englishName": "Wasel Almethen",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/wasel-methen/r1/",
+    "surahsCount": 9,
+    "isFavorite": false
+  },
+  {
+    "id": 1017,
+    "name": "توفيق الصايغ",
+    "englishName": "Tawfeeq As-Sayegh",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/tawfeeq-sayegh/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1178,
+    "name": "إبراهيم الدوسري",
+    "englishName": "Ibrahim Aldosari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-dosari/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1018,
+    "name": "جمال شاكر عبدالله",
+    "englishName": "Jamal Shaker Abdullah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/jamal-abdullah/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1181,
+    "name": "جمعان العصيمي",
+    "englishName": "Jamaan Alosaimi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/jamaan-osaimi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1183,
+    "name": "رضية عبدالرحمن",
+    "englishName": "Rodziah Abdulrahman",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/rodziah-abdulrahman/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1184,
+    "name": "رقية سولونق",
+    "englishName": "Rogayah Sulong",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/rogayah-sulong/r1/",
+    "surahsCount": 1,
+    "isFavorite": false
+  },
+  {
+    "id": 1185,
+    "name": "سابينة مامات",
+    "englishName": "Sapinah Mamat",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sapinah-mamat/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1187,
+    "name": "سيدين عبدالرحمن",
+    "englishName": "Saidin Abdulrahman",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saidin-abdulrahman/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1188,
+    "name": "عبدالغني عبدالله",
+    "englishName": "Abdulghani Abdullah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulghani-abdullah/r1/",
+    "surahsCount": 13,
+    "isFavorite": false
+  },
+  {
+    "id": 1189,
+    "name": "عبدالله فهمي",
+    "englishName": "Abdullah Fahmi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-fahmi/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1019,
+    "name": "حمد الدغريري",
+    "englishName": "Hamad Al Daghriri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hamad-daghriri/r1/",
+    "surahsCount": 88,
+    "isFavorite": false
+  },
+  {
+    "id": 1190,
+    "name": "محمد الحافظ",
+    "englishName": "Muhammad Al-Hafiz",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-hafiz/r1/",
+    "surahsCount": 3,
+    "isFavorite": false
+  },
+  {
+    "id": 1191,
+    "name": "محمد حفص علي",
+    "englishName": "Mohammed Hafas Ali",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-ali/r1/",
+    "surahsCount": 5,
+    "isFavorite": false
+  },
+  {
+    "id": 1192,
+    "name": "محمد خير النور",
+    "englishName": "Muhammed Khairul Anuar",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-anuar/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1193,
+    "name": "يوسف بن نوح أحمد",
+    "englishName": "Yousef Bin Noah Ahmad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yousef-ahmad/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1194,
+    "name": "جمال الدين الزيلعي",
+    "englishName": "Jamal Addeen Alzailaie",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/jamaluddin-zailai/r1/",
+    "surahsCount": 8,
+    "isFavorite": false
+  },
+  {
+    "id": 1197,
+    "name": "معيض الحارثي",
+    "englishName": "Moeedh Alharthi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/moeedh-harthi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1198,
+    "name": "محمد رشاد الشريف",
+    "englishName": "Mohammad Rashad Alshareef",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-shareef/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1002,
+    "name": "إبراهيم الجبرين",
+    "englishName": "Ibrahim Al-Jebreen",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-jibreen/r1/",
+    "surahsCount": 107,
+    "isFavorite": false
+  },
+  {
+    "id": 1020,
+    "name": "خالد الجليل",
+    "englishName": "Khalid Al-Jileel",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-jalil/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1201,
+    "name": "أحمد الطرابلسي",
+    "englishName": "Ahmed Al-trabulsi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-tarabulsi/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1202,
+    "name": "عبدالله الكندري",
+    "englishName": "Abdullah Al-Kandari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-kandari/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1203,
+    "name": "أحمد عامر",
+    "englishName": "Ahmed Amer",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-amer/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1204,
+    "name": "إبراهيم السعدان",
+    "englishName": "Ibrahem Assadan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-saadan/r1/",
+    "surahsCount": 50,
+    "isFavorite": false
+  },
+  {
+    "id": 1205,
+    "name": "أحمد الحذيفي",
+    "englishName": "Ahmad Alhuthaifi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-hudhaifi/r1/",
+    "surahsCount": 110,
+    "isFavorite": false
+  },
+  {
+    "id": 1206,
+    "name": "محمد عثمان خان",
+    "englishName": "Mohammed Osman Khan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-khan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1207,
+    "name": "يوسف الدغوش",
+    "englishName": "Youssef Edghouch",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/youssef-edghouch/r1/",
+    "surahsCount": 26,
+    "isFavorite": false
+  },
+  {
+    "id": 1208,
+    "name": "الدوكالي محمد العالم",
+    "englishName": "Addokali Mohammad Alalim",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/dokali-alim/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1209,
+    "name": "وشيار حيدر اربيلي",
+    "englishName": "Wishear Hayder Arbili",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/wishear-arbili/r1/",
+    "surahsCount": 2,
+    "isFavorite": false
+  },
+  {
+    "id": 1021,
+    "name": "خالد القحطاني",
+    "englishName": "Khaled Al-Qahtani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-qahtani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1211,
+    "name": "الفاتح محمد الزبير",
+    "englishName": "Alfateh Alzubair",
+    "style": "Rewayat Aldori A'n Abi Amr - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fateh-zubair/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22136,
+    "name": "عبدالله القرافي",
+    "englishName": "Abdullah Alqarafi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-qarafi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22148,
+    "name": "عبدالبديع غيلان",
+    "englishName": "Abdulbadi Ghailan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulbadi-ghailan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22181,
+    "name": "محمد برهجي",
+    "englishName": "Muhammad Burhaji",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-burhaji/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22182,
+    "name": "يوسف العيدروس",
+    "englishName": "Yusuf ALaidroos",
+    "style": "Rewayat Hafs A'n Assem - Featured Recitation",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yousef-aidarous/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22183,
+    "name": "حسن الدغريري",
+    "englishName": "Hassan Aldaghriri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hassan-daghriri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22184,
+    "name": "محمد الفقيه",
+    "englishName": "Muhammad Al Faqih",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-faqih/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22186,
+    "name": "جنيد آدم عبدالله",
+    "englishName": "Junaid Adam Abdullah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/junaid-abdullah/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22187,
+    "name": "خالد الزيادي",
+    "englishName": "Khalid Alziyadi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-ziyadi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22188,
+    "name": "الوليد الشمسان",
+    "englishName": "Alwaleed Alshamsan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/waleed-shamsan/r1/",
+    "surahsCount": 71,
+    "isFavorite": false
+  },
+  {
+    "id": 22191,
+    "name": "إبراهيم الشهري",
+    "englishName": "Ibrahim Al-Shahri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-shahri/r1/",
+    "surahsCount": 113,
+    "isFavorite": false
+  },
+  {
+    "id": 22193,
+    "name": "عبدالرحمن بن عبدالرزاق البدر",
+    "englishName": "Abdul Rahman bin Abdul Razzaq Al Badr",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-badr/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22196,
+    "name": "عليجان قوري حمدان",
+    "englishName": "Alijon Qori",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/alijon-hamdan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22197,
+    "name": "محمد الزبيدي",
+    "englishName": "Mohammed Al-Zubaidi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-zubaidi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22199,
+    "name": "عبد المجيب بنكيران",
+    "englishName": "Abdelmoujib Benkirane",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdelmoujib-benkirane/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1212,
+    "name": "طارق عبدالغني دعوب",
+    "englishName": "Tareq Abdulgani daawob",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/tareq-daawob/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22200,
+    "name": "محمد ديبيروف",
+    "englishName": "Mohammad Dibirov",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-dibirov/r1/",
+    "surahsCount": 24,
+    "isFavorite": false
+  },
+  {
+    "id": 22201,
+    "name": "عاصم اللحیدان",
+    "englishName": "Asim Al-Luhaidan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/asim-luhaidan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22202,
+    "name": "محمود حرفوش",
+    "englishName": "Mahmoud Harfoush",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-harfoush/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 22203,
+    "name": "أيمن رشدي سويد",
+    "englishName": "Ayman Rushdi Swaid",
+    "style": "Rewayat Hafs A'n Assem - Almusshaf Al Mo'lim",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://server15.mp3quran.net/a-rushdi/Almusshaf-Al-Mo-lim/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1216,
+    "name": "عثمان الأنصاري",
+    "englishName": "Othman Al-Ansary",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/othman-ansari/r1/",
+    "surahsCount": 76,
+    "isFavorite": false
+  },
+  {
+    "id": 1217,
+    "name": "بندر بليله",
+    "englishName": "Bandar Balilah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/bandar-baleela/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1218,
+    "name": "خالد الشريمي",
+    "englishName": "Khalid Al-Shoraimy",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-shuraimi/r1/",
+    "surahsCount": 73,
+    "isFavorite": false
+  },
+  {
+    "id": 1219,
+    "name": "وديع اليمني",
+    "englishName": "Wadeea Al-Yamani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/wadee-yamani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1022,
+    "name": "خالد عبدالكافي",
+    "englishName": "Khalid Abdulkafi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-abdulkafi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1221,
+    "name": "رعد محمد الكردي",
+    "englishName": "Raad Al Kurdi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/raad-kurdi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1225,
+    "name": "عبدالرحمن العوسي",
+    "englishName": "Abdulrahman Aloosi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-oosi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1226,
+    "name": "خالد الغامدي",
+    "englishName": "Khalid Algamdi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-ghamdi/r1/",
+    "surahsCount": 102,
+    "isFavorite": false
+  },
+  {
+    "id": 1227,
+    "name": "رمضان شكور",
+    "englishName": "Ramadan Shakoor",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ramadan-shakoor/r1/",
+    "surahsCount": 65,
+    "isFavorite": false
+  },
+  {
+    "id": 1228,
+    "name": "عبدالمجيد الأركاني",
+    "englishName": "Abdulmajeed Al-Arkani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmajeed-arkani/r1/",
+    "surahsCount": 49,
+    "isFavorite": false
+  },
+  {
+    "id": 1229,
+    "name": "محمد خليل القارئ",
+    "englishName": "Mohammad Khalil Al-Qari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-khalil/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1023,
+    "name": "خالد الوهيبي",
+    "englishName": "Khalid Al-Wehabi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-wahaibi/r1/",
+    "surahsCount": 25,
+    "isFavorite": false
+  },
+  {
+    "id": 1230,
+    "name": "رامي الدعيس",
+    "englishName": "Rami Aldeais",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/rami-duais/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1231,
+    "name": "هزاع البلوشي",
+    "englishName": "Hazza Al-Balushi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hazza-balushi/r1/",
+    "surahsCount": 91,
+    "isFavorite": false
+  },
+  {
+    "id": 1236,
+    "name": "عبدالرحمن الماجد",
+    "englishName": "Abdulrahman Al-Majed",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-majed/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1237,
+    "name": "مروان العكري",
+    "englishName": "Marwan Alakri",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/marwan-akri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1024,
+    "name": "خليفة الطنيجي",
+    "englishName": "Khalifa Altunaiji",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalifa-tunaiji/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1240,
+    "name": "سلمان العتيبي",
+    "englishName": "Salman Alotaibi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salman-otaibi/r1/",
+    "surahsCount": 75,
+    "isFavorite": false
+  },
+  {
+    "id": 1241,
+    "name": "محمد رفعت",
+    "englishName": "Mohammad Refat",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-refaat/r1/",
+    "surahsCount": 31,
+    "isFavorite": false
+  },
+  {
+    "id": 1243,
+    "name": "عبدالله الموسى",
+    "englishName": "Abdullah Al-Mousa",
+    "style": "Almusshaf Al Mo'lim - Almusshaf Al Mo'lim",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-mousa/r2/",
+    "surahsCount": 38,
+    "isFavorite": false
+  },
+  {
+    "id": 1244,
+    "name": "عبدالله الخلف",
+    "englishName": "Abdullah Al-Khalaf",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-khalaf/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1245,
+    "name": "منصور السالمي",
+    "englishName": "Mansour Al-Salemi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mansour-salimi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1246,
+    "name": "صلاح مصلي",
+    "englishName": "Salah Musali",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salah-musalli/r1/",
+    "surahsCount": 49,
+    "isFavorite": false
+  },
+  {
+    "id": 1247,
+    "name": "خالد الشارخ",
+    "englishName": "Khalid Alsharekh",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-sharekh/r1/",
+    "surahsCount": 64,
+    "isFavorite": false
+  },
+  {
+    "id": 1248,
+    "name": "ناصر العصفور",
+    "englishName": "Nasser Alosfor",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nasser-asfour/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1025,
+    "name": "داود حمزة",
+    "englishName": "Dawood Hamza",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/dawood-hamza/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1250,
+    "name": "محمد البخيت",
+    "englishName": "Mohammad Albukheet",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-bukhait/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1251,
+    "name": "ناصر الماجد",
+    "englishName": "Nasser Almajed",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nasser-majed/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1252,
+    "name": "أحمد السويلم",
+    "englishName": "Ahmed Al-Swailem",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-suwailem/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1253,
+    "name": "إسلام صبحي",
+    "englishName": "Islam Sobhi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/islam-sobhi/r1/",
+    "surahsCount": 109,
+    "isFavorite": false
+  },
+  {
+    "id": 1254,
+    "name": "بدر التركي",
+    "englishName": "Bader Alturki",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/badr-turki/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1255,
+    "name": "هيثم الجدعاني",
+    "englishName": "Hitham Aljadani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/haitham-jadani/r1/",
+    "surahsCount": 101,
+    "isFavorite": false
+  },
+  {
+    "id": 1256,
+    "name": "أحمد خليل شاهين",
+    "englishName": "Ahmad Shaheen",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-shaheen/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1257,
+    "name": "سعد المقرن",
+    "englishName": "Saad Almqren",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saad-muqrin/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1259,
+    "name": "أحمد النفيس",
+    "englishName": "Ahmad Al Nufais",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-nufais/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1026,
+    "name": "رشيد إفراد",
+    "englishName": "Rasheed Ifrad",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/rachid-ifrad/r1/",
+    "surahsCount": 50,
+    "isFavorite": false
+  },
+  {
+    "id": 1260,
+    "name": "عمر الدريويز",
+    "englishName": "Omar Al Darweez",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/omar-duraiwiz/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1263,
+    "name": "عبدالعزيز العسيري",
+    "englishName": "Abdulaziz Alasiri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulaziz-asiri/r1/",
+    "surahsCount": 72,
+    "isFavorite": false
+  },
+  {
+    "id": 1264,
+    "name": "يونس اسويلص",
+    "englishName": "Younes Souilass",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/younes-souilass/r1/",
+    "surahsCount": 65,
+    "isFavorite": false
+  },
+  {
+    "id": 1265,
+    "name": "أحمد ديبان",
+    "englishName": "Ahmad Deban",
+    "style": "Ibn Jammaz A'n Abi Ja'far - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-deeban/r13/",
+    "surahsCount": 11,
+    "isFavorite": false
+  },
+  {
+    "id": 1267,
+    "name": "عبدالله كامل",
+    "englishName": "Abdullah Kamel",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-kamel/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1268,
+    "name": "بيشه وا قادر الكردي",
+    "englishName": "Peshawa Qadr Al-Kurdi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/peshawa-kurdi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1027,
+    "name": "رشيد بلعالية",
+    "englishName": "Rachid Belalya",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/rachid-belalia/r2/",
+    "surahsCount": 5,
+    "isFavorite": false
+  },
+  {
+    "id": 1271,
+    "name": "نذير المالكي",
+    "englishName": "Nathier Almalki",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nadhir-maliki/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1272,
+    "name": "عكاشة كميني",
+    "englishName": "Okasha Kameny",
+    "style": "Rewayat Albizi A'n Ibn Katheer - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/okasha-kameny/r2/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1273,
+    "name": "هيثم الدخين",
+    "englishName": "Haitham Aldukhain",
+    "style": "Rewayat Hafs A'n Assem - Featured Recitation",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/haitham-dukhain/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1274,
+    "name": "محمد أبو سنينة",
+    "englishName": "Muhammad Abu Sneina",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-abusnaina/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1275,
+    "name": "محمد الأمين قنيوة",
+    "englishName": "Mohammed Al-Amin Qeniwa",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/muhammad-qeniwa/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1277,
+    "name": "محمود عبدالحكم",
+    "englishName": "Mahmoud Abdul Hakam",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mahmoud-abdulhakam/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1278,
+    "name": "أحمد عيسى المعصراوي",
+    "englishName": "Ahmad Issa Al Maasaraawi",
+    "style": "Rewayat Rowis and Rawh A'n Yakoob Al Hadrami  - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-masarawi/r2/",
+    "surahsCount": 64,
+    "isFavorite": false
+  },
+  {
+    "id": 1279,
+    "name": "إبراهيم كشيدان",
+    "englishName": "Ibrahim Kshidan",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-kshidan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1028,
+    "name": "زكريا حمامة",
+    "englishName": "Zakaria Hamamah",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/zakaria-hamama/r1/",
+    "surahsCount": 7,
+    "isFavorite": false
+  },
+  {
+    "id": 1280,
+    "name": "هاشم أبو دلال",
+    "englishName": "Hashim Abu Dalal",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hashim-abudalal/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1281,
+    "name": "فؤاد الخامري",
+    "englishName": "Fouad Alkhamery",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fouad-khamiri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1282,
+    "name": "سيد أحمد هاشمي",
+    "englishName": "Sayed Ahmad Hashemi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sayed-hashemi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1283,
+    "name": "خالد كريم محمدي",
+    "englishName": "Khalid Mohammadi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/khalid-mohammadi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1284,
+    "name": "مال الله عبدالرحمن الجابر",
+    "englishName": "Mal-Allah Abdulrhman Aljaber",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/malallah-jaber/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1285,
+    "name": "سلمان الصديق",
+    "englishName": "Salman Alsadeiq",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salman-siddiq/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1286,
+    "name": "حسن صالح",
+    "englishName": "Hasan Saleh",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hassan-saleh/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1287,
+    "name": "عبدالرحمن الشحات",
+    "englishName": "Abdulrahman Alshahhat",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-shahat/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1288,
+    "name": "عيسى عمر سناكو",
+    "englishName": "Issa Omar Sanankoua",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/issa-sanankoua/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1289,
+    "name": "هارون بقائي",
+    "englishName": "Haroon Baqai",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/haroon-baqai/r1/",
+    "surahsCount": 51,
+    "isFavorite": false
+  },
+  {
+    "id": 1029,
+    "name": "عبدالله بخاري",
+    "englishName": "Abdullah Bukhari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-bukhari/r1/",
+    "surahsCount": 79,
+    "isFavorite": false
+  },
+  {
+    "id": 1290,
+    "name": "صالح القريشي",
+    "englishName": "Saleh Alquraishi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saleh-quraishi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1003,
+    "name": "إبراهيم العسيري",
+    "englishName": "Ibrahim Al-Asiri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ibrahim-asiri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1030,
+    "name": "سعد الغامدي",
+    "englishName": "Saad Al-Ghamdi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saad-ghamdi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1300,
+    "name": "صالح الشمراني",
+    "englishName": "Saleh Alshamrani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saleh-shamrani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1301,
+    "name": "فيصل الهاجري",
+    "englishName": "Faisal Al-Hajry",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/faisal-hajri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1302,
+    "name": "أنس العمادي",
+    "englishName": "Anas Alemadi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/anas-emadi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1303,
+    "name": "عبدالملك العسكر",
+    "englishName": "Abdulmalik Alaskar",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmalik-askar/r1/",
+    "surahsCount": 7,
+    "isFavorite": false
+  },
+  {
+    "id": 1304,
+    "name": "عبدالكريم الحازمي",
+    "englishName": "Abdulkareem Alhazmi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulkareem-hazmi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1305,
+    "name": "هشام الهراز",
+    "englishName": "Hicham Lharraz",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hicham-lharraz/r1/",
+    "surahsCount": 113,
+    "isFavorite": false
+  },
+  {
+    "id": 1306,
+    "name": "عبدالله المشعل",
+    "englishName": "Abdullah Al-Mishal",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-mishal/r1/",
+    "surahsCount": 11,
+    "isFavorite": false
+  },
+  {
+    "id": 1307,
+    "name": "عبدالعزيز سحيم",
+    "englishName": "Abdelaziz sheim",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdelaziz-sheim/r1/",
+    "surahsCount": 16,
+    "isFavorite": false
+  },
+  {
+    "id": 1031,
+    "name": "سعود الشريم",
+    "englishName": "Saud Al-Shuraim",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saud-shuraim/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1032,
+    "name": "سهل ياسين",
+    "englishName": "Sahl Yassin",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sahl-yassin/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1033,
+    "name": "زكي داغستاني",
+    "englishName": "Zaki Daghistani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/zaki-daghistani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1034,
+    "name": "سامي الحسن",
+    "englishName": "Sami Al-Hasn",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sami-hassan/r1/",
+    "surahsCount": 28,
+    "isFavorite": false
+  },
+  {
+    "id": 1035,
+    "name": "سامي الدوسري",
+    "englishName": "Sami Al-Dosari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sami-dosari/r1/",
+    "surahsCount": 53,
+    "isFavorite": false
+  },
+  {
+    "id": 1036,
+    "name": "سيد رمضان",
+    "englishName": "Sayeed Ramadan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/sayed-ramadan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1037,
+    "name": "شعبان الصياد",
+    "englishName": "Shaban Al-Sayiaad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/shaban-sayyad/r1/",
+    "surahsCount": 65,
+    "isFavorite": false
+  },
+  {
+    "id": 1038,
+    "name": "شيرزاد عبدالرحمن طاهر",
+    "englishName": "Shirazad Taher",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/shirzad-taher/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1039,
+    "name": "صابر عبدالحكم",
+    "englishName": "Saber Abdulhakm",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saber-abdulhakam/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1004,
+    "name": "شيخ أبو بكر الشاطري",
+    "englishName": "Shaik Abu Bakr Al Shatri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abubakr-shatri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1040,
+    "name": "صالح الصاهود",
+    "englishName": "Saleh Alsahood",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saleh-sahood/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1041,
+    "name": "صالح آل طالب",
+    "englishName": "Saleh Al-Talib",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saleh-talib/r1/",
+    "surahsCount": 32,
+    "isFavorite": false
+  },
+  {
+    "id": 1042,
+    "name": "صالح الهبدان",
+    "englishName": "Saleh Al-Habdan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/saleh-habdan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1043,
+    "name": "صلاح البدير",
+    "englishName": "Salah Albudair",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salah-budair/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1044,
+    "name": "صلاح الهاشم",
+    "englishName": "Salah Alhashim",
+    "style": "Rewayat Qalon A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salah-hashim/r2/",
+    "surahsCount": 7,
+    "isFavorite": false
+  },
+  {
+    "id": 1046,
+    "name": "صلاح بو خاطر",
+    "englishName": "Slaah Bukhatir",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/salah-bukhatir/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1047,
+    "name": "مختار الحاج",
+    "englishName": "Mukhtar Al-Haj",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/mukhtar-haj/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1048,
+    "name": "عادل ريان",
+    "englishName": "Adel Ryyan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/adel-rayyan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1049,
+    "name": "عبدالبارئ الثبيتي",
+    "englishName": "Abdelbari Al-Toubayti",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulbari-thubaiti/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1005,
+    "name": "أحمد بن علي العجمي",
+    "englishName": "Ahmad Al-Ajmy",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-ajmi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1050,
+    "name": "عبدالبارئ محمد",
+    "englishName": "Abdulbari Mohammad",
+    "style": "Almusshaf Al Mo'lim - Almusshaf Al Mo'lim",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulbari-muhammad/r2/",
+    "surahsCount": 91,
+    "isFavorite": false
+  },
+  {
+    "id": 1051,
+    "name": "عبدالباسط عبدالصمد",
+    "englishName": "Abdulbasit Abdulsamad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulbasit-abdulsamad/r3/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1054,
+    "name": "عبدالرحمن السديس",
+    "englishName": "Abdulrahman Alsudaes",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrahman-sudais/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1055,
+    "name": "عبدالعزيز الأحمد",
+    "englishName": "Abdul Aziz Al-Ahmad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulaziz-ahmad/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1056,
+    "name": "عبدالعزيز الزهراني",
+    "englishName": "Abdulaziz Az-Zahrani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulaziz-zahrani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1057,
+    "name": "عبدالله البريمي",
+    "englishName": "Abdullah Al-Burimi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-buraimi/r1/",
+    "surahsCount": 69,
+    "isFavorite": false
+  },
+  {
+    "id": 1058,
+    "name": "عبدالله البعيجان",
+    "englishName": "Abdullah Albuajan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-buaijan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1059,
+    "name": "عبدالله المطرود",
+    "englishName": "Abdullah Al-Mattrod",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-matrood/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1006,
+    "name": "أحمد الحواشي",
+    "englishName": "Ahmad Al-Hawashi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-hawashi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1060,
+    "name": "عبدالله بصفر",
+    "englishName": "Abdullah Basfer",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-basfar/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1061,
+    "name": "عبدالله خياط",
+    "englishName": "Abdullah Khayyat",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-khayyat/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1062,
+    "name": "عبدالله عواد الجهني",
+    "englishName": "Abdullah Al-Johany",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-juhani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1063,
+    "name": "عبدالله غيلان",
+    "englishName": "Abdullah Qaulan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-ghailan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1064,
+    "name": "عبدالرشيد صوفي",
+    "englishName": "Abdulrasheed Soufi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulrasheed-sufi/r3/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1066,
+    "name": "عبدالمحسن الحارثي",
+    "englishName": "Abdulmohsin Al-Harthy",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmohsen-harthi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1067,
+    "name": "عبدالمحسن القاسم",
+    "englishName": "Abdulmohsen Al-Qasim",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmohsen-qasim/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1068,
+    "name": "عبدالمحسن العسكر",
+    "englishName": "Abdulmohsin Al-Askar",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmohsen-askar/r1/",
+    "surahsCount": 4,
+    "isFavorite": false
+  },
+  {
+    "id": 1069,
+    "name": "عبدالمحسن العبيكان",
+    "englishName": "Abdulmohsin Al-Obaikan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulmohsen-obaikan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1007,
+    "name": "أحمد سعود",
+    "englishName": "Ahmad Saud",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-saud/r1/",
+    "surahsCount": 30,
+    "isFavorite": false
+  },
+  {
+    "id": 1070,
+    "name": "عبدالهادي أحمد كناكري",
+    "englishName": "Abdulhadi Kanakeri",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulhadi-kanakeri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1071,
+    "name": "عبدالودود حنيف",
+    "englishName": "Abdulwadood Haneef",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulwadood-haneef/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1072,
+    "name": "عبدالولي الأركاني",
+    "englishName": "Abdulwali Al-Arkani",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulwali-arkani/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1073,
+    "name": "علي أبو هاشم",
+    "englishName": "Ali Abo-Hashim",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ali-abuhashim/r1/",
+    "surahsCount": 14,
+    "isFavorite": false
+  },
+  {
+    "id": 1074,
+    "name": "علي بن عبدالرحمن الحذيفي",
+    "englishName": "Ali Alhuthaifi",
+    "style": "Sho'bah A'n Asim - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ali-hudhaifi/r3/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1076,
+    "name": "علي جابر",
+    "englishName": "Ali Jaber",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ali-jaber/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1077,
+    "name": "علي حجاج السويسي",
+    "englishName": "Ali Hajjaj Alsouasi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ali-souissi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1078,
+    "name": "عماد زهير حافظ",
+    "englishName": "Emad Hafez",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/imad-hafez/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1079,
+    "name": "عبدالعزيز التركي",
+    "englishName": "Abdulaziz Alturki",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdulaziz-turki/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1008,
+    "name": "أحمد صابر",
+    "englishName": "Ahmad Saber",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-saber/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1080,
+    "name": "عمر القزابري",
+    "englishName": "Omar Al-Qazabri",
+    "style": "Rewayat Warsh A'n Nafi' - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/omar-kazabri/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1081,
+    "name": "فارس عباد",
+    "englishName": "Fares Abbad",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fares-abbad/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1082,
+    "name": "فهد العتيبي",
+    "englishName": "Fahad Al-Otaibi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fahad-otaibi/r1/",
+    "surahsCount": 8,
+    "isFavorite": false
+  },
+  {
+    "id": 1083,
+    "name": "فهد الكندري",
+    "englishName": "Fahad Al-Kandari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fahad-kandari/r1/",
+    "surahsCount": 77,
+    "isFavorite": false
+  },
+  {
+    "id": 1084,
+    "name": "فواز الكعبي",
+    "englishName": "Fawaz Alkabi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/fawaz-kaabi/r1/",
+    "surahsCount": 49,
+    "isFavorite": false
+  },
+  {
+    "id": 1085,
+    "name": "لافي العوني",
+    "englishName": "Lafi Al-Oni",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/lafi-oni/r1/",
+    "surahsCount": 84,
+    "isFavorite": false
+  },
+  {
+    "id": 1086,
+    "name": "ناصر القطامي",
+    "englishName": "Nasser Alqatami",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nasser-qatami/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1087,
+    "name": "نبيل الرفاعي",
+    "englishName": "Nabil Al Rifay",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/nabil-rifai/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1088,
+    "name": "نعمة الحسان",
+    "englishName": "Neamah Al-Hassan",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/neama-hassan/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1089,
+    "name": "هاني الرفاعي",
+    "englishName": "Hani Arrifai",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/hani-rifai/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1009,
+    "name": "أحمد نعينع",
+    "englishName": "Ahmad Nauina",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/ahmad-naina/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1090,
+    "name": "وليد الدليمي",
+    "englishName": "Walid Al-Dulaimi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/waleed-dulaimi/r1/",
+    "surahsCount": 58,
+    "isFavorite": false
+  },
+  {
+    "id": 1091,
+    "name": "وليد النائحي",
+    "englishName": "Waleed Alnaehi",
+    "style": "Rewayat Qalon A'n Nafi' Men Tariq Abi Nasheet - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/waleed-naehi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1092,
+    "name": "ياسر الدوسري",
+    "englishName": "Yasser Al-Dosari",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yasser-dosari/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1093,
+    "name": "ياسر القرشي",
+    "englishName": "Yasser Al-Qurashi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yasser-qurashi/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1094,
+    "name": "ياسر الفيلكاوي",
+    "englishName": "Yasser Al-Faylakawi",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yasser-faylakawi/r1/",
+    "surahsCount": 87,
+    "isFavorite": false
+  },
+  {
+    "id": 1095,
+    "name": "ياسر المزروعي ",
+    "englishName": "Yasser Al-Mazroyee",
+    "style": "Rewayat Rowis and Rawh A'n Yakoob Al Hadrami  - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yasser-mazrouei/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1096,
+    "name": "يحيى حوا",
+    "englishName": "Yahya Hawwa",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yahya-hawwa/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1097,
+    "name": "يوسف الشويعي",
+    "englishName": "Yousef Alshoaey",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/yousef-shoaey/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  },
+  {
+    "id": 1098,
+    "name": "عبدالله عبدل",
+    "englishName": "Abdullah Abdal",
+    "style": "Rewayat Hafs A'n Assem - Murattal",
+    "qiraah": "Hafs an Asim",
+    "audioServer": "https://cdn.mp3quran.net/audio/abdullah-abdal/r1/",
+    "surahsCount": 114,
+    "isFavorite": false
+  }
+]

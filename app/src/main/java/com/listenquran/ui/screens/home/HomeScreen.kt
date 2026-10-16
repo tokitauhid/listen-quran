@@ -10,9 +10,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.QueueMusic
@@ -47,6 +50,8 @@ fun HomeScreen(
     onContinueKhatma: () -> Unit,
     onOpenSettings: () -> Unit,
     onNavigateToSearch: () -> Unit,
+    onPlayNext: ((Surah) -> Unit)? = null,
+    onAddToQueue: ((Surah) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
@@ -339,6 +344,8 @@ fun HomeScreen(
                     SurahListItem(
                         surah = surah,
                         onClick = { onSurahClick(surah) },
+                        onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
+                        onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
@@ -623,7 +630,11 @@ fun SurahListItem(
     surah: Surah,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: (() -> Unit)? = null,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -635,11 +646,12 @@ fun SurahListItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -658,26 +670,81 @@ fun SurahListItem(
                     }
                 }
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = surah.nameSimple,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "${surah.translatedName} • ${surah.versesCount} Ayahs",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Text(
-                text = surah.nameArabic,
-                fontFamily = AmiriQuranFont,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = surah.nameArabic,
+                    fontFamily = AmiriQuranFont,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                if (onPlayNext != null || onAddToQueue != null) {
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "More Options",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            if (onPlayNext != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Play Next") },
+                                    leadingIcon = {
+                                        Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onPlayNext()
+                                    }
+                                )
+                            }
+                            if (onAddToQueue != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Add to Queue") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.PlaylistAdd, contentDescription = null)
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onAddToQueue()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

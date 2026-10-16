@@ -50,6 +50,8 @@ fun ListenQuranNavHost(
                 onContinueKhatma = { viewModel.continueKhatma() },
                 onOpenSettings = { navController.navigate(TopLevelDestination.SETTINGS.route) },
                 onNavigateToSearch = { navController.navigate(TopLevelDestination.SEARCH.route) },
+                onPlayNext = { viewModel.playNextInQueue(it) },
+                onAddToQueue = { viewModel.addToQueue(it) },
             )
         }
         composable(TopLevelDestination.SEARCH.route) {
@@ -59,6 +61,8 @@ fun ListenQuranNavHost(
                 onSurahClick = { viewModel.playSurah(it) },
                 onVerseClick = { surah, ayah -> viewModel.playSurah(surah, startAyah = ayah) },
                 onReciterClick = onOpenReciterProfile,
+                onPlayNext = { viewModel.playNextInQueue(it) },
+                onAddToQueue = { viewModel.addToQueue(it) },
             )
         }
         composable(TopLevelDestination.LIBRARY.route) {

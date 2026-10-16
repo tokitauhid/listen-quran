@@ -48,6 +48,8 @@ fun SearchScreen(
     onSurahClick: (Surah) -> Unit,
     onVerseClick: (Surah, Int) -> Unit,
     onReciterClick: (Reciter) -> Unit,
+    onPlayNext: ((Surah) -> Unit)? = null,
+    onAddToQueue: ((Surah) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -264,7 +266,12 @@ fun SearchScreen(
                             )
                         }
                         items(filteredSurahs, key = { it.id }) { surah ->
-                            SurahListItem(surah = surah, onClick = { onSurahClick(surah) })
+                            SurahListItem(
+                                surah = surah,
+                                onClick = { onSurahClick(surah) },
+                                onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
+                                onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
+                            )
                         }
                     }
 
@@ -281,54 +288,10 @@ fun SearchScreen(
                             )
                         }
                         items(filteredReciters, key = { it.id }) { reciter ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { onReciterClick(reciter) },
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(44.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primaryContainer),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = reciter.englishName.take(1),
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = reciter.englishName,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "${reciter.qiraah} • ${reciter.style ?: "Murattal"}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Text(
-                                        text = reciter.name,
-                                        fontFamily = AmiriQuranFont,
-                                        fontSize = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            ReciterSearchItem(
+                                reciter = reciter,
+                                onClick = { onReciterClick(reciter) }
+                            )
                         }
                     }
 
@@ -433,26 +396,104 @@ fun SearchScreen(
                         }
                     }
 
-                    // All 114 Surahs catalog in Search
-                    item {
-                        Text(
-                            text = "All 114 Surahs",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                    }
+                    if (searchFilter == "Reciters") {
+                        item {
+                            Text(
+                                text = "All Reciters (${reciters.size})",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
 
-                    items(surahs, key = { it.id }) { surah ->
-                        SurahListItem(
-                            surah = surah,
-                            onClick = { onSurahClick(surah) },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
+                        items(reciters, key = { it.id }) { reciter ->
+                            ReciterSearchItem(
+                                reciter = reciter,
+                                onClick = { onReciterClick(reciter) },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        // All 114 Surahs catalog in Search
+                        item {
+                            Text(
+                                text = "All 114 Surahs",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        items(surahs, key = { it.id }) { surah ->
+                            SurahListItem(
+                                surah = surah,
+                                onClick = { onSurahClick(surah) },
+                                onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
+                                onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ReciterSearchItem(
+    reciter: Reciter,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = reciter.englishName.take(1),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = reciter.englishName,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${reciter.qiraah} • ${reciter.style ?: "Murattal"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = reciter.name,
+                fontFamily = AmiriQuranFont,
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

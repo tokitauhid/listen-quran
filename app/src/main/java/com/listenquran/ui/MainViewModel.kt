@@ -76,17 +76,12 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             playlistRepository.ensureLikedPlaylistCreated()
         }
+    }
 
-        // Whenever current Surah changes, fetch verses for synced scripture
+    fun loadVersesForCurrentSurah() {
+        val surahId = playbackState.value.currentSurah?.id ?: return
         viewModelScope.launch {
-            playbackState.map { it.currentSurah?.id }.distinctUntilChanged().collect { surahId ->
-                if (surahId != null) {
-                    val verses = quranRepository.getVerses(surahId)
-                    _currentVerses.value = verses
-                } else {
-                    _currentVerses.value = emptyList()
-                }
-            }
+            _currentVerses.value = quranRepository.getVerses(surahId)
         }
     }
 
@@ -217,8 +212,18 @@ class MainViewModel @Inject constructor(
         playerManager.toggleRepeat()
     }
 
-    fun addToQueue(surah: Surah) {
-        playerManager.addToQueue(surah)
+    fun addToQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
+        val targetReciter = reciter ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        playerManager.addToQueue(surah, targetReciter, startAyah)
+    }
+
+    fun playNextInQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
+        val targetReciter = reciter ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        playerManager.playNextInQueue(surah, targetReciter, startAyah)
+    }
+
+    fun playQueueItem(index: Int) {
+        playerManager.playQueueItem(index)
     }
 
     fun removeFromQueue(index: Int) {

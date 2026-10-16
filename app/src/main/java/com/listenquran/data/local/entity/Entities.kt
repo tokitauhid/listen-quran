@@ -29,6 +29,7 @@ data class ReciterEntity(
     val photoUrl: String?,
     val surahsCount: Int,
     val isFavorite: Boolean = false,
+    val audioServer: String? = null,
 )
 
 @Entity(tableName = "playlists")

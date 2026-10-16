@@ -46,6 +46,14 @@ data class Reciter(
     val photoUrl: String? = null,
     val surahsCount: Int = 114,
     val isFavorite: Boolean = false,
+    val audioServer: String? = null,
+)
+
+data class QueueItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val surah: Surah,
+    val reciter: Reciter,
+    val startAyah: Int = 1,
 )
 
 data class VerseTiming(
