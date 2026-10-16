@@ -1,0 +1,342 @@
+package com.listenquran.player
+
+import android.content.Context
+import android.content.Intent
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import com.listenquran.data.repository.QuranRepository
+import com.listenquran.data.repository.ReciterRepository
+import com.listenquran.data.repository.StatsRepository
+import com.listenquran.domain.model.*
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
+
+data class PlaybackState(
+    val isPlaying: Boolean = false,
+    val isBuffering: Boolean = false,
+    val currentSurah: Surah? = null,
+    val currentReciter: Reciter? = null,
+    val currentAyahNumber: Int = 1,
+    val currentWordIndex: Int = 0,
+    val currentPositionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val playbackSpeed: Float = 1.0f,
+    val verseTimings: List<VerseTiming> = emptyList(),
+    val isHifzActive: Boolean = false,
+    val hifzConfig: HifzLoopConfig? = null,
+    val hifzCurrentLoop: Int = 0,
+    val sleepTimerRemainingSeconds: Long? = null,
+    val isRadio: Boolean = false,
+    val radioStation: RadioStation? = null,
+    val queue: List<Surah> = emptyList(),
+)
+
+@Singleton
+class AudioPlayerManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    val player: ExoPlayer,
+    private val quranRepository: QuranRepository,
+    private val reciterRepository: ReciterRepository,
+    private val statsRepository: StatsRepository,
+) {
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    private val _playbackState = MutableStateFlow(PlaybackState())
+    val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    private var progressJob: Job? = null
+    private var sleepTimerJob: Job? = null
+    private var hifzLoopJob: Job? = null
+    private var sessionStartTime: Long = 0L
+
+    init {
+        startService()
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
+                if (isPlaying) {
+                    sessionStartTime = System.currentTimeMillis()
+                    startProgressTracker()
+                } else {
+                    recordSessionDuration()
+                    stopProgressTracker()
+                }
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                val isBuffering = playbackState == Player.STATE_BUFFERING
+                val duration = if (player.duration > 0) player.duration else 0L
+                _playbackState.value = _playbackState.value.copy(
+                    isBuffering = isBuffering,
+                    durationMs = duration
+                )
+                if (playbackState == Player.STATE_ENDED) {
+                    playNext()
+                }
+            }
+        })
+    }
+
+    private fun startService() {
+        try {
+            val intent = Intent(context, ListenQuranMediaService::class.java)
+            ContextCompat.startForegroundService(context, intent)
+        } catch (_: Exception) {}
+    }
+
+    fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
+        scope.launch {
+            _playbackState.value = _playbackState.value.copy(
+                currentSurah = surah,
+                currentReciter = reciter,
+                isRadio = false,
+                radioStation = null,
+                isBuffering = true,
+                currentAyahNumber = startAyah,
+            )
+
+            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
+            if (audioData != null) {
+                val mediaMetadata = MediaMetadata.Builder()
+                    .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
+                    .setArtist(reciter.englishName)
+                    .setDisplayTitle(surah.nameSimple)
+                    .build()
+
+                val mediaItem = MediaItem.Builder()
+                    .setUri(audioData.audioUrl)
+                    .setMediaMetadata(mediaMetadata)
+                    .build()
+
+                player.setMediaItem(mediaItem)
+                player.prepare()
+
+                _playbackState.value = _playbackState.value.copy(
+                    verseTimings = audioData.timestamps,
+                )
+
+                if (startAyah > 1) {
+                    val targetTiming = audioData.timestamps.find { it.verseKey == "${surah.id}:$startAyah" }
+                    if (targetTiming != null) {
+                        player.seekTo(targetTiming.timestampFrom)
+                    }
+                }
+
+                player.play()
+            }
+        }
+    }
+
+    fun playRadio(station: RadioStation) {
+        scope.launch {
+            _playbackState.value = _playbackState.value.copy(
+                isRadio = true,
+                radioStation = station,
+                currentSurah = null,
+                currentReciter = null,
+                verseTimings = emptyList(),
+                isBuffering = true,
+            )
+
+            val mediaMetadata = MediaMetadata.Builder()
+                .setTitle(station.name)
+                .setArtist(station.reciterName ?: "Quran Radio")
+                .setDisplayTitle(station.name)
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(station.streamUrl)
+                .setMediaMetadata(mediaMetadata)
+                .build()
+
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
+        }
+    }
+
+    fun togglePlayPause() {
+        if (player.isPlaying) {
+            player.pause()
+        } else {
+            player.play()
+        }
+    }
+
+    fun seekTo(positionMs: Long) {
+        player.seekTo(positionMs)
+        updateAyahAtPosition(positionMs)
+    }
+
+    fun seekToAyah(ayahNumber: Int) {
+        val surahId = _playbackState.value.currentSurah?.id ?: return
+        val targetTiming = _playbackState.value.verseTimings.find { it.verseKey == "$surahId:$ayahNumber" }
+        if (targetTiming != null) {
+            seekTo(targetTiming.timestampFrom)
+        }
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        player.playbackParameters = PlaybackParameters(speed)
+        _playbackState.value = _playbackState.value.copy(playbackSpeed = speed)
+    }
+
+    fun playNext() {
+        val current = _playbackState.value.currentSurah ?: return
+        val nextId = if (current.id < 114) current.id + 1 else 1
+        val reciter = _playbackState.value.currentReciter ?: return
+        scope.launch {
+            val nextSurah = quranRepository.getSurahById(nextId)
+            if (nextSurah != null) {
+                playSurah(nextSurah, reciter)
+            }
+        }
+    }
+
+    fun playPrevious() {
+        val current = _playbackState.value.currentSurah ?: return
+        val prevId = if (current.id > 1) current.id - 1 else 114
+        val reciter = _playbackState.value.currentReciter ?: return
+        scope.launch {
+            val prevSurah = quranRepository.getSurahById(prevId)
+            if (prevSurah != null) {
+                playSurah(prevSurah, reciter)
+            }
+        }
+    }
+
+    fun startHifzLoop(config: HifzLoopConfig) {
+        _playbackState.value = _playbackState.value.copy(
+            isHifzActive = true,
+            hifzConfig = config,
+            hifzCurrentLoop = 1,
+        )
+        seekToAyah(config.startAyah)
+        if (!player.isPlaying) {
+            player.play()
+        }
+    }
+
+    fun stopHifzLoop() {
+        _playbackState.value = _playbackState.value.copy(
+            isHifzActive = false,
+            hifzConfig = null,
+            hifzCurrentLoop = 0,
+        )
+    }
+
+    fun setSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes <= 0) {
+            _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
+            return
+        }
+
+        val totalSeconds = minutes * 60L
+        _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = totalSeconds)
+
+        sleepTimerJob = scope.launch {
+            var remaining = totalSeconds
+            while (remaining > 0) {
+                delay(1000L)
+                remaining--
+                _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = remaining)
+            }
+            player.pause()
+            _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
+        }
+    }
+
+    private fun startProgressTracker() {
+        progressJob?.cancel()
+        progressJob = scope.launch {
+            while (isActive) {
+                val pos = player.currentPosition
+                val dur = if (player.duration > 0) player.duration else _playbackState.value.durationMs
+                _playbackState.value = _playbackState.value.copy(
+                    currentPositionMs = pos,
+                    durationMs = dur,
+                )
+                updateAyahAtPosition(pos)
+                checkHifzLoop(pos)
+                delay(100L)
+            }
+        }
+    }
+
+    private fun stopProgressTracker() {
+        progressJob?.cancel()
+        progressJob = null
+    }
+
+    private fun updateAyahAtPosition(pos: Long) {
+        val timings = _playbackState.value.verseTimings
+        if (timings.isEmpty()) return
+
+        val matchedTiming = timings.find { pos in it.timestampFrom until it.timestampTo }
+            ?: timings.lastOrNull { pos >= it.timestampFrom }
+
+        if (matchedTiming != null) {
+            val ayahNum = matchedTiming.verseKey.split(":").getOrNull(1)?.toIntOrNull() ?: 1
+            var wordIdx = 0
+            for (seg in matchedTiming.segments) {
+                if (pos in seg.startMs..seg.endMs) {
+                    wordIdx = seg.wordIndex
+                    break
+                }
+            }
+            _playbackState.value = _playbackState.value.copy(
+                currentAyahNumber = ayahNum,
+                currentWordIndex = wordIdx,
+            )
+        }
+    }
+
+    private fun checkHifzLoop(pos: Long) {
+        val state = _playbackState.value
+        if (!state.isHifzActive || state.hifzConfig == null) return
+
+        val config = state.hifzConfig
+        val surahId = state.currentSurah?.id ?: return
+        val endTiming = state.verseTimings.find { it.verseKey == "$surahId:${config.endAyah}" } ?: return
+
+        if (pos >= endTiming.timestampTo) {
+            val currentLoop = state.hifzCurrentLoop
+            if (config.repeatCount == 0 || currentLoop < config.repeatCount) {
+                scope.launch {
+                    player.pause()
+                    if (config.delaySeconds > 0) {
+                        delay(config.delaySeconds * 1000L)
+                    }
+                    _playbackState.value = _playbackState.value.copy(hifzCurrentLoop = currentLoop + 1)
+                    seekToAyah(config.startAyah)
+                    player.play()
+                }
+            } else {
+                stopHifzLoop()
+            }
+        }
+    }
+
+    private fun recordSessionDuration() {
+        val start = sessionStartTime
+        if (start > 0) {
+            val elapsedSecs = (System.currentTimeMillis() - start) / 1000
+            val surah = _playbackState.value.currentSurah?.id ?: return
+            val reciter = _playbackState.value.currentReciter?.id ?: return
+            scope.launch {
+                statsRepository.recordSession(surah, reciter, elapsedSecs)
+            }
+            sessionStartTime = 0L
+        }
+    }
+}
