@@ -8,20 +8,21 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.listenquran.R
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class ListenQuranMediaService : MediaSessionService() {
+class ListenQuranMediaService : MediaLibraryService() {
 
     @Inject
     lateinit var player: ExoPlayer
 
     @Inject
-    lateinit var mediaSession: MediaSession
+    lateinit var mediaLibrarySession: MediaLibrarySession
 
     companion object {
         const val CHANNEL_ID = "listen_quran_playback_channel"
@@ -76,11 +77,15 @@ class ListenQuranMediaService : MediaSessionService() {
         }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession {
-        return mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession {
+        return mediaLibrarySession
     }
 
     override fun onDestroy() {
+        mediaLibrarySession.run {
+            player.release()
+            release()
+        }
         super.onDestroy()
     }
 }

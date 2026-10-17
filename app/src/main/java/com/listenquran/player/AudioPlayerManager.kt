@@ -1,12 +1,19 @@
 package com.listenquran.player
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaBrowser
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
+import com.listenquran.R
 import com.listenquran.data.repository.QuranRepository
 import com.listenquran.data.repository.ReciterRepository
 import com.listenquran.data.repository.StatsRepository
@@ -16,6 +23,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,7 +51,6 @@ data class PlaybackState(
 @Singleton
 class AudioPlayerManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    val player: ExoPlayer,
     private val quranRepository: QuranRepository,
     private val reciterRepository: ReciterRepository,
     private val statsRepository: StatsRepository,
@@ -59,15 +66,65 @@ class AudioPlayerManager @Inject constructor(
     private val _currentWordIndex = MutableStateFlow(0)
     val currentWordIndex: StateFlow<Int> = _currentWordIndex.asStateFlow()
 
+    private var browserFuture: ListenableFuture<MediaBrowser>? = null
+    private var browser: MediaBrowser? = null
+
+    val mediaBrowser: MediaBrowser?
+        get() = browser
+
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var sessionStartTime: Long = 0L
     private val history = mutableListOf<QueueItem>()
 
     init {
-        player.addListener(object : Player.Listener {
+        connectBrowser()
+    }
+
+    private fun connectBrowser() {
+        if (browser != null) return
+        try {
+            val sessionToken = SessionToken(
+                context,
+                ComponentName(context, ListenQuranMediaService::class.java)
+            )
+            val future = MediaBrowser.Builder(context, sessionToken)
+                .buildAsync()
+            browserFuture = future
+            future.addListener({
+                try {
+                    val controller = future.get()
+                    browser = controller
+                    setupControllerListener(controller)
+                } catch (e: Exception) {
+                    android.util.Log.e("AudioPlayerManager", "Failed to connect to MediaLibraryService", e)
+                }
+            }, ContextCompat.getMainExecutor(context))
+        } catch (e: Exception) {
+            android.util.Log.e("AudioPlayerManager", "Error creating MediaBrowser", e)
+        }
+    }
+
+    private fun withController(action: (MediaBrowser) -> Unit) {
+        val b = browser
+        if (b != null) {
+            action(b)
+        } else {
+            ensureServiceRunning()
+            browserFuture?.addListener({
+                try {
+                    browserFuture?.get()?.let(action)
+                } catch (e: Exception) {
+                    android.util.Log.e("AudioPlayerManager", "Failed to obtain MediaBrowser", e)
+                }
+            }, ContextCompat.getMainExecutor(context))
+        }
+    }
+
+    private fun setupControllerListener(controller: MediaBrowser) {
+        controller.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                _playbackState.value = _playbackState.value.copy(isPlaying = isPlaying)
+                _playbackState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
                     sessionStartTime = System.currentTimeMillis()
                     startProgressTracker()
@@ -77,29 +134,43 @@ class AudioPlayerManager @Inject constructor(
                 }
             }
 
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                val isBuffering = playbackState == Player.STATE_BUFFERING
-                val duration = if (player.duration > 0) player.duration else 0L
-                _playbackState.value = _playbackState.value.copy(
-                    isBuffering = isBuffering,
-                    durationMs = duration
-                )
-                if (playbackState == Player.STATE_ENDED) {
+            override fun onPlaybackStateChanged(state: Int) {
+                val isBuffering = state == Player.STATE_BUFFERING
+                val duration = if (controller.duration > 0) controller.duration else 0L
+                _playbackState.update {
+                    it.copy(
+                        isBuffering = isBuffering,
+                        durationMs = duration
+                    )
+                }
+                if (state == Player.STATE_ENDED) {
                     if (_playbackState.value.stopAtEndOfSurah) {
-                        _playbackState.value = _playbackState.value.copy(stopAtEndOfSurah = false)
-                        player.pause()
+                        _playbackState.update { it.copy(stopAtEndOfSurah = false) }
+                        controller.pause()
                     } else if (_playbackState.value.repeatMode == Player.REPEAT_MODE_ONE) {
-                        player.seekTo(0)
-                        player.play()
+                        controller.seekTo(0)
+                        controller.play()
                     } else {
                         playNext()
                     }
                 }
             }
 
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                mediaItem?.let { syncFromMediaItem(it) }
+            }
+
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                _playbackState.update { it.copy(repeatMode = repeatMode) }
+            }
+
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                _playbackState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
+            }
+
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                android.util.Log.e("AudioPlayerManager", "ExoPlayer playback error: ${error.errorCodeName}", error)
-                _playbackState.value = _playbackState.value.copy(isBuffering = false)
+                android.util.Log.e("AudioPlayerManager", "MediaController playback error: ${error.errorCodeName}", error)
+                _playbackState.update { it.copy(isBuffering = false) }
                 if (_playbackState.value.queue.isNotEmpty()) {
                     scope.launch {
                         delay(1200)
@@ -108,14 +179,66 @@ class AudioPlayerManager @Inject constructor(
                 }
             }
         })
+
+        // Synchronize initial state from controller if it was already playing
+        if (controller.isPlaying) {
+            _playbackState.update { it.copy(isPlaying = true) }
+            startProgressTracker()
+        }
+        controller.currentMediaItem?.let { syncFromMediaItem(it) }
+    }
+
+    private fun syncFromMediaItem(mediaItem: MediaItem) {
+        val mediaId = mediaItem.mediaId
+        val surahId = parseSurahId(mediaId) ?: return
+        val reciterId = parseReciterId(mediaId)
+
+        if (_playbackState.value.currentSurah?.id != surahId ||
+            (reciterId != null && _playbackState.value.currentReciter?.id != reciterId)) {
+            scope.launch {
+                val surah = quranRepository.getSurahById(surahId) ?: return@launch
+                val reciter = if (reciterId != null) {
+                    reciterRepository.getReciterById(reciterId) ?: reciterRepository.getDefaultReciter()
+                } else {
+                    _playbackState.value.currentReciter ?: reciterRepository.getDefaultReciter()
+                }
+                val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
+                _playbackState.update {
+                    it.copy(
+                        currentSurah = surah,
+                        currentReciter = reciter,
+                        verseTimings = audioData?.timestamps ?: emptyList(),
+                        currentAyahNumber = 1
+                    )
+                }
+            }
+        }
+    }
+
+    private fun parseSurahId(mediaId: String): Int? {
+        if (mediaId.startsWith("surah:")) {
+            val remainder = mediaId.removePrefix("surah:")
+            return remainder.substringBefore(":").toIntOrNull()
+        }
+        return mediaId.toIntOrNull()
+    }
+
+    private fun parseReciterId(mediaId: String): Int? {
+        if (mediaId.contains(":reciter:")) {
+            return mediaId.substringAfter(":reciter:").substringBefore(":").toIntOrNull()
+        }
+        return null
     }
 
     private fun ensureServiceRunning() {
         try {
             val intent = Intent(context, ListenQuranMediaService::class.java)
-            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            ContextCompat.startForegroundService(context, intent)
         } catch (e: Exception) {
             android.util.Log.e("AudioPlayerManager", "Failed to start media service", e)
+        }
+        if (browser == null) {
+            connectBrowser()
         }
     }
 
@@ -130,16 +253,18 @@ class AudioPlayerManager @Inject constructor(
         ensureServiceRunning()
         _currentPositionMs.value = 0L
         scope.launch {
-            _playbackState.value = _playbackState.value.copy(
-                currentSurah = surah,
-                currentReciter = reciter,
-                isBuffering = true,
-                currentAyahNumber = startAyah,
-            )
+            _playbackState.update {
+                it.copy(
+                    currentSurah = surah,
+                    currentReciter = reciter,
+                    isBuffering = true,
+                    currentAyahNumber = startAyah,
+                )
+            }
 
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
             if (audioData != null) {
-                val artworkUri = android.net.Uri.parse("android.resource://${context.packageName}/${com.listenquran.R.mipmap.ic_launcher}")
+                val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
                 val mediaMetadata = MediaMetadata.Builder()
                     .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
                     .setArtist(reciter.englishName)
@@ -155,40 +280,47 @@ class AudioPlayerManager @Inject constructor(
                     .build()
 
                 val mediaItem = MediaItem.Builder()
+                    .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
                     .setUri(audioData.audioUrl)
                     .setMediaMetadata(mediaMetadata)
                     .build()
 
-                player.setMediaItem(mediaItem)
-                player.prepare()
+                _playbackState.update {
+                    it.copy(verseTimings = audioData.timestamps)
+                }
 
-                _playbackState.value = _playbackState.value.copy(
-                    verseTimings = audioData.timestamps,
-                )
-
+                var startPositionMs = 0L
                 if (startAyah > 1) {
                     val targetTiming = audioData.timestamps.find { it.verseKey == "${surah.id}:$startAyah" }
                     if (targetTiming != null) {
-                        player.seekTo(targetTiming.timestampFrom)
-                        _currentPositionMs.value = targetTiming.timestampFrom
+                        startPositionMs = targetTiming.timestampFrom
+                        _currentPositionMs.value = startPositionMs
                     }
                 }
 
-                player.play()
+                withController { controller ->
+                    controller.setMediaItem(mediaItem, startPositionMs)
+                    controller.prepare()
+                    controller.play()
+                }
             }
         }
     }
 
     fun togglePlayPause() {
-        if (player.isPlaying) {
-            player.pause()
-        } else {
-            player.play()
+        withController { controller ->
+            if (controller.isPlaying) {
+                controller.pause()
+            } else {
+                controller.play()
+            }
         }
     }
 
     fun seekTo(positionMs: Long) {
-        player.seekTo(positionMs)
+        withController { controller ->
+            controller.seekTo(positionMs)
+        }
         _currentPositionMs.value = positionMs
         updateAyahAtPosition(positionMs)
     }
@@ -202,20 +334,22 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun setPlaybackSpeed(speed: Float) {
-        player.playbackParameters = PlaybackParameters(speed)
-        _playbackState.value = _playbackState.value.copy(playbackSpeed = speed)
+        withController { controller ->
+            controller.playbackParameters = PlaybackParameters(speed)
+        }
+        _playbackState.update { it.copy(playbackSpeed = speed) }
     }
 
     fun addToQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
         val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
         val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
-        _playbackState.value = _playbackState.value.copy(queue = _playbackState.value.queue + item)
+        _playbackState.update { it.copy(queue = it.queue + item) }
     }
 
     fun playNextInQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
         val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
         val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
-        _playbackState.value = _playbackState.value.copy(queue = listOf(item) + _playbackState.value.queue)
+        _playbackState.update { it.copy(queue = listOf(item) + it.queue) }
     }
 
     fun playQueueItem(index: Int) {
@@ -223,7 +357,7 @@ class AudioPlayerManager @Inject constructor(
         if (index in currentQueue.indices) {
             val target = currentQueue[index]
             val remaining = currentQueue.toMutableList().apply { removeAt(index) }
-            _playbackState.value = _playbackState.value.copy(queue = remaining)
+            _playbackState.update { it.copy(queue = remaining) }
             playSurah(target.surah, target.reciter, target.startAyah)
         }
     }
@@ -232,39 +366,44 @@ class AudioPlayerManager @Inject constructor(
         val currentQueue = _playbackState.value.queue.toMutableList()
         if (index in currentQueue.indices) {
             currentQueue.removeAt(index)
-            _playbackState.value = _playbackState.value.copy(queue = currentQueue)
+            _playbackState.update { it.copy(queue = currentQueue) }
         }
     }
 
     fun clearQueue() {
-        _playbackState.value = _playbackState.value.copy(queue = emptyList())
+        _playbackState.update { it.copy(queue = emptyList()) }
     }
 
     fun toggleShuffle() {
-        val newShuffle = !_playbackState.value.isShuffleEnabled
-        _playbackState.value = _playbackState.value.copy(isShuffleEnabled = newShuffle)
+        withController { controller ->
+            val newShuffle = !controller.shuffleModeEnabled
+            controller.shuffleModeEnabled = newShuffle
+            _playbackState.update { it.copy(isShuffleEnabled = newShuffle) }
+        }
     }
 
     fun toggleRepeat() {
-        val nextRepeat = when (_playbackState.value.repeatMode) {
-            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
+        withController { controller ->
+            val nextRepeat = when (controller.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+            controller.repeatMode = nextRepeat
+            _playbackState.update { it.copy(repeatMode = nextRepeat) }
         }
-        player.repeatMode = nextRepeat
-        _playbackState.value = _playbackState.value.copy(repeatMode = nextRepeat)
     }
 
     fun playNext() {
         val q = _playbackState.value.queue
         if (q.isNotEmpty()) {
             val nextItem = q.first()
-            _playbackState.value = _playbackState.value.copy(queue = q.drop(1))
+            _playbackState.update { it.copy(queue = q.drop(1)) }
             playSurah(nextItem.surah, nextItem.reciter, nextItem.startAyah)
             return
         }
 
-        val reciter = _playbackState.value.currentReciter ?: return
+        val reciter = _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
         val current = _playbackState.value.currentSurah ?: return
         val nextId = if (_playbackState.value.isShuffleEnabled) {
             (1..114).random()
@@ -281,23 +420,21 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playPrevious() {
-        // Standard player behavior: restart current track if already played > 3 seconds
-        if (player.currentPosition > 3000L) {
+        val pos = browser?.currentPosition ?: _currentPositionMs.value
+        if (pos > 3000L) {
             seekTo(0L)
             return
         }
 
-        // Return to last played item from history if available
         if (history.isNotEmpty()) {
             val prevItem = history.removeAt(history.lastIndex)
             playSurah(prevItem.surah, prevItem.reciter, prevItem.startAyah)
             return
         }
 
-        // Fallback to sequential previous Surah
         val current = _playbackState.value.currentSurah ?: return
         val prevId = if (current.id > 1) current.id - 1 else 114
-        val reciter = _playbackState.value.currentReciter ?: return
+        val reciter = _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
         scope.launch {
             val prevSurah = quranRepository.getSurahById(prevId)
             if (prevSurah != null) {
@@ -307,53 +444,61 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun startHifzLoop(config: HifzLoopConfig) {
-        _playbackState.value = _playbackState.value.copy(
-            isHifzActive = true,
-            hifzConfig = config,
-            hifzCurrentLoop = 1,
-        )
+        _playbackState.update {
+            it.copy(
+                isHifzActive = true,
+                hifzConfig = config,
+                hifzCurrentLoop = 1,
+            )
+        }
         seekToAyah(config.startAyah)
-        if (!player.isPlaying) {
-            player.play()
+        withController { controller ->
+            if (!controller.isPlaying) {
+                controller.play()
+            }
         }
     }
 
     fun stopHifzLoop() {
-        _playbackState.value = _playbackState.value.copy(
-            isHifzActive = false,
-            hifzConfig = null,
-            hifzCurrentLoop = 0,
-        )
+        _playbackState.update {
+            it.copy(
+                isHifzActive = false,
+                hifzConfig = null,
+                hifzCurrentLoop = 0,
+            )
+        }
     }
 
     fun setStopAtEndOfSurah(enable: Boolean) {
-        _playbackState.value = _playbackState.value.copy(
-            stopAtEndOfSurah = enable,
-            sleepTimerRemainingSeconds = null
-        )
+        _playbackState.update {
+            it.copy(
+                stopAtEndOfSurah = enable,
+                sleepTimerRemainingSeconds = null
+            )
+        }
     }
 
     fun setSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
-        _playbackState.value = _playbackState.value.copy(stopAtEndOfSurah = false)
+        _playbackState.update { it.copy(stopAtEndOfSurah = false) }
 
         if (minutes <= 0) {
-            _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
+            _playbackState.update { it.copy(sleepTimerRemainingSeconds = null) }
             return
         }
 
         val totalSeconds = minutes * 60L
-        _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = totalSeconds)
+        _playbackState.update { it.copy(sleepTimerRemainingSeconds = totalSeconds) }
 
         sleepTimerJob = scope.launch {
             var remaining = totalSeconds
             while (remaining > 0) {
                 delay(1000L)
                 remaining--
-                _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = remaining)
+                _playbackState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
             }
-            player.pause()
-            _playbackState.value = _playbackState.value.copy(sleepTimerRemainingSeconds = null)
+            withController { it.pause() }
+            _playbackState.update { it.copy(sleepTimerRemainingSeconds = null) }
         }
     }
 
@@ -375,15 +520,13 @@ class AudioPlayerManager @Inject constructor(
         progressJob?.cancel()
         progressJob = scope.launch {
             while (isActive) {
-                val pos = player.currentPosition
-                val dur = if (player.duration > 0) player.duration else _playbackState.value.durationMs
+                val pos = browser?.currentPosition ?: _currentPositionMs.value
+                val dur = browser?.duration?.takeIf { it > 0 } ?: _playbackState.value.durationMs
 
-                // High-frequency position update decoupled from main PlaybackState
                 _currentPositionMs.value = pos
 
-                // Only update duration if it transitioned from 0 or changed significantly
                 if (_playbackState.value.durationMs != dur && dur > 0) {
-                    _playbackState.value = _playbackState.value.copy(durationMs = dur)
+                    _playbackState.update { it.copy(durationMs = dur) }
                 }
 
                 updateAyahAtPosition(pos)
@@ -414,15 +557,13 @@ class AudioPlayerManager @Inject constructor(
                     break
                 }
             }
-            // Word index is decoupled into dedicated StateFlow, preventing entire app recomposition
             if (_currentWordIndex.value != wordIdx) {
                 _currentWordIndex.value = wordIdx
             }
-            // Ayah number only changes once every several seconds
             if (_playbackState.value.currentAyahNumber != ayahNum) {
-                _playbackState.value = _playbackState.value.copy(
-                    currentAyahNumber = ayahNum,
-                )
+                _playbackState.update {
+                    it.copy(currentAyahNumber = ayahNum)
+                }
             }
         }
     }
@@ -439,13 +580,13 @@ class AudioPlayerManager @Inject constructor(
             val currentLoop = state.hifzCurrentLoop
             if (config.repeatCount == 0 || currentLoop < config.repeatCount) {
                 scope.launch {
-                    player.pause()
+                    withController { it.pause() }
                     if (config.delaySeconds > 0) {
                         delay(config.delaySeconds * 1000L)
                     }
-                    _playbackState.value = _playbackState.value.copy(hifzCurrentLoop = currentLoop + 1)
+                    _playbackState.update { it.copy(hifzCurrentLoop = currentLoop + 1) }
                     seekToAyah(config.startAyah)
-                    player.play()
+                    withController { it.play() }
                 }
             } else {
                 stopHifzLoop()
@@ -464,5 +605,13 @@ class AudioPlayerManager @Inject constructor(
             }
             sessionStartTime = 0L
         }
+    }
+
+    fun release() {
+        browserFuture?.let { MediaController.releaseFuture(it) }
+        browser = null
+        browserFuture = null
+        stopProgressTracker()
+        sleepTimerJob?.cancel()
     }
 }
