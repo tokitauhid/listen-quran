@@ -69,6 +69,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_items WHERE id = :itemId")
     suspend fun deletePlaylistItem(itemId: Long)
 
+    @Query("UPDATE playlist_items SET orderIndex = :orderIndex WHERE id = :itemId")
+    suspend fun updatePlaylistItemOrder(itemId: Long, orderIndex: Int)
+
     @Query("DELETE FROM playlist_items WHERE playlistId = :playlistId")
     suspend fun clearPlaylistItems(playlistId: Long)
 
@@ -129,3 +132,28 @@ interface StatsDao {
     @Query("DELETE FROM listening_stats")
     suspend fun clearAllStats()
 }
+
+@Dao
+interface DownloadDao {
+    @Query("SELECT * FROM downloaded_surahs ORDER BY downloadedAt DESC")
+    fun getAllDownloadedSurahs(): Flow<List<DownloadedSurahEntity>>
+
+    @Query("SELECT * FROM downloaded_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId LIMIT 1")
+    suspend fun getDownloadedSurah(surahNumber: Int, reciterId: Int): DownloadedSurahEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM downloaded_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId)")
+    fun isDownloaded(surahNumber: Int, reciterId: Int): Flow<Boolean>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDownloadedSurah(entity: DownloadedSurahEntity): Long
+
+    @Query("DELETE FROM downloaded_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId")
+    suspend fun deleteDownloadedSurah(surahNumber: Int, reciterId: Int)
+
+    @Query("SELECT SUM(sizeBytes) FROM downloaded_surahs")
+    fun getTotalDownloadedBytes(): Flow<Long?>
+
+    @Query("DELETE FROM downloaded_surahs")
+    suspend fun clearAllDownloads()
+}
+

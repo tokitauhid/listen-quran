@@ -36,16 +36,54 @@ object MediaModule {
             .build()
     }
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Provides
+    @Singleton
+    fun provideSimpleCache(@ApplicationContext context: Context): androidx.media3.datasource.cache.SimpleCache {
+        val cacheDir = java.io.File(context.filesDir, "offline_audio_cache")
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+        }
+        val databaseProvider = androidx.media3.database.StandaloneDatabaseProvider(context)
+        return androidx.media3.datasource.cache.SimpleCache(
+            cacheDir,
+            androidx.media3.datasource.cache.NoOpCacheEvictor(),
+            databaseProvider
+        )
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Provides
+    @Singleton
+    fun provideCacheDataSourceFactory(
+        cache: androidx.media3.datasource.cache.SimpleCache,
+    ): androidx.media3.datasource.cache.CacheDataSource.Factory {
+        val upstreamFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+        return androidx.media3.datasource.cache.CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Provides
     @Singleton
     fun provideExoPlayer(
         @ApplicationContext context: Context,
         audioAttributes: AudioAttributes,
+        cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
     ): ExoPlayer {
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(cacheDataSourceFactory)
+
         return ExoPlayer.Builder(context)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setMediaSourceFactory(mediaSourceFactory)
             .build()
     }
 

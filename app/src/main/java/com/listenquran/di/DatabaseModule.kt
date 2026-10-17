@@ -44,4 +44,7 @@ object DatabaseModule {
 
     @Provides
     fun provideStatsDao(db: ListenQuranDatabase): StatsDao = db.statsDao()
+
+    @Provides
+    fun provideDownloadDao(db: ListenQuranDatabase): DownloadDao = db.downloadDao()
 }

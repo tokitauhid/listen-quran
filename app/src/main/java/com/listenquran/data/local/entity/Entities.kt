@@ -104,3 +104,21 @@ data class ListeningStatEntity(
     val durationSeconds: Long,
     val timestamp: Long = System.currentTimeMillis(),
 )
+
+@Entity(
+    tableName = "downloaded_surahs",
+    indices = [Index(value = ["surahNumber", "reciterId"], unique = true)]
+)
+data class DownloadedSurahEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val surahNumber: Int,
+    val surahName: String,
+    val surahArabic: String,
+    val reciterId: Int,
+    val reciterName: String,
+    val localFilePath: String,
+    val audioUrl: String,
+    val sizeBytes: Long = 0L,
+    val downloadedAt: Long = System.currentTimeMillis(),
+)
+

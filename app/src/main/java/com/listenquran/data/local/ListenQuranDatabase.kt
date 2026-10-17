@@ -14,8 +14,9 @@ import com.listenquran.data.local.entity.*
         BookmarkEntity::class,
         KhatmaEntity::class,
         ListeningStatEntity::class,
+        DownloadedSurahEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ListenQuranDatabase : RoomDatabase() {
@@ -25,4 +26,5 @@ abstract class ListenQuranDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
     abstract fun khatmaDao(): KhatmaDao
     abstract fun statsDao(): StatsDao
+    abstract fun downloadDao(): DownloadDao
 }
