@@ -312,14 +312,18 @@ fun ListenQuranApp(
 
         // Reciter Profile Full Screen
         if (selectedReciterForProfile != null) {
-            val rec = selectedReciterForProfile!!
+            val currentSelected = selectedReciterForProfile!!
+            val rec = reciters.find { it.id == currentSelected.id } ?: currentSelected
             ReciterProfileScreen(
                 reciter = rec,
                 surahs = surahs,
                 onBack = { selectedReciterForProfile = null },
                 onPlaySurah = { s, r -> viewModel.playSurah(s, r) },
                 onPlayAll = { viewModel.playAllWithReciter(it) },
-                onToggleFavorite = { viewModel.toggleFavoriteReciter(it) },
+                onToggleFavorite = { reciterToToggle ->
+                    viewModel.toggleFavoriteReciter(reciterToToggle)
+                    selectedReciterForProfile = reciterToToggle.copy(isFavorite = !reciterToToggle.isFavorite)
+                },
                 onStartRadio = { viewModel.playReciterRadio(it) }
             )
         }

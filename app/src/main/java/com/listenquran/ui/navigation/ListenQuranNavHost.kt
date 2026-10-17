@@ -72,6 +72,7 @@ fun ListenQuranNavHost(
                 onSearchQueryChange = { viewModel.setRecitersSearchQuery(it) },
                 onStyleChange = { viewModel.setRecitersStyleFilter(it) },
                 onReciterClick = onOpenReciterProfile,
+                onToggleFavorite = { viewModel.toggleFavoriteReciter(it) },
                 onRefresh = { viewModel.refreshReciters() }
             )
         }

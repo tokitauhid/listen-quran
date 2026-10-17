@@ -47,6 +47,10 @@ fun ReciterProfileScreen(
     onStartRadio: ((Reciter) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    var isFavorite by remember(reciter.id, reciter.isFavorite) {
+        mutableStateOf(reciter.isFavorite)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -60,11 +64,16 @@ fun ReciterProfileScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onToggleFavorite(reciter) }) {
+                    IconButton(
+                        onClick = {
+                            isFavorite = !isFavorite
+                            onToggleFavorite(reciter)
+                        }
+                    ) {
                         Icon(
-                            imageVector = if (reciter.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = "Favorite Reciter",
-                            tint = if (reciter.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remove from Favorites" else "Favorite Reciter",
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.RecordVoiceOver
@@ -52,6 +53,7 @@ fun RecitersScreen(
     onSearchQueryChange: (String) -> Unit,
     onStyleChange: (String) -> Unit,
     onReciterClick: (Reciter) -> Unit,
+    onToggleFavorite: ((Reciter) -> Unit)? = null,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -320,7 +322,8 @@ fun RecitersScreen(
                         if (reciter != null) {
                             ReciterGridCard(
                                 reciter = reciter,
-                                onClick = { onReciterClick(reciter) }
+                                onClick = { onReciterClick(reciter) },
+                                onToggleFavorite = if (onToggleFavorite != null) { { onToggleFavorite(reciter) } } else null
                             )
                         }
                     }
@@ -386,6 +389,7 @@ fun RecitersScreen(
 fun ReciterGridCard(
     reciter: Reciter,
     onClick: () -> Unit,
+    onToggleFavorite: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val initials = remember(reciter.englishName) {
@@ -468,24 +472,28 @@ fun ReciterGridCard(
                     }
                 }
 
-                // Favorite badge
-                if (reciter.isFavorite) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(4.dp)
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Favorite,
-                            contentDescription = "Favorite",
-                            tint = Color.Black,
-                            modifier = Modifier.size(12.dp)
+                // Favorite badge / toggle button
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (reciter.isFavorite) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.95f)
+                            else Color.Black.copy(alpha = 0.4f)
                         )
-                    }
+                        .clickable(enabled = onToggleFavorite != null) {
+                            onToggleFavorite?.invoke()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (reciter.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (reciter.isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (reciter.isFavorite) Color.Black else Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
 
