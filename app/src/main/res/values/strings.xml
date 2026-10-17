@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Listen Quran</string>
+    <string name="widget_small_desc">Listen Quran Mini Player widget with quick controls</string>
+    <string name="widget_medium_desc">Listen Quran Player with Khatma tracking and controls</string>
 </resources>

@@ -99,6 +99,16 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
+    // Reorderable
+    implementation("sh.calvin.reorderable:reorderable:2.4.1")
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Glance Widgets
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")
