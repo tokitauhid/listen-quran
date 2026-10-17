@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.reciters
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -41,6 +42,7 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.listenquran.domain.model.Reciter
+import com.listenquran.util.ReciterImages
 import com.listenquran.ui.theme.AmiriQuranFont
 import kotlinx.coroutines.flow.Flow
 
@@ -49,22 +51,25 @@ import kotlinx.coroutines.flow.Flow
 fun RecitersScreen(
     pagedReciters: Flow<PagingData<Reciter>>,
     searchQuery: String,
-    selectedStyle: String,
     onSearchQueryChange: (String) -> Unit,
-    onStyleChange: (String) -> Unit,
     onReciterClick: (Reciter) -> Unit,
     onToggleFavorite: ((Reciter) -> Unit)? = null,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
+    selectedStyle: String = "",
+    onStyleChange: (String) -> Unit = {},
 ) {
     val lazyPagingItems = pagedReciters.collectAsLazyPagingItems()
     val gridState = rememberLazyGridState()
-    val styleFilters = remember { listOf("All", "Murattal", "Mujawwad", "Muallim") }
 
-    LaunchedEffect(searchQuery, selectedStyle) {
+    LaunchedEffect(searchQuery) {
         if (gridState.firstVisibleItemIndex > 0) {
             gridState.scrollToItem(0)
         }
+    }
+
+    BackHandler(enabled = searchQuery.isNotBlank()) {
+        onSearchQueryChange("")
     }
 
     Scaffold(
@@ -117,7 +122,7 @@ fun RecitersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = {
                         Text(
-                            text = "Search reciter name or style...",
+                            text = "Search reciter name...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -153,33 +158,6 @@ fun RecitersScreen(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                     )
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Style Filter Chips
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    styleFilters.forEach { filter ->
-                        val isSelected = selectedStyle == filter
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onStyleChange(filter) },
-                            label = {
-                                Text(
-                                    text = filter,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                        )
-                    }
-                }
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
@@ -289,12 +267,11 @@ fun RecitersScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
-                        if (searchQuery.isNotEmpty() || selectedStyle != "All") {
+                        if (searchQuery.isNotEmpty()) {
                             TextButton(onClick = {
                                 onSearchQueryChange("")
-                                onStyleChange("All")
                             }) {
-                                Text("Clear Filters")
+                                Text("Clear Search")
                             }
                         }
                     }
@@ -400,7 +377,10 @@ fun ReciterGridCard(
             reciter.englishName.take(2).uppercase()
         }
     }
-    var isImageError by remember(reciter.photoUrl) { mutableStateOf(false) }
+    val photoUrl = remember(reciter) {
+        ReciterImages.getPhotoUrl(reciter.id, reciter.englishName, reciter.photoUrl)
+    }
+    var isImageError by remember(photoUrl) { mutableStateOf(false) }
 
     Surface(
         modifier = modifier
@@ -434,10 +414,10 @@ fun ReciterGridCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (reciter.photoUrl != null && !isImageError) {
+                if (photoUrl != null && !isImageError) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(reciter.photoUrl)
+                            .data(photoUrl)
                             .crossfade(true)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .diskCachePolicy(CachePolicy.ENABLED)
@@ -452,7 +432,7 @@ fun ReciterGridCard(
                 }
 
                 // Fallback Initials Avatar
-                if (reciter.photoUrl == null || isImageError) {
+                if (photoUrl == null || isImageError) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center

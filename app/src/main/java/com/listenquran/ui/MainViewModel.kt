@@ -41,16 +41,11 @@ class MainViewModel @Inject constructor(
     val recitersStyleFilter = MutableStateFlow("All")
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
-    val pagedReciters: Flow<PagingData<Reciter>> = combine(
-        recitersSearchQuery,
-        recitersStyleFilter
-    ) { query, style ->
-        Pair(query.trim(), style)
-    }
-        .debounce { (query, _) -> if (query.isEmpty()) 0L else 200L }
+    val pagedReciters: Flow<PagingData<Reciter>> = recitersSearchQuery
+        .debounce { query -> if (query.isEmpty()) 0L else 200L }
         .distinctUntilChanged()
-        .flatMapLatest { (query, style) ->
-            reciterRepository.getPagedReciters(query = query, style = style)
+        .flatMapLatest { query ->
+            reciterRepository.getPagedReciters(query = query.trim())
         }
         .cachedIn(viewModelScope)
 
@@ -86,6 +81,16 @@ class MainViewModel @Inject constructor(
     val downloadedSurahs: StateFlow<List<com.listenquran.data.local.entity.DownloadedSurahEntity>> = downloadRepository.getAllDownloadedSurahs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val defaultReciterId: StateFlow<Int> = userPreferencesRepository.lastReciterId
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 7)
+
+    val defaultReciter: StateFlow<Reciter?> = combine(
+        reciters,
+        defaultReciterId
+    ) { allReciters, id ->
+        allReciters.find { it.id == id } ?: allReciters.firstOrNull()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
@@ -93,11 +98,11 @@ class MainViewModel @Inject constructor(
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val isCurrentSurahLiked: StateFlow<Boolean> = combine(
         playbackState,
-        reciters
-    ) { state, allReciters ->
+        defaultReciterId
+    ) { state, defId ->
         val surah = state.currentSurah
-        val reciterId = state.currentReciter?.id ?: allReciters.firstOrNull()?.id
-        if (surah != null && reciterId != null) {
+        val reciterId = state.currentReciter?.id ?: defId
+        if (surah != null) {
             surah.id to reciterId
         } else {
             null
@@ -147,7 +152,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun playSurah(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
-        val targetReciter = reciter ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        val targetReciter = reciter ?: playbackState.value.currentReciter ?: defaultReciter.value ?: reciters.value.firstOrNull() ?: return
         playerManager.playSurah(surah, targetReciter, startAyah)
     }
 
@@ -155,6 +160,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val surah = quranRepository.getSurahById(surahId) ?: return@launch
             val targetReciter = playbackState.value.currentReciter
+                ?: defaultReciter.value
                 ?: reciters.value.firstOrNull()
                 ?: reciterRepository.getDefaultReciter()
             playerManager.playSurah(surah, targetReciter, startAyah)

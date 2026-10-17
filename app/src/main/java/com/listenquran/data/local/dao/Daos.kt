@@ -21,34 +21,70 @@ interface SurahDao {
 
 @Dao
 interface ReciterDao {
-    @Query("SELECT * FROM reciters ORDER BY englishName ASC")
+    @Query("""
+        SELECT * FROM reciters 
+        ORDER BY 
+            isFavorite DESC, 
+            CASE WHEN photoUrl IS NOT NULL AND photoUrl != '' THEN 0 ELSE 1 END ASC, 
+            englishName ASC
+    """)
     fun getAllReciters(): Flow<List<ReciterEntity>>
 
-    @Query("SELECT * FROM reciters WHERE isFavorite = 1 ORDER BY englishName ASC")
+    @Query("SELECT * FROM reciters WHERE isFavorite = 1 GROUP BY REPLACE(name, ' ', '') ORDER BY englishName ASC")
     fun getFavoriteReciters(): Flow<List<ReciterEntity>>
 
     @Query("SELECT * FROM reciters WHERE id = :id LIMIT 1")
     suspend fun getReciterById(id: Int): ReciterEntity?
 
-    @Query("SELECT * FROM reciters WHERE englishName LIKE '%' || :query || '%' OR name LIKE '%' || :query || '%' OR (style IS NOT NULL AND style LIKE '%' || :query || '%') OR qiraah LIKE '%' || :query || '%'")
+    @Query("""
+        SELECT * FROM reciters 
+        WHERE englishName LIKE '%' || :query || '%' 
+           OR name LIKE '%' || :query || '%' 
+           OR (style IS NOT NULL AND style LIKE '%' || :query || '%') 
+           OR qiraah LIKE '%' || :query || '%' 
+        GROUP BY REPLACE(name, ' ', '') 
+        ORDER BY 
+            isFavorite DESC, 
+            CASE WHEN photoUrl IS NOT NULL AND photoUrl != '' THEN 0 ELSE 1 END ASC, 
+            englishName ASC
+    """)
     fun searchReciters(query: String): Flow<List<ReciterEntity>>
-
-    @Query("SELECT * FROM reciters ORDER BY isFavorite DESC, englishName ASC")
-    fun getPagedReciters(): androidx.paging.PagingSource<Int, ReciterEntity>
 
     @Query("""
         SELECT * FROM reciters 
-        WHERE (:style = '' OR :style = 'All' OR style = :style COLLATE NOCASE)
-          AND (
+        GROUP BY REPLACE(name, ' ', '') 
+        ORDER BY 
+            isFavorite DESC, 
+            CASE WHEN photoUrl IS NOT NULL AND photoUrl != '' THEN 0 ELSE 1 END ASC, 
+            englishName ASC
+    """)
+    fun getPagedReciters(): androidx.paging.PagingSource<Int, ReciterEntity>
+
+    @Query("""
+        SELECT 
+            id,
+            name,
+            englishName,
+            style,
+            qiraah,
+            MAX(photoUrl) AS photoUrl,
+            surahsCount,
+            MAX(isFavorite) AS isFavorite,
+            audioServer
+        FROM reciters 
+        WHERE (
             :query = '' 
             OR englishName LIKE '%' || :query || '%' 
             OR name LIKE '%' || :query || '%' 
-            OR (style IS NOT NULL AND style LIKE '%' || :query || '%')
             OR qiraah LIKE '%' || :query || '%'
           )
-        ORDER BY isFavorite DESC, englishName ASC
+        GROUP BY REPLACE(name, ' ', '')
+        ORDER BY 
+            MAX(isFavorite) DESC, 
+            CASE WHEN MAX(photoUrl) IS NOT NULL AND MAX(photoUrl) != '' THEN 0 ELSE 1 END ASC, 
+            englishName ASC
     """)
-    fun getFilteredPagedReciters(query: String, style: String): androidx.paging.PagingSource<Int, ReciterEntity>
+    fun getFilteredPagedReciters(query: String): androidx.paging.PagingSource<Int, ReciterEntity>
 
     @Query("SELECT COUNT(*) FROM reciters")
     suspend fun getRecitersCount(): Int
@@ -58,6 +94,9 @@ interface ReciterDao {
 
     @Query("UPDATE reciters SET isFavorite = :isFavorite WHERE id = :reciterId")
     suspend fun updateFavorite(reciterId: Int, isFavorite: Boolean)
+
+    @Query("UPDATE reciters SET isFavorite = :isFavorite WHERE englishName = :englishName")
+    suspend fun updateFavoriteByEnglishName(englishName: String, isFavorite: Boolean)
 }
 
 @Dao

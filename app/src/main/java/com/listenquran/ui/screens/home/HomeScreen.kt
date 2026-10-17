@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -67,6 +68,10 @@ fun HomeScreen(
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Radio") }
+
+    BackHandler(enabled = selectedFilter != "All") {
+        selectedFilter = "All"
+    }
 
     // Preserve scroll positions of horizontal carousels across parent LazyColumn scrolls
     val playlistsRowState = rememberLazyListState()

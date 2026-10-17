@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -56,6 +57,10 @@ fun SearchScreen(
     var searchFilter by remember { mutableStateOf("All") }
     val searchFilters = listOf("All", "Surahs", "Verses", "Reciters")
 
+    BackHandler(enabled = searchQuery.isNotBlank()) {
+        searchQuery = ""
+    }
+
     val popularShortcuts = listOf(
         Triple("Ayatul Kursi (2:255)", 2, 255),
         Triple("Surah Al-Mulk", 67, 1),
@@ -102,9 +107,13 @@ fun SearchScreen(
         }
     }
 
-    val filteredReciters = remember(searchQuery, reciters) {
+    val uniqueReciters = remember(reciters) {
+        reciters.distinctBy { it.name.replace(" ", "") }
+    }
+
+    val filteredReciters = remember(searchQuery, uniqueReciters) {
         if (searchQuery.isBlank()) emptyList()
-        else reciters.filter {
+        else uniqueReciters.filter {
             it.englishName.contains(searchQuery, ignoreCase = true) ||
             it.name.contains(searchQuery)
         }
@@ -399,7 +408,7 @@ fun SearchScreen(
                     if (searchFilter == "Reciters") {
                         item {
                             Text(
-                                text = "All Reciters (${reciters.size})",
+                                text = "All Reciters (${uniqueReciters.size})",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -407,7 +416,7 @@ fun SearchScreen(
                             )
                         }
 
-                        items(reciters, key = { it.id }) { reciter ->
+                        items(uniqueReciters, key = { it.id }) { reciter ->
                             ReciterSearchItem(
                                 reciter = reciter,
                                 onClick = { onReciterClick(reciter) },

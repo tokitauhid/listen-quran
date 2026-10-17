@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.playlist
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +57,8 @@ fun PlaylistDetailScreen(
             onReorderItems?.invoke(localItems)
         }
     }
+
+    BackHandler(onBack = onBack)
 
     Scaffold(
         topBar = {

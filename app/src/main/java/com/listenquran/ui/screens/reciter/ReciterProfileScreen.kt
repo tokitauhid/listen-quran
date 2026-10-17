@@ -1,5 +1,7 @@
 package com.listenquran.ui.screens.reciter
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,7 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
@@ -31,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.listenquran.domain.model.Reciter
+import com.listenquran.util.ReciterImages
 import com.listenquran.domain.model.Surah
 import com.listenquran.ui.screens.home.SurahListItem
 import com.listenquran.ui.theme.AmiriQuranFont
@@ -45,16 +51,39 @@ fun ReciterProfileScreen(
     onPlayAll: (Reciter) -> Unit,
     onToggleFavorite: (Reciter) -> Unit,
     onStartRadio: ((Reciter) -> Unit)? = null,
+    onSetDefaultReciter: ((Reciter) -> Unit)? = null,
+    defaultReciterId: Int = 7,
+    allReciters: List<Reciter> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
-    var isFavorite by remember(reciter.id, reciter.isFavorite) {
-        mutableStateOf(reciter.isFavorite)
+    val variants = remember(reciter.englishName, reciter.name, allReciters) {
+        val normAr = reciter.name.replace(" ", "")
+        val normEn = reciter.englishName.replace(" ", "").replace("-", "").lowercase()
+        val matches = allReciters.filter {
+            (normAr.isNotBlank() && it.name.replace(" ", "") == normAr) ||
+            it.englishName.replace(" ", "").replace("-", "").equals(normEn, ignoreCase = true)
+        }
+        if (matches.isNotEmpty()) matches else listOf(reciter)
     }
+
+    var currentReciter by remember(reciter.id) {
+        mutableStateOf(reciter)
+    }
+
+    LaunchedEffect(reciter.id, variants) {
+        currentReciter = variants.find { it.id == reciter.id } ?: variants.firstOrNull() ?: reciter
+    }
+
+    var isFavorite by remember(currentReciter.id, currentReciter.isFavorite) {
+        mutableStateOf(currentReciter.isFavorite)
+    }
+
+    BackHandler(onBack = onBack)
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(reciter.englishName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(currentReciter.englishName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -67,7 +96,7 @@ fun ReciterProfileScreen(
                     IconButton(
                         onClick = {
                             isFavorite = !isFavorite
-                            onToggleFavorite(reciter)
+                            onToggleFavorite(currentReciter)
                         }
                     ) {
                         Icon(
@@ -112,8 +141,8 @@ fun ReciterProfileScreen(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val imageUrl = remember(reciter) {
-                            reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
+                        val imageUrl = remember(currentReciter) {
+                            ReciterImages.getPhotoUrl(currentReciter.id, currentReciter.englishName, currentReciter.photoUrl)
                         }
                         var isImageError by remember(imageUrl) { mutableStateOf(false) }
 
@@ -124,21 +153,21 @@ fun ReciterProfileScreen(
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (!isImageError) {
+                            if (imageUrl != null && !isImageError) {
                                 AsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(imageUrl)
                                         .crossfade(true)
                                         .build(),
-                                    contentDescription = reciter.englishName,
+                                    contentDescription = currentReciter.englishName,
                                     contentScale = ContentScale.Crop,
                                     onError = { isImageError = true },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
-                            if (isImageError) {
+                            if (imageUrl == null || isImageError) {
                                 Text(
-                                    text = reciter.englishName.take(1),
+                                    text = currentReciter.englishName.take(1),
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -149,7 +178,7 @@ fun ReciterProfileScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = reciter.englishName,
+                            text = currentReciter.englishName,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -157,28 +186,74 @@ fun ReciterProfileScreen(
                         )
 
                         Text(
-                            text = reciter.name,
+                            text = currentReciter.name,
                             fontFamily = AmiriQuranFont,
                             fontSize = 22.sp,
                             color = MaterialTheme.colorScheme.primary,
                             textAlign = TextAlign.Center
                         )
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = "${reciter.qiraah} • ${reciter.style ?: "Murattal"}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
+                        // Style Switcher Chips (Murattal, Mujawwad, Muallim)
+                        if (variants.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                variants.forEach { variant ->
+                                    val isSelected = currentReciter.id == variant.id
+                                    val styleLabel = variant.style ?: "Murattal"
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            currentReciter = variant
+                                            isFavorite = variant.isFavorite
+                                        },
+                                        label = {
+                                            Text(
+                                                text = styleLabel,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        leadingIcon = if (isSelected) {
+                                            {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        } else null,
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f)
+                            ) {
+                                Text(
+                                    text = "${currentReciter.qiraah} • ${currentReciter.style ?: "Murattal"}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
                         // Action Buttons: Play All & Reciter Radio
                         Row(
@@ -186,7 +261,7 @@ fun ReciterProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Button(
-                                onClick = { onPlayAll(reciter) },
+                                onClick = { onPlayAll(currentReciter) },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -196,13 +271,69 @@ fun ReciterProfileScreen(
                             }
 
                             FilledTonalButton(
-                                onClick = { onStartRadio?.invoke(reciter) },
+                                onClick = { onStartRadio?.invoke(currentReciter) },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Rounded.Radio, contentDescription = null)
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("Radio")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val isDefault = currentReciter.id == defaultReciterId
+                        if (isDefault) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 10.dp, horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Default Reciter for App",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { onSetDefaultReciter?.invoke(currentReciter) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Set as Default Reciter",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -224,7 +355,7 @@ fun ReciterProfileScreen(
             items(surahs, key = { it.id }) { surah ->
                 SurahListItem(
                     surah = surah,
-                    onClick = { onPlaySurah(surah, reciter) },
+                    onClick = { onPlaySurah(surah, currentReciter) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }

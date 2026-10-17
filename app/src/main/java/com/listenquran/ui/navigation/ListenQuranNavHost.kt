@@ -64,13 +64,10 @@ fun ListenQuranNavHost(
         }
         composable(TopLevelDestination.RECITERS.route) {
             val recitersSearchQuery by viewModel.recitersSearchQuery.collectAsStateWithLifecycle()
-            val recitersStyleFilter by viewModel.recitersStyleFilter.collectAsStateWithLifecycle()
             RecitersScreen(
                 pagedReciters = viewModel.pagedReciters,
                 searchQuery = recitersSearchQuery,
-                selectedStyle = recitersStyleFilter,
                 onSearchQueryChange = { viewModel.setRecitersSearchQuery(it) },
-                onStyleChange = { viewModel.setRecitersStyleFilter(it) },
                 onReciterClick = onOpenReciterProfile,
                 onToggleFavorite = { viewModel.toggleFavoriteReciter(it) },
                 onRefresh = { viewModel.refreshReciters() }
@@ -91,7 +88,7 @@ fun ListenQuranNavHost(
             LibraryScreen(
                 playlists = playlists,
                 bookmarks = bookmarks,
-                favoriteReciters = reciters.filter { it.isFavorite },
+                favoriteReciters = reciters.filter { it.isFavorite }.distinctBy { it.name.replace(" ", "") },
                 surahs = surahs,
                 onPlaylistClick = onOpenPlaylistDetail,
                 onCreatePlaylist = { name, desc ->
@@ -119,11 +116,14 @@ fun ListenQuranNavHost(
         }
         composable(TopLevelDestination.SETTINGS.route) {
             val downloadedSurahs by viewModel.downloadedSurahs.collectAsStateWithLifecycle()
+            val defaultReciter by viewModel.defaultReciter.collectAsStateWithLifecycle()
             SettingsScreen(
                 currentTheme = themeMode,
                 currentQuality = audioQuality,
                 statsSummary = statsSummary,
                 notificationsEnabled = notificationsEnabled,
+                defaultReciter = defaultReciter,
+                onOpenReciters = { navController.navigate(TopLevelDestination.RECITERS.route) },
                 downloadedSurahs = downloadedSurahs,
                 onSelectTheme = { viewModel.setThemeMode(it) },
                 onSelectQuality = { viewModel.setAudioQuality(it) },

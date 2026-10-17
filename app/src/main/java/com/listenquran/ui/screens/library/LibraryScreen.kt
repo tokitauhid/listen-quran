@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.listenquran.domain.model.*
 import com.listenquran.ui.components.PlaylistArtworkMosaic
+import com.listenquran.util.ReciterImages
 import com.listenquran.ui.theme.AmiriQuranFont
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,6 +52,10 @@ fun LibraryScreen(
 ) {
     var selectedFilter by remember { mutableStateOf("Playlists") }
     val filters = listOf("Playlists", "Saved Ayahs", "Hifz Loops", "Reciters")
+
+    BackHandler(enabled = selectedFilter != "Playlists") {
+        selectedFilter = "Playlists"
+    }
 
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
@@ -429,7 +435,7 @@ fun LibraryScreen(
                 } else {
                     items(favoriteReciters, key = { it.id }) { reciter ->
                         val imageUrl = remember(reciter) {
-                            reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
+                            ReciterImages.getPhotoUrl(reciter.id, reciter.englishName, reciter.photoUrl)
                         }
                         var isImageError by remember(imageUrl) { mutableStateOf(false) }
 
@@ -456,7 +462,7 @@ fun LibraryScreen(
                                         .background(MaterialTheme.colorScheme.primaryContainer),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    if (!isImageError) {
+                                    if (imageUrl != null && !isImageError) {
                                         AsyncImage(
                                             model = ImageRequest.Builder(LocalContext.current)
                                                 .data(imageUrl)
@@ -468,7 +474,7 @@ fun LibraryScreen(
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     }
-                                    if (isImageError) {
+                                    if (imageUrl == null || isImageError) {
                                         Text(
                                             text = reciter.englishName.take(1),
                                             style = MaterialTheme.typography.titleMedium,

@@ -21,8 +21,8 @@
 
 ---
 
-## 2. Mandatory MCP Tool Usage Rules
-Whenever working on this codebase, always utilize the configured Model Context Protocol (MCP) servers based on task relevance:
+## 2. Mandatory MCP Tool Usage Rules (Use MCP Whenever Possible & Needed)
+**STRICT RULE**: Always use the configured Model Context Protocol (MCP) servers whenever possible and needed across all tasks. Never default to unassisted inspection or generic fallbacks when an MCP server is configured for the domain:
 
 1. **`context7` (Docs & Modern API Lookup)**:
    - **MANDATORY**: Query `context7` before writing or updating:

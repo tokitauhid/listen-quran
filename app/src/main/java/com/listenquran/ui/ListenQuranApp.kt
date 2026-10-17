@@ -1,6 +1,11 @@
 package com.listenquran.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -37,6 +42,17 @@ import com.listenquran.ui.screens.playlist.AddToPlaylistSheet
 import com.listenquran.ui.screens.playlist.PlaylistDetailScreen
 import com.listenquran.ui.screens.reciter.ReciterProfileScreen
 import com.listenquran.ui.theme.ListenQuranTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private fun Context.findActivity(): Activity? {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -61,6 +77,7 @@ fun ListenQuranApp(
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
+    val defaultReciterId by viewModel.defaultReciterId.collectAsStateWithLifecycle()
 
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVersesSheet by remember { mutableStateOf(false) }
@@ -71,6 +88,63 @@ fun ListenQuranApp(
     var selectedReciterForProfile by remember { mutableStateOf<Reciter?>(null) }
     var ayahToShare by remember { mutableStateOf<Ayah?>(null) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+
+    var backPressedOnce by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val hasAnyOverlayOpen = showFullPlayer ||
+            selectedPlaylistForDetail != null ||
+            selectedReciterForProfile != null ||
+            ayahToShare != null ||
+            showSleepTimerDialog ||
+            showAddToPlaylistSheet ||
+            showActionsMenuSheet ||
+            showQueueSheet ||
+            showVersesSheet
+
+    // Priority 1: Dismiss Reciter Profile overlay if open
+    BackHandler(enabled = selectedReciterForProfile != null) {
+        selectedReciterForProfile = null
+    }
+
+    // Priority 2: Dismiss Playlist Detail overlay if open
+    BackHandler(enabled = selectedPlaylistForDetail != null && selectedReciterForProfile == null) {
+        selectedPlaylistForDetail = null
+    }
+
+    // Priority 3: Collapse Full Player to Mini Player if open
+    BackHandler(enabled = showFullPlayer && selectedReciterForProfile == null && selectedPlaylistForDetail == null) {
+        showFullPlayer = false
+    }
+
+    // Priority 4: Return to Home tab if on another bottom-bar tab
+    BackHandler(
+        enabled = !hasAnyOverlayOpen && currentRoute != null && currentRoute != TopLevelDestination.HOME.route
+    ) {
+        navController.navigate(TopLevelDestination.HOME.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    // Priority 5: Double-back to exit on Home tab (prevents accidental app closures)
+    BackHandler(
+        enabled = !hasAnyOverlayOpen && (currentRoute == null || currentRoute == TopLevelDestination.HOME.route)
+    ) {
+        if (backPressedOnce) {
+            context.findActivity()?.finish()
+        } else {
+            backPressedOnce = true
+            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                delay(2000)
+                backPressedOnce = false
+            }
+        }
+    }
 
     ListenQuranTheme(themeMode = themeMode) {
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
@@ -260,19 +334,31 @@ fun ListenQuranApp(
                         context.startActivity(shareIntent)
                     }
                 },
-                onAddToPlaylist = { showAddToPlaylistSheet = true },
-                onOpenQueue = { showQueueSheet = true },
+                onAddToPlaylist = {
+                    showActionsMenuSheet = false
+                    showAddToPlaylistSheet = true
+                },
+                onOpenQueue = {
+                    showActionsMenuSheet = false
+                    showQueueSheet = true
+                },
                 onGoToReciter = {
                     playbackState.currentReciter?.let {
+                        showActionsMenuSheet = false
+                        showFullPlayer = false
                         selectedReciterForProfile = it
                     }
                 },
                 onGoToReciterRadio = {
                     playbackState.currentReciter?.let {
+                        showActionsMenuSheet = false
                         viewModel.playReciterRadio(it)
                     }
                 },
-                onOpenSleepTimer = { showSleepTimerDialog = true }
+                onOpenSleepTimer = {
+                    showActionsMenuSheet = false
+                    showSleepTimerDialog = true
+                }
             )
         }
 
@@ -316,7 +402,9 @@ fun ListenQuranApp(
             val rec = reciters.find { it.id == currentSelected.id } ?: currentSelected
             ReciterProfileScreen(
                 reciter = rec,
+                allReciters = reciters,
                 surahs = surahs,
+                defaultReciterId = defaultReciterId,
                 onBack = { selectedReciterForProfile = null },
                 onPlaySurah = { s, r -> viewModel.playSurah(s, r) },
                 onPlayAll = { viewModel.playAllWithReciter(it) },
@@ -324,6 +412,7 @@ fun ListenQuranApp(
                     viewModel.toggleFavoriteReciter(reciterToToggle)
                     selectedReciterForProfile = reciterToToggle.copy(isFavorite = !reciterToToggle.isFavorite)
                 },
+                onSetDefaultReciter = { viewModel.setDefaultReciter(it) },
                 onStartRadio = { viewModel.playReciterRadio(it) }
             )
         }

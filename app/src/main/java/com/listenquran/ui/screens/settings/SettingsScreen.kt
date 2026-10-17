@@ -22,6 +22,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.listenquran.domain.model.AudioQuality
 import com.listenquran.domain.model.ListeningStatsSummary
+import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +32,8 @@ fun SettingsScreen(
     currentQuality: AudioQuality,
     statsSummary: ListeningStatsSummary,
     notificationsEnabled: Boolean,
+    defaultReciter: Reciter? = null,
+    onOpenReciters: (() -> Unit)? = null,
     onSelectTheme: (ThemeMode) -> Unit,
     onSelectQuality: (AudioQuality) -> Unit,
     onToggleNotifications: (Boolean) -> Unit,
@@ -186,6 +189,24 @@ fun SettingsScreen(
                     },
                     icon = Icons.Rounded.Palette,
                     onClick = { showThemeDialog = true }
+                )
+            }
+
+            item {
+                Text(
+                    text = "Audio & Playback",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            item {
+                SettingCard(
+                    title = "Default Reciter",
+                    subtitle = defaultReciter?.englishName ?: "Mishary Rashid Al-Afasy",
+                    icon = Icons.Rounded.Person,
+                    onClick = { onOpenReciters?.invoke() }
                 )
             }
 

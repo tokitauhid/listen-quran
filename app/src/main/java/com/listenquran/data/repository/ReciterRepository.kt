@@ -9,6 +9,7 @@ import com.listenquran.data.local.dao.ReciterDao
 import com.listenquran.data.local.entity.ReciterEntity
 import com.listenquran.data.remote.QuranApiService
 import com.listenquran.domain.model.Reciter
+import com.listenquran.util.ReciterImages
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -26,18 +27,18 @@ class ReciterRepository @Inject constructor(
 ) {
     companion object {
         val defaultReciters = listOf(
-            ReciterEntity(7, "مشاري راشد العفاسي", "Mishari Rashid al-`Afasy", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/"),
-            ReciterEntity(2, "عبد الباسط عبد الصمد", "AbdulBaset AbdulSamad", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/abdul_baset/murattal/"),
-            ReciterEntity(1, "عبد الباسط عبد الصمد", "AbdulBaset AbdulSamad", "Mujawwad", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/abdul_baset/mujawwad/"),
-            ReciterEntity(3, "عبد الرحمن السديس", "Abdur-Rahman as-Sudais", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/abdurrahmaan_as_sudais/murattal/"),
-            ReciterEntity(4, "أبو بكر الشاطري", "Abu Bakr al-Shatri", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/abu_bakr_ash-shaatree/murattal/"),
-            ReciterEntity(5, "هاني الرفاعي", "Hani ar-Rifai", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/haani_ar_rifaa3ee/murattal/"),
-            ReciterEntity(6, "محمود خليل الحصري", "Mahmoud Khalil Al-Husary", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/khalil_al_husary/murattal/"),
-            ReciterEntity(12, "محمود خليل الحصري", "Mahmoud Khalil Al-Husary", "Muallim", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/khalil_al_husary/muallim/"),
-            ReciterEntity(8, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Mujawwad", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/mujawwad/"),
-            ReciterEntity(9, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/murattal/"),
-            ReciterEntity(10, "سعود الشريم", "Sa`ud ash-Shuraym", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/sa3d_al-ghaamidi/complete/"),
-            ReciterEntity(11, "محمد محمود الطبلاوي", "Mohamed al-Tablawi", "Murattal", "Hafs 'an 'Asim", null, 114, isFavorite = false, audioServer = null),
+            ReciterEntity(7, "مشاري راشد العفاسي", "Mishari Rashid al-`Afasy", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(7, "Mishari Rashid al-`Afasy"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/"),
+            ReciterEntity(2, "عبد الباسط عبد الصمد", "AbdulBaset AbdulSamad", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(2, "AbdulBaset AbdulSamad"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/abdul_baset/murattal/"),
+            ReciterEntity(1, "عبد الباسط عبد الصمد", "AbdulBaset AbdulSamad", "Mujawwad", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(1, "AbdulBaset AbdulSamad"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/abdul_baset/mujawwad/"),
+            ReciterEntity(3, "عبد الرحمن السديس", "Abdur-Rahman as-Sudais", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(3, "Abdur-Rahman as-Sudais"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/abdurrahmaan_as_sudais/murattal/"),
+            ReciterEntity(4, "أبو بكر الشاطري", "Abu Bakr al-Shatri", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(4, "Abu Bakr al-Shatri"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/abu_bakr_ash-shaatree/murattal/"),
+            ReciterEntity(5, "هاني الرفاعي", "Hani ar-Rifai", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(5, "Hani ar-Rifai"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/haani_ar_rifaa3ee/murattal/"),
+            ReciterEntity(6, "محمود خليل الحصري", "Mahmoud Khalil Al-Husary", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(6, "Mahmoud Khalil Al-Husary"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/khalil_al_husary/murattal/"),
+            ReciterEntity(12, "محمود خليل الحصري", "Mahmoud Khalil Al-Husary", "Muallim", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(12, "Mahmoud Khalil Al-Husary"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/khalil_al_husary/muallim/"),
+            ReciterEntity(8, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Mujawwad", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(8, "Mohamed Siddiq al-Minshawi"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/mujawwad/"),
+            ReciterEntity(9, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(9, "Mohamed Siddiq al-Minshawi"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/murattal/"),
+            ReciterEntity(10, "سعود الشريم", "Sa`ud ash-Shuraym", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(10, "Sa`ud ash-Shuraym"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/sa3d_al-ghaamidi/complete/"),
+            ReciterEntity(11, "محمد محمود الطبلاوي", "Mohamed al-Tablawi", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(11, "Mohamed al-Tablawi"), 114, isFavorite = false, audioServer = null),
         )
     }
 
@@ -51,14 +52,17 @@ class ReciterRepository @Inject constructor(
             val list = mutableListOf<ReciterEntity>()
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
+                val reciterId = obj.getInt("id")
+                val englishName = obj.getString("englishName")
+                val rawPhoto = if (obj.has("photoUrl") && !obj.isNull("photoUrl")) obj.getString("photoUrl") else null
                 list.add(
                     ReciterEntity(
-                        id = obj.getInt("id"),
+                        id = reciterId,
                         name = obj.getString("name"),
-                        englishName = obj.getString("englishName"),
+                        englishName = englishName,
                         style = obj.optString("style", "Murattal"),
                         qiraah = obj.optString("qiraah", "Hafs 'an 'Asim"),
-                        photoUrl = if (obj.has("photoUrl") && !obj.isNull("photoUrl")) obj.getString("photoUrl") else null,
+                        photoUrl = ReciterImages.getPhotoUrl(reciterId, englishName, rawPhoto),
                         surahsCount = obj.optInt("surahsCount", 114),
                         isFavorite = obj.optBoolean("isFavorite", false),
                         audioServer = if (obj.has("audioServer") && !obj.isNull("audioServer")) obj.getString("audioServer") else null
@@ -75,13 +79,23 @@ class ReciterRepository @Inject constructor(
 
     suspend fun initializeReciters() = withContext(Dispatchers.IO) {
         val count = reciterDao.getRecitersCount()
+        val assetReciters = loadRecitersFromAssets()
         if (count < 50) {
-            val assetReciters = loadRecitersFromAssets()
             if (assetReciters.isNotEmpty()) {
                 reciterDao.insertReciters(assetReciters)
             } else if (count == 0) {
                 reciterDao.insertReciters(defaultReciters)
             }
+        } else if (assetReciters.isNotEmpty()) {
+            // Update photoUrl and metadata for existing reciters while preserving user favorites
+            val updated = assetReciters.map { asset ->
+                val existing = reciterDao.getReciterById(asset.id)
+                asset.copy(
+                    isFavorite = existing?.isFavorite ?: asset.isFavorite,
+                    photoUrl = ReciterImages.getPhotoUrl(asset.id, asset.englishName, asset.photoUrl ?: existing?.photoUrl)
+                )
+            }
+            reciterDao.insertReciters(updated)
         }
         refreshReciters()
     }
@@ -98,13 +112,14 @@ class ReciterRepository @Inject constructor(
                     val existing = reciterDao.getReciterById(dto.id)
                     val rawStyle = dto.style ?: assetMatch?.style ?: "Murattal"
                     val normalizedStyle = rawStyle.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                    val engName = dto.translatedName?.name ?: dto.reciterName
                     ReciterEntity(
                         id = dto.id,
                         name = assetMatch?.name ?: dto.reciterName,
-                        englishName = dto.translatedName?.name ?: dto.reciterName,
+                        englishName = engName,
                         style = normalizedStyle,
                         qiraah = assetMatch?.qiraah ?: "Hafs 'an 'Asim",
-                        photoUrl = assetMatch?.photoUrl,
+                        photoUrl = ReciterImages.getPhotoUrl(dto.id, engName, assetMatch?.photoUrl),
                         surahsCount = assetMatch?.surahsCount ?: 114,
                         isFavorite = existing?.isFavorite ?: assetMatch?.isFavorite ?: false,
                         audioServer = assetMatch?.audioServer
@@ -117,7 +132,7 @@ class ReciterRepository @Inject constructor(
         }
     }
 
-    fun getPagedReciters(query: String = "", style: String = ""): Flow<PagingData<Reciter>> {
+    fun getPagedReciters(query: String = ""): Flow<PagingData<Reciter>> {
         return Pager(
             config = PagingConfig(
                 pageSize = 20,
@@ -127,8 +142,7 @@ class ReciterRepository @Inject constructor(
             ),
             pagingSourceFactory = {
                 val cleanQuery = query.trim()
-                val cleanStyle = if (style.isBlank() || style == "All") "" else style.trim()
-                reciterDao.getFilteredPagedReciters(cleanQuery, cleanStyle)
+                reciterDao.getFilteredPagedReciters(cleanQuery)
             }
         ).flow.map { pagingData ->
             pagingData.map { it.toDomain() }
@@ -154,7 +168,12 @@ class ReciterRepository @Inject constructor(
     }
 
     suspend fun toggleFavorite(reciterId: Int, isFavorite: Boolean) {
-        reciterDao.updateFavorite(reciterId, isFavorite)
+        val reciter = reciterDao.getReciterById(reciterId)
+        if (reciter != null) {
+            reciterDao.updateFavoriteByEnglishName(reciter.englishName, isFavorite)
+        } else {
+            reciterDao.updateFavorite(reciterId, isFavorite)
+        }
     }
 
     fun getFavorites(): Flow<List<Reciter>> {
@@ -167,7 +186,7 @@ class ReciterRepository @Inject constructor(
         englishName = englishName,
         style = style,
         qiraah = qiraah,
-        photoUrl = photoUrl,
+        photoUrl = ReciterImages.getPhotoUrl(id, englishName, photoUrl),
         surahsCount = surahsCount,
         isFavorite = isFavorite,
         audioServer = audioServer,
