@@ -131,6 +131,12 @@ class PlaylistRepository @Inject constructor(
         playlistDao.deletePlaylistItem(itemId)
     }
 
+    suspend fun reorderPlaylistItems(items: List<PlaylistItem>) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        items.forEachIndexed { index, item ->
+            playlistDao.updatePlaylistItemOrder(item.id, index)
+        }
+    }
+
     fun isLiked(surahNumber: Int, reciterId: Int): Flow<Boolean> {
         return playlistDao.isLiked(surahNumber, reciterId)
     }

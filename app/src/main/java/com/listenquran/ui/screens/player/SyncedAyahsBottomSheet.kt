@@ -4,9 +4,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.rounded.CompareArrows
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.domain.model.Ayah
+import com.listenquran.domain.model.Reciter
+import com.listenquran.domain.model.VerseTiming
 import com.listenquran.player.PlaybackState
 import com.listenquran.ui.theme.AmiriQuranFont
 import kotlinx.coroutines.launch
@@ -40,10 +44,14 @@ fun SyncedAyahsBottomSheet(
     playbackState: PlaybackState,
     verses: List<Ayah>,
     currentWordIndex: Int = 0,
+    reciters: List<Reciter> = emptyList(),
     onDismiss: () -> Unit,
     onSeekToAyah: (Int) -> Unit,
     onSaveBookmark: (Ayah, String) -> Unit,
     onShareAsImage: (Ayah) -> Unit,
+    onPauseMainPlayer: () -> Unit = {},
+    onSetDefaultReciter: (Reciter) -> Unit = {},
+    getVerseAudioTiming: suspend (Int, Int, String) -> Pair<String, VerseTiming?>? = { _, _, _ -> null },
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -52,6 +60,7 @@ fun SyncedAyahsBottomSheet(
     var isWordByWordMode by remember { mutableStateOf(false) }
     var selectedAyahForNote by remember { mutableStateOf<Ayah?>(null) }
     var noteText by remember { mutableStateOf("") }
+    var comparingAyah by remember { mutableStateOf<Ayah?>(null) }
 
     // Auto-scroll to active Ayah
     val activeAyahIndex = verses.indexOfFirst { it.ayahNumber == playbackState.currentAyahNumber }
@@ -144,6 +153,7 @@ fun SyncedAyahsBottomSheet(
                             isWordByWord = isWordByWordMode,
                             currentWordIndex = if (isActive) currentWordIndex else 0,
                             onCardClick = { onSeekToAyah(ayah.ayahNumber) },
+                            onCompareClick = { comparingAyah = ayah },
                             onBookmarkClick = {
                                 selectedAyahForNote = ayah
                                 noteText = ""
@@ -206,8 +216,23 @@ fun SyncedAyahsBottomSheet(
             }
         )
     }
+
+    // Reciter A/B Comparison Bottom Sheet
+    if (comparingAyah != null) {
+        ReciterCompareBottomSheet(
+            ayah = comparingAyah!!,
+            surah = playbackState.currentSurah,
+            reciters = reciters,
+            currentReciter = playbackState.currentReciter,
+            onDismiss = { comparingAyah = null },
+            onPauseMainPlayer = onPauseMainPlayer,
+            onSetDefaultReciter = onSetDefaultReciter,
+            getVerseAudioTiming = getVerseAudioTiming
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AyahCard(
     ayah: Ayah,
@@ -215,6 +240,7 @@ fun AyahCard(
     isWordByWord: Boolean,
     currentWordIndex: Int,
     onCardClick: () -> Unit,
+    onCompareClick: () -> Unit,
     onBookmarkClick: () -> Unit,
     onShareImageClick: () -> Unit,
     onCopyClick: () -> Unit,
@@ -237,7 +263,10 @@ fun AyahCard(
             .fillMaxWidth()
             .then(borderModifier)
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onCardClick),
+            .combinedClickable(
+                onClick = onCardClick,
+                onLongClick = onCompareClick
+            ),
         shape = RoundedCornerShape(16.dp),
         color = containerColor,
     ) {
@@ -267,6 +296,14 @@ fun AyahCard(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(onClick = onCompareClick, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            imageVector = Icons.Rounded.CompareArrows,
+                            contentDescription = "Compare Recitations",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     IconButton(onClick = onBookmarkClick, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = Icons.Outlined.BookmarkBorder,

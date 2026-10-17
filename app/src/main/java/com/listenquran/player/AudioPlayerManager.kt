@@ -46,6 +46,7 @@ data class PlaybackState(
     val queue: List<QueueItem> = emptyList(),
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val isRadio: Boolean = false,
 )
 
 @Singleton
@@ -54,6 +55,7 @@ class AudioPlayerManager @Inject constructor(
     private val quranRepository: QuranRepository,
     private val reciterRepository: ReciterRepository,
     private val statsRepository: StatsRepository,
+    private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -259,11 +261,19 @@ class AudioPlayerManager @Inject constructor(
                     currentReciter = reciter,
                     isBuffering = true,
                     currentAyahNumber = startAyah,
+                    isRadio = false,
                 )
             }
 
+            val downloaded = downloadRepository.getDownloadedSurah(surah.id, reciter.id)
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
-            if (audioData != null) {
+            val effectiveUri = when {
+                downloaded != null && java.io.File(downloaded.localFilePath).exists() -> Uri.fromFile(java.io.File(downloaded.localFilePath))
+                audioData != null -> Uri.parse(audioData.audioUrl)
+                else -> null
+            }
+
+            if (effectiveUri != null) {
                 val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
                 val mediaMetadata = MediaMetadata.Builder()
                     .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
@@ -281,16 +291,16 @@ class AudioPlayerManager @Inject constructor(
 
                 val mediaItem = MediaItem.Builder()
                     .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
-                    .setUri(audioData.audioUrl)
+                    .setUri(effectiveUri)
                     .setMediaMetadata(mediaMetadata)
                     .build()
 
                 _playbackState.update {
-                    it.copy(verseTimings = audioData.timestamps)
+                    it.copy(verseTimings = audioData?.timestamps ?: emptyList())
                 }
 
                 var startPositionMs = 0L
-                if (startAyah > 1) {
+                if (startAyah > 1 && audioData != null) {
                     val targetTiming = audioData.timestamps.find { it.verseKey == "${surah.id}:$startAyah" }
                     if (targetTiming != null) {
                         startPositionMs = targetTiming.timestampFrom
@@ -372,6 +382,66 @@ class AudioPlayerManager @Inject constructor(
 
     fun clearQueue() {
         _playbackState.update { it.copy(queue = emptyList()) }
+    }
+
+    fun reorderQueue(newQueue: List<QueueItem>) {
+        _playbackState.update { it.copy(queue = newQueue) }
+    }
+
+    fun playRadio(station: RadioStation) {
+        ensureServiceRunning()
+        _currentPositionMs.value = 0L
+        scope.launch {
+            val dummySurah = Surah(
+                id = 0,
+                nameSimple = station.name,
+                nameComplex = station.name,
+                nameArabic = "إذاعة القرآن الكريم",
+                revelationPlace = station.city,
+                revelationOrder = 0,
+                versesCount = 0,
+                translatedName = station.description
+            )
+            val dummyReciter = Reciter(
+                id = 0,
+                name = station.name,
+                englishName = "Live Quran Radio",
+                style = "Live 24/7",
+            )
+            _playbackState.update {
+                it.copy(
+                    currentSurah = dummySurah,
+                    currentReciter = dummyReciter,
+                    isBuffering = true,
+                    currentAyahNumber = 1,
+                    verseTimings = emptyList(),
+                    isRadio = true,
+                )
+            }
+            val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+            val mediaMetadata = MediaMetadata.Builder()
+                .setTitle(station.name)
+                .setArtist("Live Quran Radio • ${station.city}")
+                .setAlbumTitle("Quran.com Radio")
+                .setDisplayTitle(station.name)
+                .setSubtitle(station.description)
+                .setArtworkUri(artworkUri)
+                .setIsPlayable(true)
+                .setIsBrowsable(false)
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setMediaId("radio:${station.id}")
+                .setUri(station.streamUrl)
+                .setMediaMetadata(mediaMetadata)
+                .build()
+
+            withController { controller ->
+                controller.setMediaItem(mediaItem)
+                controller.prepare()
+                controller.play()
+            }
+        }
     }
 
     fun toggleShuffle() {
@@ -497,8 +567,22 @@ class AudioPlayerManager @Inject constructor(
                 remaining--
                 _playbackState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
             }
-            withController { it.pause() }
+            fadeOutAndPause()
             _playbackState.update { it.copy(sleepTimerRemainingSeconds = null) }
+        }
+    }
+
+    private suspend fun fadeOutAndPause() {
+        val steps = 30
+        val stepDelayMs = 100L // 30 * 100ms = 3.0 seconds
+        for (i in steps downTo 0) {
+            val vol = i / steps.toFloat()
+            withController { it.volume = vol }
+            delay(stepDelayMs)
+        }
+        withController {
+            it.pause()
+            it.volume = 1.0f
         }
     }
 

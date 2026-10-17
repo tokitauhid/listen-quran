@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ fun PlayerActionsMenuSheet(
     onAddToPlaylist: () -> Unit,
     onOpenQueue: () -> Unit,
     onGoToReciter: () -> Unit,
+    onGoToReciterRadio: () -> Unit = {},
     onOpenSleepTimer: () -> Unit,
     onPlayNextInQueue: (() -> Unit)? = null,
     onAddToQueue: (() -> Unit)? = null,
@@ -126,6 +128,16 @@ fun PlayerActionsMenuSheet(
                     onClick = {
                         onDismiss()
                         onGoToReciter()
+                    }
+                )
+
+                ActionItem(
+                    icon = Icons.Rounded.Radio,
+                    title = "Go to Reciter Radio",
+                    subtitle = "Continuous shuffle of ${reciter.englishName}",
+                    onClick = {
+                        onDismiss()
+                        onGoToReciterRadio()
                     }
                 )
             }
