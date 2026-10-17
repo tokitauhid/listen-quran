@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,7 +20,6 @@ import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.QueueMusic
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,18 +34,24 @@ import androidx.compose.ui.unit.sp
 import com.listenquran.domain.model.*
 import com.listenquran.ui.theme.AmiriQuranFont
 
+// Cached gradient brushes to avoid shader allocations during scrolling
+private val LikedGradient = Brush.verticalGradient(listOf(Color(0xFF005237), Color(0xFF1D211F)))
+private val DefaultPlaylistGradient = Brush.verticalGradient(listOf(Color(0xFF334B3F), Color(0xFF191C1B)))
+private val DailyMixGradient = Brush.verticalGradient(listOf(Color(0xFF005237), Color(0xFF1D211F)))
+private val WeeklyMixGradient = Brush.verticalGradient(listOf(Color(0xFF334B3F), Color(0xFF191C1B)))
+private val FridayMixGradient = Brush.verticalGradient(listOf(Color(0xFF5F4100), Color(0xFF1D211F)))
+private val TahajjudMixGradient = Brush.verticalGradient(listOf(Color(0xFF004D40), Color(0xFF111413)))
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     surahs: List<Surah>,
     reciters: List<Reciter>,
     playlists: List<Playlist>,
-    radioStations: List<RadioStation>,
     khatmaProgress: KhatmaProgress,
     recentSurahs: List<Surah> = emptyList(),
     onSurahClick: (Surah) -> Unit,
     onReciterClick: (Reciter) -> Unit,
-    onRadioClick: (RadioStation) -> Unit,
     onPlaylistClick: (Playlist) -> Unit,
     onContinueKhatma: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -55,7 +61,35 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
-    val filterCategories = listOf("All", "Surahs", "Playlists", "Reciters", "Radio")
+    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Reciters") }
+
+    // Preserve scroll positions of horizontal carousels across parent LazyColumn scrolls
+    val playlistsRowState = rememberLazyListState()
+    val mixesRowState = rememberLazyListState()
+    val recitersRowState = rememberLazyListState()
+
+    // Memoize derived data to eliminate work during layout & recomposition
+    val displaySurahs = remember(recentSurahs, surahs) {
+        (if (recentSurahs.isNotEmpty()) recentSurahs else surahs).take(6)
+    }
+    val pairs = remember(displaySurahs) {
+        displaySurahs.chunked(2)
+    }
+
+    // Curate recommended reciters: favorites first, then prominent reciters, capped at 14 for optimal memory & scroll
+    val recommendedReciters = remember(reciters) {
+        if (reciters.isEmpty()) emptyList()
+        else {
+            val favs = reciters.filter { it.isFavorite }
+            val others = reciters.filter { !it.isFavorite }
+            (favs + others).take(14)
+        }
+    }
+
+    val featuredSurahs = remember(surahs) {
+        val targetIds = setOf(1, 2, 18, 36, 55, 56, 67, 112, 113, 114)
+        surahs.filter { it.id in targetIds }
+    }
 
     Scaffold(
         topBar = {
@@ -117,7 +151,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Filter Chips
-            item {
+            item(key = "filter_chips") {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(horizontal = 16.dp),
@@ -141,10 +175,11 @@ fun HomeScreen(
             }
 
             // 1. Playlists (Liked on Top, Custom Playlists Carousel - plan.md §1.1.1 & §1.1.2)
-            if (selectedFilter in listOf("All", "Playlists") && playlists.isNotEmpty()) {
-                item {
+            if ((selectedFilter == "All" || selectedFilter == "Playlists") && playlists.isNotEmpty()) {
+                item(key = "playlists_section") {
                     SectionHeader(title = "Your Playlists")
                     LazyRow(
+                        state = playlistsRowState,
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -153,26 +188,15 @@ fun HomeScreen(
                             Surface(
                                 modifier = Modifier
                                     .width(148.dp)
-                                    .height(130.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { onPlaylistClick(playlist) },
+                                    .height(130.dp),
                                 shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainer
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                onClick = { onPlaylistClick(playlist) }
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(
-                                            if (playlist.isLikedCollection) {
-                                                Brush.verticalGradient(
-                                                    listOf(Color(0xFF005237), Color(0xFF1D211F))
-                                                )
-                                            } else {
-                                                Brush.verticalGradient(
-                                                    listOf(Color(0xFF334B3F), Color(0xFF191C1B))
-                                                )
-                                            }
-                                        )
+                                        .background(if (playlist.isLikedCollection) LikedGradient else DefaultPlaylistGradient)
                                         .padding(14.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
@@ -205,8 +229,8 @@ fun HomeScreen(
             }
 
             // 2. Recently Listened 2x3 Tile Grid (plan.md §1.1.4)
-            if (selectedFilter in listOf("All", "Surahs")) {
-                item {
+            if (selectedFilter == "All" || selectedFilter == "Surahs") {
+                item(key = "recent_surahs_section") {
                     SectionHeader(title = "Recently Listened")
                     Spacer(modifier = Modifier.height(4.dp))
                     Column(
@@ -215,9 +239,6 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val displaySurahs = if (recentSurahs.isNotEmpty()) recentSurahs.take(6) else surahs.take(6)
-                        val pairs = displaySurahs.chunked(2)
-
                         for (pair in pairs) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -241,8 +262,8 @@ fun HomeScreen(
             }
 
             // 3. Khatma Tracking Card (plan.md §1.1.7)
-            if (selectedFilter in listOf("All", "Surahs")) {
-                item {
+            if (selectedFilter == "All" || selectedFilter == "Surahs") {
+                item(key = "khatma_widget") {
                     KhatmaWidget(
                         progress = khatmaProgress,
                         onContinue = onContinueKhatma,
@@ -252,43 +273,44 @@ fun HomeScreen(
             }
 
             // 4. Trending Daily / Weekly Mixes (plan.md §1.1.3)
-            if (selectedFilter in listOf("All", "Playlists")) {
-                item {
+            if (selectedFilter == "All" || selectedFilter == "Playlists") {
+                item(key = "trending_mixes_section") {
                     SectionHeader(title = "Trending from Quran.com")
                     LazyRow(
+                        state = mixesRowState,
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        item {
+                        item(key = "daily_mix") {
                             MixCard(
                                 title = "Daily Mix",
                                 subtitle = "Al-Kahf • Yasin • Mulk",
-                                gradient = listOf(Color(0xFF005237), Color(0xFF1D211F)),
+                                gradient = DailyMixGradient,
                                 onClick = { surahs.firstOrNull()?.let(onSurahClick) }
                             )
                         }
-                        item {
+                        item(key = "weekly_mix") {
                             MixCard(
                                 title = "Weekly Mix",
                                 subtitle = "Ar-Rahman • Al-Waqi'ah",
-                                gradient = listOf(Color(0xFF334B3F), Color(0xFF191C1B)),
+                                gradient = WeeklyMixGradient,
                                 onClick = { surahs.getOrNull(54)?.let(onSurahClick) }
                             )
                         }
-                        item {
+                        item(key = "friday_surahs") {
                             MixCard(
                                 title = "Friday Surahs",
                                 subtitle = "Surah Al-Kahf recitation",
-                                gradient = listOf(Color(0xFF5F4100), Color(0xFF1D211F)),
+                                gradient = FridayMixGradient,
                                 onClick = { surahs.find { it.id == 18 }?.let(onSurahClick) }
                             )
                         }
-                        item {
+                        item(key = "tahajjud_mix") {
                             MixCard(
                                 title = "Tahajjud Mix",
                                 subtitle = "Deep contemplation recitations",
-                                gradient = listOf(Color(0xFF004D40), Color(0xFF111413)),
+                                gradient = TahajjudMixGradient,
                                 onClick = { surahs.getOrNull(66)?.let(onSurahClick) }
                             )
                         }
@@ -296,35 +318,17 @@ fun HomeScreen(
                 }
             }
 
-            // 5. Radio from Quran.com (plan.md §1.1.5)
-            if (selectedFilter in listOf("All", "Radio")) {
-                item {
-                    SectionHeader(title = "Radio from Quran.com")
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(radioStations, key = { it.id }) { station ->
-                            RadioStationCard(
-                                station = station,
-                                onClick = { onRadioClick(station) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 6. Recommended Reciters (plan.md §1.1.6)
-            if (selectedFilter in listOf("All", "Reciters")) {
-                item {
+            // 5. Recommended Reciters (plan.md §1.1.6)
+            if (selectedFilter == "All" || selectedFilter == "Reciters") {
+                item(key = "reciters_section") {
                     SectionHeader(title = "Recommended Reciters")
                     LazyRow(
+                        state = recitersRowState,
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(reciters, key = { it.id }) { reciter ->
+                        items(recommendedReciters, key = { it.id }) { reciter ->
                             ReciterAvatarCard(
                                 reciter = reciter,
                                 onClick = { onReciterClick(reciter) }
@@ -334,12 +338,11 @@ fun HomeScreen(
                 }
             }
 
-            // 7. Surahs Shortcut (clean & fast, no 114 items lag!)
+            // 6. Surahs Shortcut (clean & fast, popular 10 surahs with instant search browse button)
             if (selectedFilter == "Surahs") {
-                item {
+                item(key = "popular_surahs_header") {
                     SectionHeader(title = "Popular Surahs")
                 }
-                val featuredSurahs = surahs.filter { it.id in listOf(1, 2, 18, 36, 55, 56, 67, 112, 113, 114) }
                 items(featuredSurahs, key = { it.id }) { surah ->
                     SurahListItem(
                         surah = surah,
@@ -349,7 +352,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
-                item {
+                item(key = "browse_all_surahs_button") {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -374,12 +377,10 @@ fun QuickAccessTile(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .height(56.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+        modifier = modifier.height(56.dp),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -417,9 +418,7 @@ fun KhatmaWidget(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp)),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 4.dp
@@ -492,22 +491,19 @@ fun KhatmaWidget(
 fun MixCard(
     title: String,
     subtitle: String,
-    gradient: List<Color>,
+    gradient: Brush,
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier
-            .width(148.dp)
-            .height(160.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
+        modifier = modifierCard,
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(gradient))
+                .background(gradient)
                 .padding(14.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -536,61 +532,19 @@ fun MixCard(
     }
 }
 
-@Composable
-fun RadioStationCard(
-    station: RadioStation,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .width(156.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Radio,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = station.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "24/7 Live Stream",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
+private val modifierCard = Modifier
+    .width(148.dp)
+    .height(160.dp)
 
 @Composable
 fun ReciterAvatarCard(
     reciter: Reciter,
     onClick: () -> Unit,
 ) {
+    val initials = remember(reciter.englishName) {
+        reciter.englishName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("")
+    }
+
     Column(
         modifier = Modifier
             .width(96.dp)
@@ -605,7 +559,6 @@ fun ReciterAvatarCard(
                 .border(2.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            val initials = reciter.englishName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("")
             Text(
                 text = initials,
                 style = MaterialTheme.typography.titleLarge,
@@ -636,12 +589,10 @@ fun SurahListItem(
     var showMenu by remember { mutableStateOf(false) }
 
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier

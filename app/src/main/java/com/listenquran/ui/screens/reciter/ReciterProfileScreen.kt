@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +38,6 @@ fun ReciterProfileScreen(
     onBack: () -> Unit,
     onPlaySurah: (Surah, Reciter) -> Unit,
     onPlayAll: (Reciter) -> Unit,
-    onStartReciterRadio: (Reciter) -> Unit,
     onToggleFavorite: (Reciter) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -148,30 +146,15 @@ fun ReciterProfileScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Buttons: Play All & Reciter Radio
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        // Action Button: Play All
+                        Button(
+                            onClick = { onPlayAll(reciter) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(
-                                onClick = { onPlayAll(reciter) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Play All")
-                            }
-
-                            FilledTonalButton(
-                                onClick = { onStartReciterRadio(reciter) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Rounded.Radio, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Reciter Radio")
-                            }
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Play All Surahs")
                         }
                     }
                 }

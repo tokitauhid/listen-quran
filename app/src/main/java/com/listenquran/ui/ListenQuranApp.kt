@@ -73,7 +73,7 @@ fun ListenQuranApp(
         Scaffold(
             bottomBar = {
                 Column {
-                    if (playbackState.currentSurah != null || playbackState.radioStation != null) {
+                    if (playbackState.currentSurah != null) {
                         MiniPlayer(
                             playbackState = playbackState,
                             currentPositionProvider = { viewModel.currentPositionMs.value },
@@ -179,12 +179,14 @@ fun ListenQuranApp(
 
         // Synced Scripture Bottom Sheet
         if (showVersesSheet) {
+            val currentWordIndex by viewModel.currentWordIndex.collectAsStateWithLifecycle()
             LaunchedEffect(playbackState.currentSurah?.id) {
                 viewModel.loadVersesForCurrentSurah()
             }
             SyncedAyahsBottomSheet(
                 playbackState = playbackState,
                 verses = currentVerses,
+                currentWordIndex = currentWordIndex,
                 onDismiss = { showVersesSheet = false },
                 onSeekToAyah = { viewModel.seekToAyah(it) },
                 onSaveBookmark = { ayah, note -> viewModel.saveBookmark(ayah, note) },
@@ -230,11 +232,6 @@ fun ListenQuranApp(
                 onGoToReciter = {
                     playbackState.currentReciter?.let {
                         selectedReciterForProfile = it
-                    }
-                },
-                onStartReciterRadio = {
-                    playbackState.currentReciter?.let {
-                        viewModel.startReciterRadio(it)
                     }
                 },
                 onOpenSleepTimer = { showSleepTimerDialog = true }
@@ -283,7 +280,6 @@ fun ListenQuranApp(
                 onBack = { selectedReciterForProfile = null },
                 onPlaySurah = { s, r -> viewModel.playSurah(s, r) },
                 onPlayAll = { viewModel.playAllWithReciter(it) },
-                onStartReciterRadio = { viewModel.startReciterRadio(it) },
                 onToggleFavorite = { viewModel.toggleFavoriteReciter(it) }
             )
         }

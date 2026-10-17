@@ -112,62 +112,6 @@ class KhatmaRepository @Inject constructor(
 }
 
 @Singleton
-class RadioRepository @Inject constructor() {
-    private val curatedStations = listOf(
-        RadioStation(
-            id = "cairo_radio",
-            name = "Cairo Quran Radio",
-            streamUrl = "https://stream.radiojar.com/8s5u8p4e508uv",
-            description = "Official Holy Quran Radio broadcast from Cairo, Egypt",
-            reciterName = "Various Egyptian Masters",
-            isLive = true
-        ),
-        RadioStation(
-            id = "makkah_live",
-            name = "Makkah Haram Live",
-            streamUrl = "https://video.holymakkah.gov.sa/live/audio.mp3",
-            description = "Live 24/7 audio broadcast directly from the Grand Mosque in Makkah",
-            reciterName = "Imams of Masjid Al-Haram",
-            isLive = true
-        ),
-        RadioStation(
-            id = "reciter_afasy",
-            name = "Mishary Al-Afasy 24/7",
-            streamUrl = "https://backup.qurango.net/radio/mishary_alafasi",
-            description = "Continuous Murattal recitation by Sheikh Mishary Rashid Al-Afasy",
-            reciterName = "Mishary Rashid Al-Afasy",
-            isLive = true
-        ),
-        RadioStation(
-            id = "reciter_abdulbaset",
-            name = "AbdulBaset AbdulSamad Radio",
-            streamUrl = "https://backup.qurango.net/radio/abdulbasit_abdulsamad_mojawwad",
-            description = "Continuous Mujawwad recitation by the Golden Voice of Egypt",
-            reciterName = "AbdulBaset AbdulSamad",
-            isLive = true
-        ),
-        RadioStation(
-            id = "reciter_minshawi",
-            name = "Mohamed Siddiq Al-Minshawi Radio",
-            streamUrl = "https://backup.qurango.net/radio/mohammed_siddiq_alminshawi",
-            description = "Legendary reverent recitation by Sheikh Al-Minshawi",
-            reciterName = "Mohamed Siddiq Al-Minshawi",
-            isLive = true
-        ),
-        RadioStation(
-            id = "reciter_sudais",
-            name = "Abdur-Rahman As-Sudais Radio",
-            streamUrl = "https://backup.qurango.net/radio/abdurrahman_alsudaes",
-            description = "Continuous soulful recitation by the General President of Haramain",
-            reciterName = "Abdur-Rahman As-Sudais",
-            isLive = true
-        ),
-    )
-
-    fun getRadioStations(): List<RadioStation> = curatedStations
-}
-
-@Singleton
 class StatsRepository @Inject constructor(
     private val statsDao: StatsDao,
     private val moshi: Moshi,

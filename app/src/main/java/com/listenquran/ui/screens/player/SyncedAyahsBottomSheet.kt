@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 fun SyncedAyahsBottomSheet(
     playbackState: PlaybackState,
     verses: List<Ayah>,
+    currentWordIndex: Int = 0,
     onDismiss: () -> Unit,
     onSeekToAyah: (Int) -> Unit,
     onSaveBookmark: (Ayah, String) -> Unit,
@@ -141,7 +142,7 @@ fun SyncedAyahsBottomSheet(
                             ayah = ayah,
                             isActive = isActive,
                             isWordByWord = isWordByWordMode,
-                            currentWordIndex = if (isActive) playbackState.currentWordIndex else 0,
+                            currentWordIndex = if (isActive) currentWordIndex else 0,
                             onCardClick = { onSeekToAyah(ayah.ayahNumber) },
                             onBookmarkClick = {
                                 selectedAyahForNote = ayah

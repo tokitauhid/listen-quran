@@ -20,14 +20,13 @@ import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@androidx.compose.runtime.Immutable
 data class PlaybackState(
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val currentSurah: Surah? = null,
     val currentReciter: Reciter? = null,
     val currentAyahNumber: Int = 1,
-    val currentWordIndex: Int = 0,
-    val currentPositionMs: Long = 0L,
     val durationMs: Long = 0L,
     val playbackSpeed: Float = 1.0f,
     val verseTimings: List<VerseTiming> = emptyList(),
@@ -36,8 +35,6 @@ data class PlaybackState(
     val hifzCurrentLoop: Int = 0,
     val sleepTimerRemainingSeconds: Long? = null,
     val stopAtEndOfSurah: Boolean = false,
-    val isRadio: Boolean = false,
-    val radioStation: RadioStation? = null,
     val queue: List<QueueItem> = emptyList(),
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
@@ -58,6 +55,9 @@ class AudioPlayerManager @Inject constructor(
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
+
+    private val _currentWordIndex = MutableStateFlow(0)
+    val currentWordIndex: StateFlow<Int> = _currentWordIndex.asStateFlow()
 
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
@@ -133,8 +133,6 @@ class AudioPlayerManager @Inject constructor(
             _playbackState.value = _playbackState.value.copy(
                 currentSurah = surah,
                 currentReciter = reciter,
-                isRadio = false,
-                radioStation = null,
                 isBuffering = true,
                 currentAyahNumber = startAyah,
             )
@@ -178,45 +176,6 @@ class AudioPlayerManager @Inject constructor(
 
                 player.play()
             }
-        }
-    }
-
-    fun playRadio(station: RadioStation) {
-        ensureServiceRunning()
-        _currentPositionMs.value = 0L
-        scope.launch {
-            _playbackState.value = _playbackState.value.copy(
-                isRadio = true,
-                radioStation = station,
-                currentSurah = null,
-                currentReciter = null,
-                verseTimings = emptyList(),
-                isBuffering = true,
-            )
-
-            val artworkUri = android.net.Uri.parse("android.resource://${context.packageName}/${com.listenquran.R.mipmap.ic_launcher}")
-            val mediaMetadata = MediaMetadata.Builder()
-                .setTitle(station.name)
-                .setArtist(station.reciterName ?: "Quran Radio")
-                .setAlbumTitle("Quran Radio Live")
-                .setAlbumArtist(station.reciterName ?: "Quran Radio")
-                .setDisplayTitle(station.name)
-                .setSubtitle(station.reciterName ?: "24/7 Live Stream")
-                .setDescription("24/7 Live Quran Stream")
-                .setArtworkUri(artworkUri)
-                .setIsPlayable(true)
-                .setIsBrowsable(false)
-                .setMediaType(MediaMetadata.MEDIA_TYPE_RADIO_STATION)
-                .build()
-
-            val mediaItem = MediaItem.Builder()
-                .setUri(station.streamUrl)
-                .setMediaMetadata(mediaMetadata)
-                .build()
-
-            player.setMediaItem(mediaItem)
-            player.prepare()
-            player.play()
         }
     }
 
@@ -455,13 +414,14 @@ class AudioPlayerManager @Inject constructor(
                     break
                 }
             }
-            // CRITICAL: Only emit state update when ayah or word index actually changes!
-            // Previously this assigned _playbackState.value 10-20 times per second unconditionally,
-            // triggering a recomposition storm across the entire app tree!
-            if (_playbackState.value.currentAyahNumber != ayahNum || _playbackState.value.currentWordIndex != wordIdx) {
+            // Word index is decoupled into dedicated StateFlow, preventing entire app recomposition
+            if (_currentWordIndex.value != wordIdx) {
+                _currentWordIndex.value = wordIdx
+            }
+            // Ayah number only changes once every several seconds
+            if (_playbackState.value.currentAyahNumber != ayahNum) {
                 _playbackState.value = _playbackState.value.copy(
                     currentAyahNumber = ayahNum,
-                    currentWordIndex = wordIdx,
                 )
             }
         }

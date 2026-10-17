@@ -1,5 +1,8 @@
 package com.listenquran.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Playlist(
     val id: Long = 0,
     val name: String,
@@ -9,6 +12,7 @@ data class Playlist(
     val items: List<PlaylistItem> = emptyList(),
 )
 
+@Immutable
 data class PlaylistItem(
     val id: Long = 0,
     val playlistId: Long,
@@ -22,6 +26,7 @@ data class PlaylistItem(
     val orderIndex: Int = 0,
 )
 
+@Immutable
 data class Bookmark(
     val id: Long = 0,
     val surahNumber: Int,
@@ -34,6 +39,7 @@ data class Bookmark(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+@Immutable
 data class KhatmaProgress(
     val id: Long = 1,
     val title: String = "Daily Khatma",
@@ -50,6 +56,7 @@ data class KhatmaProgress(
     val progressPercentage: Int get() = (progressFraction * 100).toInt()
 }
 
+@Immutable
 data class HifzLoopConfig(
     val surahNumber: Int = 1,
     val startAyah: Int = 1,
@@ -58,6 +65,7 @@ data class HifzLoopConfig(
     val delaySeconds: Int = 3,
 )
 
+@Immutable
 data class ListeningSession(
     val id: Long = 0,
     val surahNumber: Int,
@@ -66,6 +74,7 @@ data class ListeningSession(
     val timestamp: Long = System.currentTimeMillis(),
 )
 
+@Immutable
 data class ListeningStatsSummary(
     val totalSecondsListened: Long = 0,
     val totalSurahsCompleted: Int = 0,

@@ -23,7 +23,6 @@ class MainViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val khatmaRepository: KhatmaRepository,
-    private val radioRepository: RadioRepository,
     private val statsRepository: StatsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     val playerManager: AudioPlayerManager,
@@ -44,14 +43,12 @@ class MainViewModel @Inject constructor(
     val khatmaProgress: StateFlow<KhatmaProgress> = khatmaRepository.getKhatmaProgress()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), KhatmaProgress())
 
-    val radioStations: List<RadioStation> = radioRepository.getRadioStations()
-
     val statsSummary: StateFlow<ListeningStatsSummary> = statsRepository.getSummary()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ListeningStatsSummary())
 
     val recentSurahs: StateFlow<List<Surah>> = combine(
         statsRepository.getRecentSurahNumbers(),
-        quranRepository.getSurahs()
+        surahs
     ) { recentIds, allSurahs ->
         val matched = recentIds.mapNotNull { id -> allSurahs.find { it.id == id } }
         if (matched.isNotEmpty()) matched else allSurahs.take(6)
@@ -68,6 +65,7 @@ class MainViewModel @Inject constructor(
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
+    val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
 
     private val _currentVerses = MutableStateFlow<List<Ayah>>(emptyList())
     val currentVerses: StateFlow<List<Ayah>> = _currentVerses.asStateFlow()
@@ -98,10 +96,6 @@ class MainViewModel @Inject constructor(
                 ?: reciterRepository.getDefaultReciter()
             playerManager.playSurah(surah, targetReciter, startAyah)
         }
-    }
-
-    fun playRadio(station: RadioStation) {
-        playerManager.playRadio(station)
     }
 
     fun togglePlayPause() {
@@ -310,16 +304,6 @@ class MainViewModel @Inject constructor(
 
     fun playAllWithReciter(reciter: Reciter) {
         val allSurahs = surahs.value
-        if (allSurahs.isEmpty()) return
-        playerManager.clearQueue()
-        for (i in 1 until allSurahs.size) {
-            playerManager.addToQueue(allSurahs[i])
-        }
-        playSurah(allSurahs.first(), reciter)
-    }
-
-    fun startReciterRadio(reciter: Reciter) {
-        val allSurahs = surahs.value.shuffled()
         if (allSurahs.isEmpty()) return
         playerManager.clearQueue()
         for (i in 1 until allSurahs.size) {

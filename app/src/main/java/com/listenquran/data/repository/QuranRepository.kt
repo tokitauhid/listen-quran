@@ -22,7 +22,10 @@ class QuranRepository @Inject constructor(
     private val surahDao: SurahDao,
     private val reciterDao: ReciterDao,
 ) {
+    private var cachedAssetChapters: List<SurahEntity>? = null
+
     private suspend fun loadChaptersFromAssets(): List<SurahEntity> = withContext(Dispatchers.IO) {
+        cachedAssetChapters?.let { return@withContext it }
         try {
             val jsonString = context.assets.open("chapters.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
@@ -49,6 +52,7 @@ class QuranRepository @Inject constructor(
                     )
                 )
             }
+            cachedAssetChapters = list
             list
         } catch (e: Exception) {
             android.util.Log.e("QuranRepository", "Error reading chapters.json asset", e)

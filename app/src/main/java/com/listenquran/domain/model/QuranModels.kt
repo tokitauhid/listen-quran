@@ -1,5 +1,8 @@
 package com.listenquran.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Surah(
     val id: Int,
     val nameSimple: String,
@@ -14,6 +17,7 @@ data class Surah(
     val isMakki: Boolean get() = revelationPlace.equals("makkah", ignoreCase = true)
 }
 
+@Immutable
 data class Ayah(
     val id: Int,
     val surahNumber: Int,
@@ -28,6 +32,7 @@ data class Ayah(
     val words: List<AyahWord> = emptyList(),
 )
 
+@Immutable
 data class AyahWord(
     val id: Int,
     val position: Int,
@@ -37,6 +42,7 @@ data class AyahWord(
     val translation: String,
 )
 
+@Immutable
 data class Reciter(
     val id: Int,
     val name: String,
@@ -49,6 +55,7 @@ data class Reciter(
     val audioServer: String? = null,
 )
 
+@Immutable
 data class QueueItem(
     val id: String = java.util.UUID.randomUUID().toString(),
     val surah: Surah,
@@ -56,6 +63,7 @@ data class QueueItem(
     val startAyah: Int = 1,
 )
 
+@Immutable
 data class VerseTiming(
     val verseKey: String,
     val timestampFrom: Long,
@@ -64,12 +72,14 @@ data class VerseTiming(
     val segments: List<SegmentTiming> = emptyList(),
 )
 
+@Immutable
 data class SegmentTiming(
     val wordIndex: Int,
     val startMs: Long,
     val endMs: Long,
 )
 
+@Immutable
 data class ChapterAudio(
     val chapterId: Int,
     val reciterId: Int,
@@ -77,13 +87,4 @@ data class ChapterAudio(
     val format: String = "mp3",
     val durationSeconds: Long = 0,
     val timestamps: List<VerseTiming> = emptyList(),
-)
-
-data class RadioStation(
-    val id: String,
-    val name: String,
-    val streamUrl: String,
-    val description: String,
-    val reciterName: String? = null,
-    val isLive: Boolean = true,
 )

@@ -36,22 +36,27 @@ fun ListenQuranNavHost(
         modifier = modifier,
     ) {
         composable(TopLevelDestination.HOME.route) {
+            val onSurahClick = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.playSurah(surah) } }
+            val onContinueKhatma = androidx.compose.runtime.remember(viewModel) { { viewModel.continueKhatma() } }
+            val onOpenSettings = androidx.compose.runtime.remember(navController) { { navController.navigate(TopLevelDestination.SETTINGS.route) } }
+            val onNavigateToSearch = androidx.compose.runtime.remember(navController) { { navController.navigate(TopLevelDestination.SEARCH.route) } }
+            val onPlayNext = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.playNextInQueue(surah) } }
+            val onAddToQueue = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.addToQueue(surah) } }
+
             HomeScreen(
                 surahs = surahs,
                 reciters = reciters,
                 playlists = playlists,
-                radioStations = viewModel.radioStations,
                 khatmaProgress = khatmaProgress,
                 recentSurahs = recentSurahs,
-                onSurahClick = { viewModel.playSurah(it) },
+                onSurahClick = onSurahClick,
                 onReciterClick = onOpenReciterProfile,
-                onRadioClick = { viewModel.playRadio(it) },
                 onPlaylistClick = onOpenPlaylistDetail,
-                onContinueKhatma = { viewModel.continueKhatma() },
-                onOpenSettings = { navController.navigate(TopLevelDestination.SETTINGS.route) },
-                onNavigateToSearch = { navController.navigate(TopLevelDestination.SEARCH.route) },
-                onPlayNext = { viewModel.playNextInQueue(it) },
-                onAddToQueue = { viewModel.addToQueue(it) },
+                onContinueKhatma = onContinueKhatma,
+                onOpenSettings = onOpenSettings,
+                onNavigateToSearch = onNavigateToSearch,
+                onPlayNext = onPlayNext,
+                onAddToQueue = onAddToQueue,
             )
         }
         composable(TopLevelDestination.SEARCH.route) {

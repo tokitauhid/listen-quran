@@ -9,8 +9,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,26 +30,18 @@ fun MiniPlayer(
     onOpenFullPlayer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val surah = playbackState.currentSurah
-    val radio = playbackState.radioStation
+    val surah = playbackState.currentSurah ?: return
 
-    if (surah == null && radio == null) return
-
-    val title = surah?.nameSimple ?: radio?.name ?: ""
-    val subtitle = if (surah != null) {
-        val reciter = playbackState.currentReciter?.englishName ?: ""
-        "$reciter • Ayah ${playbackState.currentAyahNumber}"
-    } else {
-        radio?.reciterName ?: "24/7 Live Stream"
-    }
+    val title = surah.nameSimple
+    val reciter = playbackState.currentReciter?.englishName ?: ""
+    val subtitle = "$reciter • Ayah ${playbackState.currentAyahNumber}"
 
     Surface(
+        onClick = onOpenFullPlayer,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onOpenFullPlayer),
+            .padding(bottom = 8.dp),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
@@ -73,22 +63,13 @@ fun MiniPlayer(
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (surah != null) {
-                        Text(
-                            text = "${surah.id}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontSize = 15.sp,
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Radio,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    Text(
+                        text = "${surah.id}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontSize = 15.sp,
+                    )
                 }
 
                 // Title & Subtitle column
@@ -113,18 +94,16 @@ fun MiniPlayer(
                 }
 
                 // Heart / Like button (for Surahs)
-                if (surah != null) {
-                    IconButton(
-                        onClick = onToggleLike,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (isLiked) "Unlike" else "Like",
-                            tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                IconButton(
+                    onClick = onToggleLike,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isLiked) "Unlike" else "Like",
+                        tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
 
                 // M3 Play/Pause FAB (40x40dp, shape: 12dp, container: primary)
@@ -146,7 +125,7 @@ fun MiniPlayer(
             }
 
             // Bottom edge linear progress indicator
-            if (playbackState.durationMs > 0 && !playbackState.isRadio) {
+            if (playbackState.durationMs > 0) {
                 LinearProgressIndicator(
                     progress = {
                         val dur = playbackState.durationMs

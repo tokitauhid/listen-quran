@@ -34,7 +34,10 @@ class ReciterRepository @Inject constructor(
         )
     }
 
+    private var cachedAssetReciters: List<ReciterEntity>? = null
+
     private suspend fun loadRecitersFromAssets(): List<ReciterEntity> = withContext(Dispatchers.IO) {
+        cachedAssetReciters?.let { return@withContext it }
         try {
             val jsonString = context.assets.open("reciters.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
@@ -55,6 +58,7 @@ class ReciterRepository @Inject constructor(
                     )
                 )
             }
+            cachedAssetReciters = list
             list
         } catch (e: Exception) {
             android.util.Log.e("ReciterRepository", "Error reading reciters.json asset", e)

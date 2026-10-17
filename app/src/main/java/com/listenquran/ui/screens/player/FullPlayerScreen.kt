@@ -1,5 +1,6 @@
 package com.listenquran.ui.screens.player
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -54,11 +55,10 @@ fun FullPlayerScreen(
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderDragPosition by remember { mutableFloatStateOf(0f) }
 
-    val continuousPos by (currentPositionMsFlow ?: remember { MutableStateFlow(playbackState.currentPositionMs) })
+    val continuousPos by (currentPositionMsFlow ?: remember { MutableStateFlow(0L) })
         .collectAsStateWithLifecycle()
 
     val surah = playbackState.currentSurah
-    val radio = playbackState.radioStation
     val reciter = playbackState.currentReciter
 
     val currentPosition = if (isDraggingSlider) {
@@ -70,6 +70,8 @@ fun FullPlayerScreen(
     val sliderProgress = if (playbackState.durationMs > 0) {
         (currentPosition.toFloat() / playbackState.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
+
+    BackHandler(onBack = onCollapse)
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -102,7 +104,7 @@ fun FullPlayerScreen(
                 }
 
                 Text(
-                    text = if (playbackState.isRadio) "QURAN RADIO" else "PLAYING SURAH",
+                    text = "PLAYING SURAH",
                     style = MaterialTheme.typography.labelMedium,
                     letterSpacing = 1.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -170,20 +172,6 @@ fun FullPlayerScreen(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Radio,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(80.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = radio?.name ?: "Quran Radio",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center
-                        )
                     }
                 }
             }
@@ -198,7 +186,7 @@ fun FullPlayerScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = surah?.nameSimple ?: radio?.name ?: "Unknown",
+                        text = surah?.nameSimple ?: "",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -206,11 +194,7 @@ fun FullPlayerScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (surah != null) {
-                            "${reciter?.englishName ?: "Unknown Reciter"} • Ayah ${playbackState.currentAyahNumber}"
-                        } else {
-                            radio?.reciterName ?: "24/7 Continuous Broadcast"
-                        },
+                        text = "${reciter?.englishName ?: "Unknown Reciter"} • Ayah ${playbackState.currentAyahNumber}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -231,46 +215,42 @@ fun FullPlayerScreen(
             }
 
             // Audio Scrubber (Slider)
-            if (!playbackState.isRadio) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Slider(
-                        value = sliderProgress,
-                        onValueChange = {
-                            isDraggingSlider = true
-                            sliderDragPosition = it
-                        },
-                        onValueChangeFinished = {
-                            isDraggingSlider = false
-                            onSeekTo((sliderDragPosition * playbackState.durationMs).toLong())
-                        },
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary,
-                            inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Slider(
+                    value = sliderProgress,
+                    onValueChange = {
+                        isDraggingSlider = true
+                        sliderDragPosition = it
+                    },
+                    onValueChangeFinished = {
+                        isDraggingSlider = false
+                        onSeekTo((sliderDragPosition * playbackState.durationMs).toLong())
+                    },
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = formatTime(currentPosition),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatTime(playbackState.durationMs),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = formatTime(currentPosition),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = formatTime(playbackState.durationMs),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            } else {
-                Spacer(modifier = Modifier.height(36.dp))
             }
 
             // Playback Speed & Status indicators
