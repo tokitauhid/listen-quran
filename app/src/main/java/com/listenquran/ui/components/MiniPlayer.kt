@@ -1,7 +1,11 @@
 package com.listenquran.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.player.PlaybackState
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MiniPlayer(
     playbackState: PlaybackState,
@@ -28,6 +33,8 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     onToggleLike: () -> Unit,
     onOpenFullPlayer: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
 ) {
     val surah = playbackState.currentSurah ?: return
@@ -36,12 +43,53 @@ fun MiniPlayer(
     val reciter = playbackState.currentReciter?.englishName ?: ""
     val subtitle = "$reciter • Ayah ${playbackState.currentAyahNumber}"
 
+    val containerModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedBounds(
+                sharedContentState = rememberSharedContentState(key = "player_container"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val artworkModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_artwork"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val titleModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_title"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val subtitleModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_reciter"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
     Surface(
         onClick = onOpenFullPlayer,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .padding(bottom = 8.dp),
+            .padding(bottom = 8.dp)
+            .then(containerModifier),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
@@ -60,7 +108,8 @@ fun MiniPlayer(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .then(artworkModifier),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -82,14 +131,16 @@ fun MiniPlayer(
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = titleModifier
                     )
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = subtitleModifier
                     )
                 }
 

@@ -25,6 +25,7 @@ class MainViewModel @Inject constructor(
     private val khatmaRepository: KhatmaRepository,
     private val statsRepository: StatsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -63,6 +64,9 @@ class MainViewModel @Inject constructor(
     val notificationsEnabled: StateFlow<Boolean> = userPreferencesRepository.notificationsEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val downloadedSurahs: StateFlow<List<com.listenquran.data.local.entity.DownloadedSurahEntity>> = downloadRepository.getAllDownloadedSurahs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
@@ -73,6 +77,9 @@ class MainViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             playlistRepository.ensureLikedPlaylistCreated()
+            if (userPreferencesRepository.notificationsEnabled.first()) {
+                com.listenquran.notification.ReminderScheduler.scheduleReminders(context)
+            }
         }
     }
 
@@ -96,6 +103,24 @@ class MainViewModel @Inject constructor(
                 ?: reciterRepository.getDefaultReciter()
             playerManager.playSurah(surah, targetReciter, startAyah)
         }
+    }
+
+    fun playRadio(station: RadioStation) {
+        playerManager.playRadio(station)
+    }
+
+    fun playReciterRadio(reciter: Reciter) {
+        val allSurahs = surahs.value.shuffled()
+        if (allSurahs.isEmpty()) return
+        playerManager.clearQueue()
+        for (i in 1 until allSurahs.size) {
+            playerManager.addToQueue(allSurahs[i], reciter)
+        }
+        playSurah(allSurahs.first(), reciter)
+    }
+
+    fun reorderQueue(newQueue: List<QueueItem>) {
+        playerManager.reorderQueue(newQueue)
     }
 
     fun togglePlayPause() {
@@ -183,7 +208,14 @@ class MainViewModel @Inject constructor(
     }
 
     fun setNotificationsEnabled(enabled: Boolean) {
-        viewModelScope.launch { userPreferencesRepository.setNotificationsEnabled(enabled) }
+        viewModelScope.launch {
+            userPreferencesRepository.setNotificationsEnabled(enabled)
+            if (enabled) {
+                com.listenquran.notification.ReminderScheduler.scheduleReminders(context)
+            } else {
+                com.listenquran.notification.ReminderScheduler.cancelReminders(context)
+            }
+        }
     }
 
     fun exportStats() {
@@ -273,6 +305,32 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun reorderPlaylistItems(items: List<PlaylistItem>) {
+        viewModelScope.launch {
+            playlistRepository.reorderPlaylistItems(items)
+        }
+    }
+
+    fun setDefaultReciter(reciter: Reciter) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLastReciterId(reciter.id)
+            val currentSurah = playbackState.value.currentSurah
+            if (currentSurah != null && !playbackState.value.isRadio) {
+                playSurah(currentSurah, reciter, playbackState.value.currentAyahNumber)
+            }
+        }
+    }
+
+    suspend fun getVerseAudioTiming(reciterId: Int, chapterId: Int, verseKey: String): Pair<String, VerseTiming?>? {
+        return try {
+            val chapterAudio = quranRepository.getChapterAudio(reciterId = reciterId, chapterId = chapterId) ?: return null
+            val timing = chapterAudio.timestamps.find { it.verseKey == verseKey }
+            Pair(chapterAudio.audioUrl, timing)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
         return playlistRepository.getPlaylistItems(playlistId)
     }
@@ -318,9 +376,70 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun exportPlaylistsToUri(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = playlistRepository.exportPlaylistsJson()
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(json.toByteArray(Charsets.UTF_8))
+                }
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Playlists exported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Error exporting playlists", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     fun importPlaylists(json: String) {
         viewModelScope.launch {
             playlistRepository.importPlaylistsJson(json)
+        }
+    }
+
+    fun importPlaylistsFromUri(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader(Charsets.UTF_8).readText()
+                } ?: ""
+                val success = playlistRepository.importPlaylistsJson(json)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    if (success) {
+                        android.widget.Toast.makeText(context, "Playlists imported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Failed to parse playlists JSON", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Error importing playlists", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Import failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun exportStatsToUri(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = statsRepository.exportStatsJson()
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(json.toByteArray(Charsets.UTF_8))
+                }
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Stats exported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Error exporting stats", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -330,11 +449,64 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun importStatsFromUri(uri: android.net.Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader(Charsets.UTF_8).readText()
+                } ?: ""
+                val success = statsRepository.importStatsJson(json)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    if (success) {
+                        android.widget.Toast.makeText(context, "Stats imported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Failed to parse stats JSON", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainViewModel", "Error importing stats", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context, "Import failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun downloadSurah(surah: Surah, reciter: Reciter) {
+        viewModelScope.launch {
+            android.widget.Toast.makeText(context, "Downloading ${surah.nameSimple}...", android.widget.Toast.LENGTH_SHORT).show()
+            val result = downloadRepository.downloadSurah(surah, reciter)
+            if (result.isSuccess) {
+                android.widget.Toast.makeText(context, "${surah.nameSimple} downloaded successfully", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(context, "Download failed: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun deleteDownloadedSurah(surahNumber: Int, reciterId: Int) {
+        viewModelScope.launch {
+            downloadRepository.deleteDownload(surahNumber, reciterId)
+            android.widget.Toast.makeText(context, "Download deleted", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun clearAllDownloads() {
+        viewModelScope.launch {
+            downloadRepository.clearAllDownloads()
+            android.widget.Toast.makeText(context, "All downloads deleted", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun clearAudioCache() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                downloadRepository.clearAllDownloads()
                 context.cacheDir.deleteRecursively()
             } catch (_: Exception) {}
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(context, "Audio cache cleared", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

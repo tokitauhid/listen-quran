@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,11 +28,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.listenquran.domain.model.*
+import com.listenquran.ui.components.PlaylistArtworkMosaic
 import com.listenquran.ui.theme.AmiriQuranFont
 
 // Cached gradient brushes to avoid shader allocations during scrolling
@@ -58,10 +64,11 @@ fun HomeScreen(
     onNavigateToSearch: () -> Unit,
     onPlayNext: ((Surah) -> Unit)? = null,
     onAddToQueue: ((Surah) -> Unit)? = null,
+    onRadioStationClick: ((RadioStation) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
-    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Reciters") }
+    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Reciters", "Radio") }
 
     // Preserve scroll positions of horizontal carousels across parent LazyColumn scrolls
     val playlistsRowState = rememberLazyListState()
@@ -200,12 +207,19 @@ fun HomeScreen(
                                         .padding(14.dp),
                                     verticalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.Rounded.QueueMusic,
-                                        contentDescription = null,
-                                        tint = if (playlist.isLikedCollection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(28.dp)
-                                    )
+                                    if (!playlist.isLikedCollection && playlist.items.size >= 4) {
+                                        PlaylistArtworkMosaic(
+                                            items = playlist.items,
+                                            size = 36.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.AutoMirrored.Rounded.QueueMusic,
+                                            contentDescription = null,
+                                            tint = if (playlist.isLikedCollection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
                                     Column {
                                         Text(
                                             text = playlist.name,
@@ -312,6 +326,25 @@ fun HomeScreen(
                                 subtitle = "Deep contemplation recitations",
                                 gradient = TahajjudMixGradient,
                                 onClick = { surahs.getOrNull(66)?.let(onSurahClick) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Live 24/7 Quran Radio (plan.md §1.1.5)
+            if (selectedFilter == "All" || selectedFilter == "Radio") {
+                item(key = "quran_radio_section") {
+                    SectionHeader(title = "Radio from Quran.com")
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(CuratedRadioStations, key = { it.id }) { station ->
+                            RadioStationCard(
+                                station = station,
+                                onClick = { onRadioStationClick?.invoke(station) }
                             )
                         }
                     }
@@ -544,6 +577,10 @@ fun ReciterAvatarCard(
     val initials = remember(reciter.englishName) {
         reciter.englishName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("")
     }
+    val imageUrl = remember(reciter) {
+        reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
+    }
+    var isImageError by remember(imageUrl) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -559,12 +596,26 @@ fun ReciterAvatarCard(
                 .border(2.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = initials,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            if (!isImageError) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = reciter.englishName,
+                    contentScale = ContentScale.Crop,
+                    onError = { isImageError = true },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            if (isImageError) {
+                Text(
+                    text = initials,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -712,4 +763,88 @@ fun SectionHeader(
         color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(horizontal = 16.dp, vertical = 4.dp)
     )
+}
+
+@Composable
+fun RadioStationCard(
+    station: RadioStation,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .width(170.dp)
+            .height(160.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF003824), Color(0xFF191C1B))
+                    )
+                )
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.error
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                        Text(
+                            text = "LIVE",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                Icon(
+                    imageVector = Icons.Rounded.Radio,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Column {
+                Text(
+                    text = station.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = station.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
 }

@@ -23,7 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.listenquran.domain.model.*
+import com.listenquran.ui.components.PlaylistArtworkMosaic
 import com.listenquran.ui.theme.AmiriQuranFont
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,8 +56,7 @@ fun LibraryScreen(
     var newPlaylistDesc by remember { mutableStateOf("") }
 
     var showSpecificTimeDialog by remember { mutableStateOf(false) }
-    var targetHourStr by remember { mutableStateOf("23") }
-    var targetMinuteStr by remember { mutableStateOf("30") }
+    val timePickerState = rememberTimePickerState(initialHour = 23, initialMinute = 30, is24Hour = false)
 
     // Hifz configuration state
     var hifzSurahId by remember { mutableIntStateOf(1) }
@@ -241,19 +245,10 @@ fun LibraryScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.QueueMusic,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
+                                PlaylistArtworkMosaic(
+                                    items = playlist.items,
+                                    size = 48.dp
+                                )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = playlist.name,
@@ -397,6 +392,109 @@ fun LibraryScreen(
                                         }) { Text("Save") }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Favorite Reciters List
+            if (selectedFilter == "Reciters") {
+                item {
+                    Text(
+                        text = "Favorite Reciters",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                if (favoriteReciters.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No favorite reciters yet. Heart your favorite reciters to quickly access their recitations here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    items(favoriteReciters, key = { it.id }) { reciter ->
+                        val imageUrl = remember(reciter) {
+                            reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
+                        }
+                        var isImageError by remember(imageUrl) { mutableStateOf(false) }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onReciterClick(reciter) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!isImageError) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(LocalContext.current)
+                                                .data(imageUrl)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = reciter.englishName,
+                                            contentScale = ContentScale.Crop,
+                                            onError = { isImageError = true },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    if (isImageError) {
+                                        Text(
+                                            text = reciter.englishName.take(1),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = reciter.englishName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${reciter.style ?: "Murattal"} • ${reciter.qiraah}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.Favorite,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }
@@ -621,39 +719,23 @@ fun LibraryScreen(
             onDismissRequest = { showSpecificTimeDialog = false },
             title = { Text("Set Specific Stop Time") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
-                        text = "Playback will automatically stop when this clock time is reached.",
+                        text = "Playback will fade out and pause when the selected time is reached.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = targetHourStr,
-                            onValueChange = { targetHourStr = it.filter { c -> c.isDigit() }.take(2) },
-                            label = { Text("Hour (0-23)") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = targetMinuteStr,
-                            onValueChange = { targetMinuteStr = it.filter { c -> c.isDigit() }.take(2) },
-                            label = { Text("Minute (0-59)") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    TimePicker(state = timePickerState)
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        val h = targetHourStr.toIntOrNull()?.coerceIn(0, 23) ?: 23
-                        val m = targetMinuteStr.toIntOrNull()?.coerceIn(0, 59) ?: 30
-                        onSetSleepTimerUntilTime(h, m)
+                        onSetSleepTimerUntilTime(timePickerState.hour, timePickerState.minute)
                         showSpecificTimeDialog = false
                     }
                 ) {

@@ -1,9 +1,9 @@
 package com.listenquran.ui
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -36,7 +36,7 @@ import com.listenquran.ui.screens.playlist.PlaylistDetailScreen
 import com.listenquran.ui.screens.reciter.ReciterProfileScreen
 import com.listenquran.ui.theme.ListenQuranTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun ListenQuranApp(
     viewModel: MainViewModel = hiltViewModel(),
@@ -70,19 +70,26 @@ fun ListenQuranApp(
     var showSleepTimerDialog by remember { mutableStateOf(false) }
 
     ListenQuranTheme(themeMode = themeMode) {
-        Scaffold(
-            bottomBar = {
-                Column {
-                    if (playbackState.currentSurah != null) {
-                        MiniPlayer(
-                            playbackState = playbackState,
-                            currentPositionProvider = { viewModel.currentPositionMs.value },
-                            isLiked = false,
-                            onTogglePlayPause = { viewModel.togglePlayPause() },
-                            onToggleLike = { viewModel.toggleLikeCurrentSurah() },
-                            onOpenFullPlayer = { showFullPlayer = true },
-                        )
-                    }
+        SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                bottomBar = {
+                    Column {
+                        AnimatedVisibility(
+                            visible = playbackState.currentSurah != null && !showFullPlayer,
+                            enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                            exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
+                        ) {
+                            MiniPlayer(
+                                playbackState = playbackState,
+                                currentPositionProvider = { viewModel.currentPositionMs.value },
+                                isLiked = false,
+                                onTogglePlayPause = { viewModel.togglePlayPause() },
+                                onToggleLike = { viewModel.toggleLikeCurrentSurah() },
+                                onOpenFullPlayer = { showFullPlayer = true },
+                                sharedTransitionScope = this@SharedTransitionLayout,
+                                animatedVisibilityScope = this@AnimatedVisibility,
+                            )
+                        }
 
                     // M3 Navigation Bar (80dp height, active pill container)
                     NavigationBar(
@@ -151,30 +158,41 @@ fun ListenQuranApp(
             )
         }
 
-        // Full Player Modal Screen
-        AnimatedVisibility(
-            visible = showFullPlayer,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-        ) {
-            FullPlayerScreen(
-                playbackState = playbackState,
-                isLiked = false,
-                currentPositionMsFlow = viewModel.currentPositionMs,
-                onCollapse = { showFullPlayer = false },
-                onTogglePlayPause = { viewModel.togglePlayPause() },
-                onSeekTo = { viewModel.seekTo(it) },
-                onPrevious = { viewModel.playPrevious() },
-                onNext = { viewModel.playNext() },
-                onToggleLike = { viewModel.toggleLikeCurrentSurah() },
-                onToggleShuffle = { viewModel.toggleShuffle() },
-                onToggleRepeat = { viewModel.toggleRepeat() },
-                onSetPlaybackSpeed = { viewModel.setPlaybackSpeed(it) },
-                onOpenVersesSheet = { showVersesSheet = true },
-                onOpenQueue = { showQueueSheet = true },
-                onOpenSleepTimer = { showSleepTimerDialog = true },
-                onOpenActionsMenu = { showActionsMenuSheet = true },
-            )
+            // Full Player Modal Screen
+            AnimatedVisibility(
+                visible = showFullPlayer,
+                enter = fadeIn(animationSpec = tween(500, easing = FastOutSlowInEasing)) +
+                        slideInVertically(
+                            animationSpec = tween(500, easing = FastOutSlowInEasing),
+                            initialOffsetY = { it }
+                        ),
+                exit = fadeOut(animationSpec = tween(500, easing = FastOutSlowInEasing)) +
+                        slideOutVertically(
+                            animationSpec = tween(500, easing = FastOutSlowInEasing),
+                            targetOffsetY = { it }
+                        ),
+            ) {
+                FullPlayerScreen(
+                    playbackState = playbackState,
+                    isLiked = false,
+                    currentPositionMsFlow = viewModel.currentPositionMs,
+                    onCollapse = { showFullPlayer = false },
+                    onTogglePlayPause = { viewModel.togglePlayPause() },
+                    onSeekTo = { viewModel.seekTo(it) },
+                    onPrevious = { viewModel.playPrevious() },
+                    onNext = { viewModel.playNext() },
+                    onToggleLike = { viewModel.toggleLikeCurrentSurah() },
+                    onToggleShuffle = { viewModel.toggleShuffle() },
+                    onToggleRepeat = { viewModel.toggleRepeat() },
+                    onSetPlaybackSpeed = { viewModel.setPlaybackSpeed(it) },
+                    onOpenVersesSheet = { showVersesSheet = true },
+                    onOpenQueue = { showQueueSheet = true },
+                    onOpenSleepTimer = { showSleepTimerDialog = true },
+                    onOpenActionsMenu = { showActionsMenuSheet = true },
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedVisibility,
+                )
+            }
         }
 
         // Synced Scripture Bottom Sheet
@@ -187,10 +205,18 @@ fun ListenQuranApp(
                 playbackState = playbackState,
                 verses = currentVerses,
                 currentWordIndex = currentWordIndex,
+                reciters = reciters,
                 onDismiss = { showVersesSheet = false },
                 onSeekToAyah = { viewModel.seekToAyah(it) },
                 onSaveBookmark = { ayah, note -> viewModel.saveBookmark(ayah, note) },
                 onShareAsImage = { ayah -> ayahToShare = ayah },
+                onPauseMainPlayer = {
+                    if (playbackState.isPlaying) {
+                        viewModel.togglePlayPause()
+                    }
+                },
+                onSetDefaultReciter = { viewModel.setDefaultReciter(it) },
+                getVerseAudioTiming = { rId, cId, vKey -> viewModel.getVerseAudioTiming(rId, cId, vKey) },
             )
         }
 
@@ -202,6 +228,7 @@ fun ListenQuranApp(
                 onPlayQueueItem = { viewModel.playQueueItem(it) },
                 onRemoveFromQueue = { viewModel.removeFromQueue(it) },
                 onClearQueue = { viewModel.clearQueue() },
+                onReorderQueue = { viewModel.reorderQueue(it) },
             )
         }
 
@@ -232,6 +259,11 @@ fun ListenQuranApp(
                 onGoToReciter = {
                     playbackState.currentReciter?.let {
                         selectedReciterForProfile = it
+                    }
+                },
+                onGoToReciterRadio = {
+                    playbackState.currentReciter?.let {
+                        viewModel.playReciterRadio(it)
                     }
                 },
                 onOpenSleepTimer = { showSleepTimerDialog = true }
@@ -267,7 +299,8 @@ fun ListenQuranApp(
                 onDeletePlaylist = {
                     viewModel.deletePlaylist(pl.id)
                     selectedPlaylistForDetail = null
-                }
+                },
+                onReorderItems = { viewModel.reorderPlaylistItems(it) }
             )
         }
 
@@ -280,7 +313,8 @@ fun ListenQuranApp(
                 onBack = { selectedReciterForProfile = null },
                 onPlaySurah = { s, r -> viewModel.playSurah(s, r) },
                 onPlayAll = { viewModel.playAllWithReciter(it) },
-                onToggleFavorite = { viewModel.toggleFavoriteReciter(it) }
+                onToggleFavorite = { viewModel.toggleFavoriteReciter(it) },
+                onStartRadio = { viewModel.playReciterRadio(it) }
             )
         }
 

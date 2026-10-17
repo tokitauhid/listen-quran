@@ -1,6 +1,11 @@
 package com.listenquran.ui.screens.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,7 +35,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun FullPlayerScreen(
     playbackState: PlaybackState,
@@ -49,6 +54,8 @@ fun FullPlayerScreen(
     onOpenQueue: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenActionsMenu: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
 ) {
     var showSpeedDialog by remember { mutableStateOf(false) }
@@ -73,8 +80,50 @@ fun FullPlayerScreen(
 
     BackHandler(onBack = onCollapse)
 
+    val containerModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedBounds(
+                sharedContentState = rememberSharedContentState(key = "player_container"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val artworkModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_artwork"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val titleModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_title"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
+    val subtitleModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                state = rememberSharedContentState(key = "player_reciter"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ -> tween(500, easing = FastOutSlowInEasing) }
+            )
+        }
+    } else Modifier
+
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .then(containerModifier),
         color = MaterialTheme.colorScheme.surface
     ) {
         Column(
@@ -143,6 +192,7 @@ fun FullPlayerScreen(
                             )
                         )
                     )
+                    .then(artworkModifier)
                     .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -191,14 +241,16 @@ fun FullPlayerScreen(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = titleModifier
                     )
                     Text(
                         text = "${reciter?.englishName ?: "Unknown Reciter"} • Ayah ${playbackState.currentAyahNumber}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = subtitleModifier
                     )
                 }
 

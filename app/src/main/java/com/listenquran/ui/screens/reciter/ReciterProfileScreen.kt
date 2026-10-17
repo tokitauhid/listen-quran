@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,11 +21,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.Surah
 import com.listenquran.ui.screens.home.SurahListItem
@@ -39,6 +44,7 @@ fun ReciterProfileScreen(
     onPlaySurah: (Surah, Reciter) -> Unit,
     onPlayAll: (Reciter) -> Unit,
     onToggleFavorite: (Reciter) -> Unit,
+    onStartRadio: ((Reciter) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -97,6 +103,11 @@ fun ReciterProfileScreen(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val imageUrl = remember(reciter) {
+                            reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
+                        }
+                        var isImageError by remember(imageUrl) { mutableStateOf(false) }
+
                         Box(
                             modifier = Modifier
                                 .size(88.dp)
@@ -104,12 +115,26 @@ fun ReciterProfileScreen(
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = reciter.englishName.take(1),
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            if (!isImageError) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(imageUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = reciter.englishName,
+                                    contentScale = ContentScale.Crop,
+                                    onError = { isImageError = true },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            if (isImageError) {
+                                Text(
+                                    text = reciter.englishName.take(1),
+                                    fontSize = 36.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -146,15 +171,30 @@ fun ReciterProfileScreen(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Action Button: Play All
-                        Button(
-                            onClick = { onPlayAll(reciter) },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
+                        // Action Buttons: Play All & Reciter Radio
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Play All Surahs")
+                            Button(
+                                onClick = { onPlayAll(reciter) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Play All")
+                            }
+
+                            FilledTonalButton(
+                                onClick = { onStartRadio?.invoke(reciter) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Rounded.Radio, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Radio")
+                            }
                         }
                     }
                 }

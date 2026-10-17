@@ -1,7 +1,9 @@
 package com.listenquran.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -42,6 +44,7 @@ fun ListenQuranNavHost(
             val onNavigateToSearch = androidx.compose.runtime.remember(navController) { { navController.navigate(TopLevelDestination.SEARCH.route) } }
             val onPlayNext = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.playNextInQueue(surah) } }
             val onAddToQueue = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.addToQueue(surah) } }
+            val onRadioStationClick = androidx.compose.runtime.remember(viewModel) { { station: RadioStation -> viewModel.playRadio(station) } }
 
             HomeScreen(
                 surahs = surahs,
@@ -57,6 +60,7 @@ fun ListenQuranNavHost(
                 onNavigateToSearch = onNavigateToSearch,
                 onPlayNext = onPlayNext,
                 onAddToQueue = onAddToQueue,
+                onRadioStationClick = onRadioStationClick,
             )
         }
         composable(TopLevelDestination.SEARCH.route) {
@@ -101,11 +105,13 @@ fun ListenQuranNavHost(
             )
         }
         composable(TopLevelDestination.SETTINGS.route) {
+            val downloadedSurahs by viewModel.downloadedSurahs.collectAsStateWithLifecycle()
             SettingsScreen(
                 currentTheme = themeMode,
                 currentQuality = audioQuality,
                 statsSummary = statsSummary,
                 notificationsEnabled = notificationsEnabled,
+                downloadedSurahs = downloadedSurahs,
                 onSelectTheme = { viewModel.setThemeMode(it) },
                 onSelectQuality = { viewModel.setAudioQuality(it) },
                 onToggleNotifications = { viewModel.setNotificationsEnabled(it) },
@@ -113,6 +119,14 @@ fun ListenQuranNavHost(
                 onImportStats = { viewModel.importStats(it) },
                 onExportPlaylists = { viewModel.exportPlaylists() },
                 onImportPlaylists = { viewModel.importPlaylists(it) },
+                onExportPlaylistsToUri = { viewModel.exportPlaylistsToUri(it) },
+                onImportPlaylistsFromUri = { viewModel.importPlaylistsFromUri(it) },
+                onExportStatsToUri = { viewModel.exportStatsToUri(it) },
+                onImportStatsFromUri = { viewModel.importStatsFromUri(it) },
+                onDeleteDownloadedSurah = { surahNumber, reciterId ->
+                    viewModel.deleteDownloadedSurah(surahNumber, reciterId)
+                },
+                onClearAllDownloads = { viewModel.clearAllDownloads() },
                 onClearAudioCache = { viewModel.clearAudioCache() },
             )
         }

@@ -17,6 +17,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.listenquran.domain.model.AudioQuality
 import com.listenquran.domain.model.ListeningStatsSummary
 import com.listenquran.domain.model.ThemeMode
@@ -31,10 +34,17 @@ fun SettingsScreen(
     onSelectTheme: (ThemeMode) -> Unit,
     onSelectQuality: (AudioQuality) -> Unit,
     onToggleNotifications: (Boolean) -> Unit,
-    onExportStats: () -> Unit,
+    onExportStats: () -> Unit = {},
     onImportStats: (String) -> Unit = {},
-    onExportPlaylists: () -> Unit,
+    onExportPlaylists: () -> Unit = {},
     onImportPlaylists: (String) -> Unit = {},
+    onExportPlaylistsToUri: (Uri) -> Unit = {},
+    onImportPlaylistsFromUri: (Uri) -> Unit = {},
+    onExportStatsToUri: (Uri) -> Unit = {},
+    onImportStatsFromUri: (Uri) -> Unit = {},
+    downloadedSurahs: List<com.listenquran.data.local.entity.DownloadedSurahEntity> = emptyList(),
+    onDeleteDownloadedSurah: (Int, Int) -> Unit = { _, _ -> },
+    onClearAllDownloads: () -> Unit = {},
     onClearAudioCache: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -42,10 +52,38 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showQualityDialog by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
-    var showImportPlaylistsDialog by remember { mutableStateOf(false) }
-    var importPlaylistsText by remember { mutableStateOf("") }
-    var showImportStatsDialog by remember { mutableStateOf(false) }
-    var importStatsText by remember { mutableStateOf("") }
+
+    val exportPlaylistsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { onExportPlaylistsToUri(it) }
+    }
+
+    val importPlaylistsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { onImportPlaylistsFromUri(it) }
+    }
+
+    val exportStatsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { onExportStatsToUri(it) }
+    }
+
+    val importStatsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { onImportStatsFromUri(it) }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            onToggleNotifications(true)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -119,6 +157,14 @@ fun SettingsScreen(
                 }
             }
 
+            item {
+                WeeklyListeningBarChart(statsSummary = statsSummary)
+            }
+
+            item {
+                ReciterBreakdownDonutChart(statsSummary = statsSummary)
+            }
+
             // Appearance & Theme
             item {
                 Text(
@@ -146,7 +192,7 @@ fun SettingsScreen(
             // Audio & Downloads (plan.md §1.5: Manage Downloads & Quality)
             item {
                 Text(
-                    text = "Downloads & Streaming",
+                    text = "Downloads & Offline Storage",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -163,12 +209,169 @@ fun SettingsScreen(
             }
 
             item {
-                SettingCard(
-                    title = "Manage Downloads & Offline Storage",
-                    subtitle = "Clear temporary and cached audio files to free storage",
-                    icon = Icons.Rounded.Storage,
-                    onClick = { showClearCacheDialog = true }
-                )
+                val statFs = remember {
+                    try {
+                        android.os.StatFs(context.filesDir.absolutePath)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                val totalDeviceBytes = statFs?.totalBytes ?: (64L * 1024 * 1024 * 1024)
+                val availableDeviceBytes = statFs?.availableBytes ?: (32L * 1024 * 1024 * 1024)
+                val usedDeviceBytes = (totalDeviceBytes - availableDeviceBytes).coerceAtLeast(0L)
+                val downloadedQuranBytes = downloadedSurahs.sumOf { it.sizeBytes }
+                val usedRatio = (usedDeviceBytes.toFloat() / totalDeviceBytes.toFloat()).coerceIn(0f, 1f)
+
+                fun formatSize(bytes: Long): String {
+                    val gb = bytes / (1024.0 * 1024.0 * 1024.0)
+                    return if (gb >= 1.0) {
+                        "%.1f GB".format(gb)
+                    } else {
+                        val mb = bytes / (1024.0 * 1024.0)
+                        "%.1f MB".format(mb)
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Storage,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Column {
+                                Text(
+                                    text = "Device Storage & Quran Cache",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Quran Audio: ${formatSize(downloadedQuranBytes)} (${downloadedSurahs.size} downloaded)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        LinearProgressIndicator(
+                            progress = { usedRatio },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Used: ${formatSize(usedDeviceBytes)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "Free: ${formatSize(availableDeviceBytes)} / Total: ${formatSize(totalDeviceBytes)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { showClearCacheDialog = true },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Clear Audio Cache")
+                            }
+                            if (downloadedSurahs.isNotEmpty()) {
+                                Button(
+                                    onClick = onClearAllDownloads,
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Delete All Downloads")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (downloadedSurahs.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Downloaded Chapters (${downloadedSurahs.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                items(downloadedSurahs.size) { index ->
+                    val surah = downloadedSurahs[index]
+                    fun formatItemSize(bytes: Long): String {
+                        val mb = bytes / (1024.0 * 1024.0)
+                        return "%.1f MB".format(mb)
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${surah.surahNumber}. ${surah.surahName} (${surah.surahArabic})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "${surah.reciterName} • ${formatItemSize(surah.sizeBytes)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    onDeleteDownloadedSurah(surah.surahNumber, surah.reciterId)
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Delete,
+                                    contentDescription = "Delete download",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             // Notifications
@@ -218,7 +421,25 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = notificationsEnabled,
-                            onCheckedChange = onToggleNotifications
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) {
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                                        val isGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                            context,
+                                            android.Manifest.permission.POST_NOTIFICATIONS
+                                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                        if (isGranted) {
+                                            onToggleNotifications(true)
+                                        } else {
+                                            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                    } else {
+                                        onToggleNotifications(true)
+                                    }
+                                } else {
+                                    onToggleNotifications(false)
+                                }
+                            }
                         )
                     }
                 }
@@ -242,8 +463,7 @@ fun SettingsScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                onExportPlaylists()
-                                Toast.makeText(context, "Playlists exported to JSON", Toast.LENGTH_SHORT).show()
+                                exportPlaylistsLauncher.launch("listen_quran_playlists.json")
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -253,7 +473,9 @@ fun SettingsScreen(
                         }
 
                         Button(
-                            onClick = { showImportPlaylistsDialog = true },
+                            onClick = {
+                                importPlaylistsLauncher.launch(arrayOf("application/json", "text/*"))
+                            },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -268,8 +490,7 @@ fun SettingsScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                onExportStats()
-                                Toast.makeText(context, "Stats exported to JSON", Toast.LENGTH_SHORT).show()
+                                exportStatsLauncher.launch("listen_quran_stats.json")
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -279,7 +500,9 @@ fun SettingsScreen(
                         }
 
                         Button(
-                            onClick = { showImportStatsDialog = true },
+                            onClick = {
+                                importStatsLauncher.launch(arrayOf("application/json", "text/*"))
+                            },
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -401,81 +624,7 @@ fun SettingsScreen(
         )
     }
 
-    // Import Playlists Dialog
-    if (showImportPlaylistsDialog) {
-        AlertDialog(
-            onDismissRequest = { showImportPlaylistsDialog = false },
-            title = { Text("Import Playlists from JSON") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste previously exported playlist JSON below to restore:")
-                    OutlinedTextField(
-                        value = importPlaylistsText,
-                        onValueChange = { importPlaylistsText = it },
-                        placeholder = { Text("[{\"name\": \"My Playlist\", ...}]") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (importPlaylistsText.isNotBlank()) {
-                            onImportPlaylists(importPlaylistsText.trim())
-                            importPlaylistsText = ""
-                            showImportPlaylistsDialog = false
-                            Toast.makeText(context, "Playlists imported successfully", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) {
-                    Text("Import")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showImportPlaylistsDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
 
-    // Import Stats Dialog
-    if (showImportStatsDialog) {
-        AlertDialog(
-            onDismissRequest = { showImportStatsDialog = false },
-            title = { Text("Import Listening Stats from JSON") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste previously exported stats JSON below:")
-                    OutlinedTextField(
-                        value = importStatsText,
-                        onValueChange = { importStatsText = it },
-                        placeholder = { Text("[{\"surah\": 1, \"duration\": 120, ...}]") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (importStatsText.isNotBlank()) {
-                            onImportStats(importStatsText.trim())
-                            importStatsText = ""
-                            showImportStatsDialog = false
-                            Toast.makeText(context, "Stats imported successfully", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) {
-                    Text("Import")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showImportStatsDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
 }
 
 @Composable
