@@ -4,7 +4,7 @@
 [![Compose BOM](https://img.shields.io/badge/Compose_BOM-2024.12.01-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Material 3](https://img.shields.io/badge/Material_Design-3_(Material_You)-006C4C.svg)](https://m3.material.io/)
 [![Jetpack Media3](https://img.shields.io/badge/Jetpack_Media3-1.5.1-00838F.svg)](https://developer.android.com/media/media3)
-[![Room](https://img.shields.io/badge/Room_SQLite-FTS4%2FFTS5-2E7D32.svg)](https://developer.android.com/training/data-storage/room)
+[![Room](https://img.shields.io/badge/Room_SQLite-2.6.1-2E7D32.svg)](https://developer.android.com/training/data-storage/room)
 [![Android Min SDK](https://img.shields.io/badge/Min_SDK-26_(Android_8.0+)-brightgreen.svg)](https://developer.android.com)
 [![Target SDK](https://img.shields.io/badge/Target_SDK-35_(Android_15)-green.svg)](https://developer.android.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -36,7 +36,7 @@
 
 ### 🔍 2. Instant Search & Quick Assist
 - **Direct Verse Parser**: Type any `Surah:Ayah` shortcut (e.g. `2:255` for *Ayatul Kursi*, `36:1` for *Yasin*) to get an instant 1-tap playback card.
-- **Full Catalog Search**: Lightning-fast instant search across all 114 Surahs, 6,236 Ayahs, and 250+ reciters powered by pre-packaged Room SQLite FTS.
+- **Full Catalog Search**: Lightning-fast instant search across all 114 Surahs, 6,236 Ayahs, and 250+ reciters powered by pre-packaged Room SQLite with standard SQL LIKE & in-memory filtering.
 - **Quick Assist Chips**: Instant 1-tap shortcuts for popular surahs and verses (*Ayatul Kursi*, *Al-Mulk*, *Yasin*, *Ar-Rahman*, *4 Quls*).
 - **Thematic Categories**: 2-column curated browsing (Ruqyah, Sleep & Peace, Juz & Hizb, Tahajjud, Quranic Duas).
 
@@ -90,7 +90,7 @@ The application adheres to Clean Architecture, Unidirectional Data Flow (UDF), a
                             │
 ┌───────────────────────────┴────────────────────────────┐
 │                     Data Layer                         │
-│  Room Database (FTS4/5) ── DataStore ── QuranApiService│
+│  Room Database ─────────── DataStore ── QuranApiService│
 │  (listen_quran.db pre-pack) (Preferences) (Retrofit)   │
 └───────────────────────────▲────────────────────────────┘
                             │
@@ -110,7 +110,7 @@ The application adheres to Clean Architecture, Unidirectional Data Flow (UDF), a
 | **Design System** | Material Design 3 | `1.3.1` (via BOM) |
 | **Audio Engine** | Jetpack Media3 (ExoPlayer, Session, UI) | `1.5.1` |
 | **Dependency Injection** | Dagger Hilt | `2.53.1` |
-| **Local Database** | Room (with SQLite FTS4 / FTS5) | `2.6.1` |
+| **Local Database** | Room Database | `2.6.1` |
 | **Preferences** | Jetpack DataStore Preferences | `1.1.1` |
 | **Networking** | Retrofit + OkHttp + Moshi (Codegen) | `2.11.0` / `4.12.0` |
 | **Image Loading** | Coil Compose | `2.7.0` |
@@ -141,7 +141,7 @@ listen-quran/
 │   │   │   ├── assets/
 │   │   │   │   ├── chapters.json           # All 114 Surahs metadata
 │   │   │   │   ├── reciters.json           # 255 verified CDN reciters
-│   │   │   │   └── listen_quran.db         # Pre-packaged Room SQLite FTS database
+│   │   │   │   └── listen_quran.db         # Pre-packaged Room SQLite database
 │   │   │   ├── java/com/listenquran/
 │   │   │   │   ├── data/
 │   │   │   │   │   ├── local/              # Room database, DAOs, Entities, DataStore

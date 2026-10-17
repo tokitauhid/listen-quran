@@ -6,13 +6,16 @@
 ### Core Stack
 - **Language**: 100% Kotlin
 - **UI Framework**: Jetpack Compose with Material Design 3 (Material You, version 1.3+)
-- **Audio Engine**: Jetpack Media3 (`ExoPlayer` + `MediaLibraryService`). **STRICT RULE**: Never use deprecated `MediaBrowserServiceCompat` or legacy `android.media.MediaPlayer`.
+- **Audio Engine**: Jetpack Media3 (`ExoPlayer` + `AudioPlayerManager` + `MediaLibraryService` + `SimpleCache`). Audio playback, sleep timers, and Hifz repetition loops are driven via timestamp polling and `seekToAyah()` in `AudioPlayerManager`. **STRICT RULE**: Never use deprecated `MediaBrowserServiceCompat` or legacy `android.media.MediaPlayer`.
 - **Platform Features**: 
   - **Android Auto**: Built strictly via Jetpack Media3 `MediaLibraryService`.
   - **Home Screen Widget**: Jetpack Glance (M3 styled, 2x1 and 4x2 sizes).
-- **Database & Persistence**: Room with SQLite FTS4 / FTS5 support for full-text search. Pre-packaged / local database located at `app/src/main/assets/listen_quran.db`.
-- **Preferences & State**: Jetpack DataStore (Preferences & Proto DataStore).
-- **Serialization**: `kotlinx.serialization` (JSON parsing).
+  - **Notifications**: Jetpack WorkManager (`PeriodicWorkRequest`) for reminders.
+  - **Drag & Drop**: `sh.calvin.reorderable` for drag-and-drop queues and playlists.
+- **Database & Persistence**: Room Database for Playlists, Liked collection (`isLikedCollection = true`), Bookmarks with notes, Listening Stats (`ListeningStatEntity`), and Khatma progress (`KhatmaEntity`). Standard SQL `LIKE` queries & in-memory filtering for Surah/Reciter search. Pre-packaged SQLite database located at `app/src/main/assets/listen_quran.db`.
+- **Preferences & Settings**: Jetpack DataStore Preferences strictly for user settings/preferences (Theme mode, audio quality, notification switches).
+- **Networking & Serialization**: Retrofit 2.11 + Moshi 1.15 (`moshi-kotlin` + KSP codegen) for Quran.com API v4. Storage Access Framework (SAF) (`CreateDocument` / `OpenDocument`) + Moshi for JSON backup/restore.
+- **Image Loading**: Coil 2.7.0 (`coil-compose`).
 - **Architecture Pattern**: Unidirectional Data Flow (UDF), MVVM / Clean Architecture with Repository pattern, Kotlin Coroutines & Flows.
 - **Privacy & Storage**: Local-only on-device storage. No user accounts, no tracking, no cloud lock-in.
 
@@ -26,18 +29,19 @@ Whenever working on this codebase, always utilize the configured Model Context P
      - Jetpack Compose `SharedTransitionLayout` / shared element transitions.
      - Material 3 1.3+ components (`NavigationBar`, `ModalBottomSheet`, `SearchBar`, `FilterChip`, `Slider`).
      - Jetpack Glance app widgets.
-     - Jetpack Media3 (`MediaSession`, `MediaLibraryService`, `Player`, `ExoPlayer`).
+     - Jetpack Media3 (`MediaSession`, `MediaLibraryService`, `Player`, `ExoPlayer`, `SimpleCache`).
+     - `sh.calvin.reorderable` drag-and-drop interactions.
    - Purpose: Prevent hallucinating deprecated Android APIs or outdated Compose constructs.
 
 2. **`fetch` (Quran.com API Verification)**:
-   - **MANDATORY**: Always use `fetch` to inspect live JSON responses from `https://api.quran.com/api/v4` (e.g. `/chapters`, `/verses/by_chapter/{id}`, `/reciters`, `/words`) before generating or modifying `@Serializable` Kotlin DTOs, verse models, or word-by-word timestamp parsers.
+   - **MANDATORY**: Always use `fetch` to inspect live JSON responses from `https://api.quran.com/api/v4` (e.g. `/chapters`, `/verses/by_chapter/{id}`, `/reciters`, `/words`) before generating or modifying `@JsonClass(generateAdapter = true)` Moshi DTOs, verse models, or word-by-word timestamp parsers.
    - Purpose: Ensure zero runtime deserialization crashes due to missing or renamed schema fields.
 
 3. **`sqlite-quran` (Database Verification & Testing)**:
-   - **MANDATORY**: Always use `sqlite-quran` to inspect, seed, test, and validate SQLite / Room schemas and FTS queries for:
+   - **MANDATORY**: Always use `sqlite-quran` to inspect, seed, test, and validate SQLite / Room schemas and queries for:
      - Surahs & Ayahs tables and indices.
-     - Full-text search (FTS4/FTS5) for Arabic & English queries.
-     - Playlists, Bookmarks (with personal notes), and Khatma progress tracking.
+     - Standard SQL queries for Arabic & English searches.
+     - Playlists, Liked collection, Bookmarks (with personal notes), Listening Stats (`ListeningStatEntity`), and Khatma progress (`KhatmaEntity`).
    - Target database: `app/src/main/assets/listen_quran.db`.
 
 4. **`android-adb` (Device & UI Validation)**:
@@ -94,22 +98,22 @@ Refer to [internal/design.md](file:///home/tokit/Projects/listen-quran/internal/
    - M3 Pill Search Bar (by Surah name, number, Ayah e.g. `2:255`, or Reciter).
    - Popular Ayahs Quick Assist Chips (Ayatul Kursi, Al-Mulk, Yasin, Ar-Rahman, 4 Quls).
    - 2-column Category Browse (Ruqyah, Sleep, Juz/Hizb, Tahajjud, Duas).
-   - FTS4/FTS5 Room-backed instant search.
+   - Instant search backed by Room SQL `LIKE` queries and in-memory filtering.
 
 3. **Library Screen**:
-   - Pinned Liked items at the top.
-   - Custom user playlists (create, reorder, export/import JSON).
+   - Pinned Liked items at the top (`isLikedCollection = true`).
+   - Custom user playlists (create, reorder via `sh.calvin.reorderable`, SAF + Moshi JSON export/import).
    - Bookmarks with personal notes/tadabbur reflections.
-   - **Hifz Repetition Mode**: Ayah range selection (From Ayah X to Y), repetition counter (`1x`, `3x`, `5x`, `10x`, `∞`), delay interval between ayahs (`0s`, `3s`, `5s`).
-   - **Timed Listening / Sleep Timer**: Presets (15m, 30m, 1h, End of Surah) + exact stop time.
+   - **Hifz Repetition Mode**: Ayah range selection (From Ayah X to Y), repetition counter (`1x`, `3x`, `5x`, `10x`, `∞`), delay interval between ayahs (`0s`, `3s`, `5s`) driven by `AudioPlayerManager` timestamp polling and `seekToAyah()`.
+   - **Timed Listening / Sleep Timer**: Presets (15m, 30m, 1h, End of Surah) + exact stop time managed by `AudioPlayerManager`.
 
 4. **Player Experience**:
-   - **M3 Floating Mini-Player**: Floats 8dp above bottom nav, 16dp rounded, linear progress bar, shared element expansion to Full Player.
+   - **M3 Floating Mini-Player**: Floats 8dp above bottom nav, 16dp rounded, linear progress bar, `SharedTransitionLayout` expansion to Full Player.
    - **Full Player**: Hero artwork (28dp shape), thick M3 slider (6dp), 64dp Play/Pause FAB, speed control (`0.5x` to `1.5x`), gapless playback engine.
    - **Synced Ayahs Display**: Lyrics-style synchronized verses with active ayah card highlighted in teal border. Word-by-word mode with transliteration and translation.
-   - **Share Ayah as Image**: Export verse on curated backgrounds (nature, architecture, patterns) with attribution watermark.
+   - **Share Ayah as Image**: Export verse on curated backgrounds (nature, architecture, patterns) with attribution watermark via `rememberGraphicsLayer()` and `FileProvider`.
 
 5. **Settings & Extras**:
-   - Theme mode (System, Dark, Light, AMOLED Pitch Black).
-   - Offline storage manager (download quality MP3 128k/192k/Lossless, delete cached audio).
-   - Data backup: JSON export/import for playlists and listening stats.
+   - Theme mode (System, Dark, Light, AMOLED Pitch Black) stored in DataStore Preferences.
+   - Offline storage manager (`MediaLibraryService` + `SimpleCache`, download quality MP3 128k/192k/Lossless, delete cached audio).
+   - Data backup: SAF + Moshi JSON export/import for playlists and listening stats (`ListeningStatEntity` + `KhatmaEntity`).
