@@ -22,34 +22,46 @@
 ---
 
 ## 2. Mandatory MCP Tool Usage Rules
-Whenever working on this codebase, always utilize the configured Model Context Protocol (MCP) servers:
+Whenever working on this codebase, always utilize the configured Model Context Protocol (MCP) servers based on task relevance:
 
 1. **`context7` (Docs & Modern API Lookup)**:
-   - **MANDATORY**: Always query `context7` before writing or updating:
+   - **MANDATORY**: Query `context7` before writing or updating:
      - Jetpack Compose `SharedTransitionLayout` / shared element transitions.
      - Material 3 1.3+ components (`NavigationBar`, `ModalBottomSheet`, `SearchBar`, `FilterChip`, `Slider`).
      - Jetpack Glance app widgets.
      - Jetpack Media3 (`MediaSession`, `MediaLibraryService`, `Player`, `ExoPlayer`, `SimpleCache`).
      - `sh.calvin.reorderable` drag-and-drop interactions.
-   - Purpose: Prevent hallucinating deprecated Android APIs or outdated Compose constructs.
+   - Purpose: Prevent hallucinating deprecated Android APIs or outdated Compose constructs. Always provide both `libraryName` and specific `query` to receive concise documentation.
 
-2. **`fetch` (Quran.com API Verification)**:
+2. **`serena` (Semantic Code Navigation & Symbol Intelligence)**:
+   - **MANDATORY**: Use Serena for symbol lookups (`find_symbol`), reference tracing (`find_referencing_symbols`), class hierarchy exploration, and surgical refactoring before reading entire files or running broad string searches across `app/`.
+   - Purpose: Minimize token overhead and navigate Kotlin definitions cleanly via Kotlin LSP.
+
+3. **`sqlite-quran` (Database Verification & Testing)**:
+   - **MANDATORY**: Use `sqlite-quran` (with `mcp<2` pin) to inspect table structures, columns, types, indexes, and test SQL queries in `app/src/main/assets/listen_quran.db`.
+   - Purpose: Validate Room entity schemas, foreign keys, and indexes against the shipped pre-packaged SQLite database without dumping entire tables into context. Always operate in read-only mode; never modify the shipped asset database.
+
+4. **`android-adb` (Device & UI Validation)**:
+   - **MANDATORY**: Use `android-adb` (`mobile-mcp`) to:
+     - Inspect UI layouts and verify Compose composables on connected devices/emulators (`mobile_list_elements_on_screen`).
+     - Verify Material 3 tonal color adherence (Teal `#006C4C` primary seed, Quranic Gold `#7D5700` tertiary seed).
+     - Check for text clipping in Uthmani Arabic typography (proper font padding and 2.0+ line-height for diacritics).
+     - Capture `logcat` stack traces (`mobile_get_device_logs` / `adb logcat`) immediately when debugging runtime crashes or audio session errors.
+
+5. **`fetch` (Quran.com API Verification)**:
    - **MANDATORY**: Always use `fetch` to inspect live JSON responses from `https://api.quran.com/api/v4` (e.g. `/chapters`, `/verses/by_chapter/{id}`, `/reciters`, `/words`) before generating or modifying `@JsonClass(generateAdapter = true)` Moshi DTOs, verse models, or word-by-word timestamp parsers.
    - Purpose: Ensure zero runtime deserialization crashes due to missing or renamed schema fields.
 
-3. **`sqlite-quran` (Database Verification & Testing)**:
-   - **MANDATORY**: Always use `sqlite-quran` to inspect, seed, test, and validate SQLite / Room schemas and queries for:
-     - Surahs & Ayahs tables and indices.
-     - Standard SQL queries for Arabic & English searches.
-     - Playlists, Liked collection, Bookmarks (with personal notes), Listening Stats (`ListeningStatEntity`), and Khatma progress (`KhatmaEntity`).
-   - Target database: `app/src/main/assets/listen_quran.db`.
+6. **`figma` (Design System & Canvas Context)**:
+   - Use the remote Figma MCP server (`https://mcp.figma.com/mcp`) when implementing new screens or updating player layouts to extract exact component styling, padding, tokens, and Uthmani typography scales.
+   - Purpose: Ensure UI implementations accurately match approved designs.
 
-4. **`android-adb` (Device & UI Validation)**:
-   - **MANDATORY**: Always use `android-adb` to:
-     - Inspect UI layouts and verify Compose composables on connected devices/emulators.
-     - Verify Material 3 tonal color adherence (Teal `#006C4C` primary seed, Quranic Gold `#7D5700` tertiary seed).
-     - Check for text clipping in Uthmani Arabic typography (proper font padding and 2.0+ line-height for diacritics).
-     - Capture `logcat` stack traces immediately when debugging runtime crashes or audio session errors.
+7. **`github` (Repository & Review Context)**:
+   - Use `github-mcp-server` (read-only mode) to review issues, inspect PR discussions, read commit history, and examine releases.
+   - Purpose: Keep work aligned with repository issues and pull requests without manual context copy-pasting.
+
+8. **`playwright` (Browser Automation & External Docs)**:
+   - Use headless Playwright for interactive web exploration, documentation retrieval, and API verification when static fetch or Context7 is insufficient.
 
 ---
 
@@ -117,3 +129,26 @@ Refer to [internal/design.md](file:///home/tokit/Projects/listen-quran/internal/
    - Theme mode (System, Dark, Light, AMOLED Pitch Black) stored in DataStore Preferences.
    - Offline storage manager (`MediaLibraryService` + `SimpleCache`, download quality MP3 128k/192k/Lossless, delete cached audio).
    - Data backup: SAF + Moshi JSON export/import for playlists and listening stats (`ListeningStatEntity` + `KhatmaEntity`).
+
+---
+
+## 6. Token Management & Context Optimization Guidelines
+Token efficiency is a core engineering requirement for all agent interactions:
+1. **Targeted Symbol Navigation**: Use `serena` (`find_symbol`, `get_symbols_overview`) and targeted line-range file reads (`view_file` with `StartLine`/`EndLine`) instead of opening full files or reading the entire repository.
+2. **Minimal Call-Chain Tracing**: Trace only direct callers and callees relevant to the bug or feature; do not pull entire architectural call graphs into context.
+3. **Restricted Documentation Queries**: Scrape only relevant API methods via Context7 using focused queries; avoid fetching multi-page API references or dumping whole doc sites.
+4. **Focused SQLite Inspection**: Use `describe_table` and targeted `SELECT ... LIMIT 5` queries rather than `SELECT *` on large tables.
+5. **Selective Context Loading**: Avoid reading `README.md`, `design.md`, `plan.md`, `techstack.md`, and rule files repeatedly. Reference only the specific file needed for the immediate subtask.
+6. **Tool Selection by Relevance**: Never call tools indiscriminately. Select the minimal reliable set of tools matching the task domain (e.g., Serena for Kotlin code navigation, Context7 for API docs, fetch for Quran.com responses).
+
+---
+
+## 7. Engineering Safety & Verification Guidelines
+1. **Repository Reconnaissance Before Edits**: Always inspect `git status`, current branch, and existing diffs before touching files.
+2. **Never Overwrite Unrelated Work**: Preserve uncommitted user changes and work-in-progress code at all times.
+3. **Version-Aware Documentation**: Respect project dependency versions (Kotlin 2.1.0, Media3 1.5.1, Compose M3 1.3+, Room 2.6.1, Retrofit 2.11, Moshi 1.15). Do not propose deprecated APIs.
+4. **Media3 Lifecycle & Audio Session Rigor**: Always verify foreground service state (`MediaLibraryService`), notification controls, lockscreen player, and MediaSession lifecycle callbacks.
+5. **Arabic Scripture & Typography Validation**: Always ensure Uthmani calligraphy has minimum 2.0 to 2.2 line-height and adequate padding to avoid clipping tashkeel and harakat diacritics. Verify RTL alignment on Arabic UI elements.
+6. **Privacy & Credential Protection**: Never commit, log, or hardcode API keys, personal access tokens, or sensitive user data. Local-only on-device storage must remain completely private.
+7. **Verification Before Claiming Success**: Always test and compile changes using Gradle or unit tests (`./gradlew testDebugUnitTest`). Never claim physical or emulator device validation unless an active device is verified via `adb devices`.
+
