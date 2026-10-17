@@ -70,7 +70,7 @@ fun LibraryScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Your Library",
+                        text = "Library",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface

@@ -8,7 +8,8 @@ enum class TopLevelDestination(
     val label: String,
 ) {
     HOME(route = "home", label = "Home"),
+    RECITERS(route = "reciters", label = "Reciters"),
     SEARCH(route = "search", label = "Search"),
-    LIBRARY(route = "library", label = "Your Library"),
+    LIBRARY(route = "library", label = "Library"),
     SETTINGS(route = "settings", label = "Settings"),
 }

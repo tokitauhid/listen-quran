@@ -52,12 +52,10 @@ private val TahajjudMixGradient = Brush.verticalGradient(listOf(Color(0xFF004D40
 @Composable
 fun HomeScreen(
     surahs: List<Surah>,
-    reciters: List<Reciter>,
     playlists: List<Playlist>,
     khatmaProgress: KhatmaProgress,
     recentSurahs: List<Surah> = emptyList(),
     onSurahClick: (Surah) -> Unit,
-    onReciterClick: (Reciter) -> Unit,
     onPlaylistClick: (Playlist) -> Unit,
     onContinueKhatma: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -68,12 +66,11 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
-    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Reciters", "Radio") }
+    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Radio") }
 
     // Preserve scroll positions of horizontal carousels across parent LazyColumn scrolls
     val playlistsRowState = rememberLazyListState()
     val mixesRowState = rememberLazyListState()
-    val recitersRowState = rememberLazyListState()
 
     // Memoize derived data to eliminate work during layout & recomposition
     val displaySurahs = remember(recentSurahs, surahs) {
@@ -81,16 +78,6 @@ fun HomeScreen(
     }
     val pairs = remember(displaySurahs) {
         displaySurahs.chunked(2)
-    }
-
-    // Curate recommended reciters: favorites first, then prominent reciters, capped at 14 for optimal memory & scroll
-    val recommendedReciters = remember(reciters) {
-        if (reciters.isEmpty()) emptyList()
-        else {
-            val favs = reciters.filter { it.isFavorite }
-            val others = reciters.filter { !it.isFavorite }
-            (favs + others).take(14)
-        }
     }
 
     val featuredSurahs = remember(surahs) {
@@ -351,25 +338,7 @@ fun HomeScreen(
                 }
             }
 
-            // 5. Recommended Reciters (plan.md §1.1.6)
-            if (selectedFilter == "All" || selectedFilter == "Reciters") {
-                item(key = "reciters_section") {
-                    SectionHeader(title = "Recommended Reciters")
-                    LazyRow(
-                        state = recitersRowState,
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(recommendedReciters, key = { it.id }) { reciter ->
-                            ReciterAvatarCard(
-                                reciter = reciter,
-                                onClick = { onReciterClick(reciter) }
-                            )
-                        }
-                    }
-                }
-            }
+
 
             // 6. Surahs Shortcut (clean & fast, popular 10 surahs with instant search browse button)
             if (selectedFilter == "Surahs") {
@@ -569,65 +538,7 @@ private val modifierCard = Modifier
     .width(148.dp)
     .height(160.dp)
 
-@Composable
-fun ReciterAvatarCard(
-    reciter: Reciter,
-    onClick: () -> Unit,
-) {
-    val initials = remember(reciter.englishName) {
-        reciter.englishName.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("")
-    }
-    val imageUrl = remember(reciter) {
-        reciter.photoUrl ?: "https://static.qurancdn.com/images/reciters/${reciter.id}.jpg"
-    }
-    var isImageError by remember(imageUrl) { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .width(96.dp)
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(2.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!isImageError) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = reciter.englishName,
-                    contentScale = ContentScale.Crop,
-                    onError = { isImageError = true },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            if (isImageError) {
-                Text(
-                    text = initials,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = reciter.englishName,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
 
 @Composable
 fun SurahListItem(

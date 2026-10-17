@@ -3,6 +3,8 @@ package com.listenquran.ui
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.listenquran.data.local.preferences.UserPreferencesRepository
 import com.listenquran.data.repository.*
 import com.listenquran.domain.model.*
@@ -34,6 +36,23 @@ class MainViewModel @Inject constructor(
 
     val reciters: StateFlow<List<Reciter>> = reciterRepository.getReciters()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recitersSearchQuery = MutableStateFlow("")
+    val recitersStyleFilter = MutableStateFlow("All")
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
+    val pagedReciters: Flow<PagingData<Reciter>> = combine(
+        recitersSearchQuery,
+        recitersStyleFilter
+    ) { query, style ->
+        Pair(query.trim(), style)
+    }
+        .debounce { (query, _) -> if (query.isEmpty()) 0L else 200L }
+        .distinctUntilChanged()
+        .flatMapLatest { (query, style) ->
+            reciterRepository.getPagedReciters(query = query, style = style)
+        }
+        .cachedIn(viewModelScope)
 
     val playlists: StateFlow<List<Playlist>> = playlistRepository.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -98,10 +117,25 @@ class MainViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            reciterRepository.initializeReciters()
             playlistRepository.ensureLikedPlaylistCreated()
             if (userPreferencesRepository.notificationsEnabled.first()) {
                 com.listenquran.notification.ReminderScheduler.scheduleReminders(context)
             }
+        }
+    }
+
+    fun setRecitersSearchQuery(query: String) {
+        recitersSearchQuery.value = query
+    }
+
+    fun setRecitersStyleFilter(style: String) {
+        recitersStyleFilter.value = style
+    }
+
+    fun refreshReciters() {
+        viewModelScope.launch {
+            reciterRepository.refreshReciters()
         }
     }
 

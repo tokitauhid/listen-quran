@@ -7,9 +7,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Bookmarks
@@ -114,6 +116,7 @@ fun ListenQuranApp(
                                 icon = {
                                     val icon = when (destination) {
                                         TopLevelDestination.HOME -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
+                                        TopLevelDestination.RECITERS -> if (selected) Icons.Filled.RecordVoiceOver else Icons.Outlined.RecordVoiceOver
                                         TopLevelDestination.SEARCH -> if (selected) Icons.Filled.Search else Icons.Outlined.Search
                                         TopLevelDestination.LIBRARY -> if (selected) Icons.Rounded.Bookmarks else Icons.Outlined.Bookmarks
                                         TopLevelDestination.SETTINGS -> if (selected) Icons.Filled.Settings else Icons.Outlined.Settings

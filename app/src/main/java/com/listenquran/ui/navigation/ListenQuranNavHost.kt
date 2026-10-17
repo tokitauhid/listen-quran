@@ -11,6 +11,7 @@ import com.listenquran.domain.model.*
 import com.listenquran.ui.MainViewModel
 import com.listenquran.ui.screens.home.HomeScreen
 import com.listenquran.ui.screens.library.LibraryScreen
+import com.listenquran.ui.screens.reciters.RecitersScreen
 import com.listenquran.ui.screens.search.SearchScreen
 import com.listenquran.ui.screens.settings.SettingsScreen
 
@@ -48,12 +49,10 @@ fun ListenQuranNavHost(
 
             HomeScreen(
                 surahs = surahs,
-                reciters = reciters,
                 playlists = playlists,
                 khatmaProgress = khatmaProgress,
                 recentSurahs = recentSurahs,
                 onSurahClick = onSurahClick,
-                onReciterClick = onOpenReciterProfile,
                 onPlaylistClick = onOpenPlaylistDetail,
                 onContinueKhatma = onContinueKhatma,
                 onOpenSettings = onOpenSettings,
@@ -61,6 +60,19 @@ fun ListenQuranNavHost(
                 onPlayNext = onPlayNext,
                 onAddToQueue = onAddToQueue,
                 onRadioStationClick = onRadioStationClick,
+            )
+        }
+        composable(TopLevelDestination.RECITERS.route) {
+            val recitersSearchQuery by viewModel.recitersSearchQuery.collectAsStateWithLifecycle()
+            val recitersStyleFilter by viewModel.recitersStyleFilter.collectAsStateWithLifecycle()
+            RecitersScreen(
+                pagedReciters = viewModel.pagedReciters,
+                searchQuery = recitersSearchQuery,
+                selectedStyle = recitersStyleFilter,
+                onSearchQueryChange = { viewModel.setRecitersSearchQuery(it) },
+                onStyleChange = { viewModel.setRecitersStyleFilter(it) },
+                onReciterClick = onOpenReciterProfile,
+                onRefresh = { viewModel.refreshReciters() }
             )
         }
         composable(TopLevelDestination.SEARCH.route) {

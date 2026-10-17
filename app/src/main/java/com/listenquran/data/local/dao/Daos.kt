@@ -30,8 +30,28 @@ interface ReciterDao {
     @Query("SELECT * FROM reciters WHERE id = :id LIMIT 1")
     suspend fun getReciterById(id: Int): ReciterEntity?
 
-    @Query("SELECT * FROM reciters WHERE englishName LIKE '%' || :query || '%' OR name LIKE '%' || :query || '%'")
+    @Query("SELECT * FROM reciters WHERE englishName LIKE '%' || :query || '%' OR name LIKE '%' || :query || '%' OR (style IS NOT NULL AND style LIKE '%' || :query || '%') OR qiraah LIKE '%' || :query || '%'")
     fun searchReciters(query: String): Flow<List<ReciterEntity>>
+
+    @Query("SELECT * FROM reciters ORDER BY isFavorite DESC, englishName ASC")
+    fun getPagedReciters(): androidx.paging.PagingSource<Int, ReciterEntity>
+
+    @Query("""
+        SELECT * FROM reciters 
+        WHERE (:style = '' OR :style = 'All' OR style = :style COLLATE NOCASE)
+          AND (
+            :query = '' 
+            OR englishName LIKE '%' || :query || '%' 
+            OR name LIKE '%' || :query || '%' 
+            OR (style IS NOT NULL AND style LIKE '%' || :query || '%')
+            OR qiraah LIKE '%' || :query || '%'
+          )
+        ORDER BY isFavorite DESC, englishName ASC
+    """)
+    fun getFilteredPagedReciters(query: String, style: String): androidx.paging.PagingSource<Int, ReciterEntity>
+
+    @Query("SELECT COUNT(*) FROM reciters")
+    suspend fun getRecitersCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReciters(reciters: List<ReciterEntity>)
