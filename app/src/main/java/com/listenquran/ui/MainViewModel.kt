@@ -71,6 +71,28 @@ class MainViewModel @Inject constructor(
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val isCurrentSurahLiked: StateFlow<Boolean> = combine(
+        playbackState,
+        reciters
+    ) { state, allReciters ->
+        val surah = state.currentSurah
+        val reciterId = state.currentReciter?.id ?: allReciters.firstOrNull()?.id
+        if (surah != null && reciterId != null) {
+            surah.id to reciterId
+        } else {
+            null
+        }
+    }
+    .flatMapLatest { pair ->
+        if (pair != null) {
+            playlistRepository.isLiked(pair.first, pair.second)
+        } else {
+            flowOf(false)
+        }
+    }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     private val _currentVerses = MutableStateFlow<List<Ayah>>(emptyList())
     val currentVerses: StateFlow<List<Ayah>> = _currentVerses.asStateFlow()
 
@@ -185,17 +207,17 @@ class MainViewModel @Inject constructor(
 
     fun toggleLikeCurrentSurah() {
         val surah = playbackState.value.currentSurah ?: return
-        val reciter = playbackState.value.currentReciter ?: return
+        val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
         viewModelScope.launch {
-            val isLiked = playlistRepository.isLiked(surah.id, reciter.id).first()
-            playlistRepository.toggleLiked(
+            val isNowLiked = playlistRepository.toggleLiked(
                 surahNumber = surah.id,
                 surahName = surah.nameSimple,
                 surahArabic = surah.nameArabic,
                 reciterId = reciter.id,
-                reciterName = reciter.englishName,
-                isCurrentlyLiked = isLiked
+                reciterName = reciter.englishName
             )
+            val msg = if (isNowLiked) "Added to Liked Surahs" else "Removed from Liked Surahs"
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -267,7 +289,7 @@ class MainViewModel @Inject constructor(
     fun addToPlaylist(playlistId: Long, surah: Surah) {
         val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
         viewModelScope.launch {
-            playlistRepository.addToPlaylist(
+            val added = playlistRepository.addToPlaylist(
                 playlistId = playlistId,
                 surahNumber = surah.id,
                 surahName = surah.nameSimple,
@@ -275,6 +297,11 @@ class MainViewModel @Inject constructor(
                 reciterId = reciter.id,
                 reciterName = reciter.englishName,
             )
+            if (added) {
+                android.widget.Toast.makeText(context, "Added to playlist", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(context, "Already in this playlist", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -290,6 +317,7 @@ class MainViewModel @Inject constructor(
                 reciterId = reciter.id,
                 reciterName = reciter.englishName,
             )
+            android.widget.Toast.makeText(context, "Created and added to playlist", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 

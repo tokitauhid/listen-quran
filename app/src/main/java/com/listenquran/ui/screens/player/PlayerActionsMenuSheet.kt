@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material3.*
@@ -23,6 +24,8 @@ import com.listenquran.player.PlaybackState
 @Composable
 fun PlayerActionsMenuSheet(
     playbackState: PlaybackState,
+    isLiked: Boolean = false,
+    onToggleLike: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onShareSurah: () -> Unit,
     onAddToPlaylist: () -> Unit,
@@ -86,6 +89,18 @@ fun PlayerActionsMenuSheet(
                     onClick = {
                         onDismiss()
                         onAddToQueue()
+                    }
+                )
+            }
+
+            if (onToggleLike != null) {
+                ActionItem(
+                    icon = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                    title = if (isLiked) "Remove from Liked Surahs" else "Save to Liked Surahs",
+                    subtitle = if (isLiked) "In your Liked Surahs collection" else "Save to your Liked Surahs collection",
+                    onClick = {
+                        onDismiss()
+                        onToggleLike()
                     }
                 )
             }

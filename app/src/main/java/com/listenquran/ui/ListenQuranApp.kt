@@ -57,6 +57,7 @@ fun ListenQuranApp(
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
 
     var showFullPlayer by remember { mutableStateOf(false) }
@@ -82,7 +83,7 @@ fun ListenQuranApp(
                             MiniPlayer(
                                 playbackState = playbackState,
                                 currentPositionProvider = { viewModel.currentPositionMs.value },
-                                isLiked = false,
+                                isLiked = isCurrentSurahLiked,
                                 onTogglePlayPause = { viewModel.togglePlayPause() },
                                 onToggleLike = { viewModel.toggleLikeCurrentSurah() },
                                 onOpenFullPlayer = { showFullPlayer = true },
@@ -174,7 +175,7 @@ fun ListenQuranApp(
             ) {
                 FullPlayerScreen(
                     playbackState = playbackState,
-                    isLiked = false,
+                    isLiked = isCurrentSurahLiked,
                     currentPositionMsFlow = viewModel.currentPositionMs,
                     onCollapse = { showFullPlayer = false },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -236,6 +237,8 @@ fun ListenQuranApp(
         if (showActionsMenuSheet) {
             PlayerActionsMenuSheet(
                 playbackState = playbackState,
+                isLiked = isCurrentSurahLiked,
+                onToggleLike = { viewModel.toggleLikeCurrentSurah() },
                 onDismiss = { showActionsMenuSheet = false },
                 onPlayNextInQueue = {
                     playbackState.currentSurah?.let { viewModel.playNextInQueue(it) }

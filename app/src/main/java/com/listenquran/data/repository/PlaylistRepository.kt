@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,8 +21,15 @@ class PlaylistRepository @Inject constructor(
     private val playlistDao: PlaylistDao,
     private val moshi: Moshi,
 ) {
-    suspend fun ensureLikedPlaylistCreated(): Long {
-        val existing = playlistDao.getLikedCollection().first()
+    private val likedMutex = Mutex()
+
+    suspend fun ensureLikedPlaylistCreated(): Long = likedMutex.withLock {
+        ensureLikedPlaylistCreatedInternal()
+    }
+
+    private suspend fun ensureLikedPlaylistCreatedInternal(): Long {
+        playlistDao.removeDuplicatePlaylistItems()
+        val existing = playlistDao.getLikedCollectionDirect()
         return if (existing != null) {
             existing.id
         } else {
@@ -89,7 +98,10 @@ class PlaylistRepository @Inject constructor(
         reciterName: String,
         startAyah: Int = 1,
         endAyah: Int? = null,
-    ) {
+    ): Boolean {
+        if (playlistDao.isItemInPlaylist(playlistId, surahNumber, reciterId)) {
+            return false
+        }
         playlistDao.insertPlaylistItem(
             PlaylistItemEntity(
                 playlistId = playlistId,
@@ -102,6 +114,7 @@ class PlaylistRepository @Inject constructor(
                 endAyah = endAyah,
             )
         )
+        return true
     }
 
     suspend fun toggleLiked(
@@ -110,20 +123,26 @@ class PlaylistRepository @Inject constructor(
         surahArabic: String,
         reciterId: Int,
         reciterName: String,
-        isCurrentlyLiked: Boolean,
-    ) {
-        val likedId = ensureLikedPlaylistCreated()
+    ): Boolean = likedMutex.withLock {
+        val likedId = ensureLikedPlaylistCreatedInternal()
+        val isCurrentlyLiked = playlistDao.isLikedDirect(surahNumber, reciterId)
         if (isCurrentlyLiked) {
             playlistDao.removeLiked(surahNumber, reciterId)
+            false
         } else {
-            addToPlaylist(
-                playlistId = likedId,
-                surahNumber = surahNumber,
-                surahName = surahName,
-                surahArabic = surahArabic,
-                reciterId = reciterId,
-                reciterName = reciterName,
+            // Remove any potential duplicate records before inserting fresh item
+            playlistDao.removeLiked(surahNumber, reciterId)
+            playlistDao.insertPlaylistItem(
+                PlaylistItemEntity(
+                    playlistId = likedId,
+                    surahNumber = surahNumber,
+                    surahName = surahName,
+                    surahArabic = surahArabic,
+                    reciterId = reciterId,
+                    reciterName = reciterName,
+                )
             )
+            true
         }
     }
 

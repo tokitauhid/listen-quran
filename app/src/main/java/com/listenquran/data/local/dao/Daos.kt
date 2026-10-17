@@ -78,6 +78,18 @@ interface PlaylistDao {
     @Query("SELECT EXISTS(SELECT 1 FROM playlist_items pi INNER JOIN playlists p ON pi.playlistId = p.id WHERE p.isLikedCollection = 1 AND pi.surahNumber = :surahNumber AND pi.reciterId = :reciterId)")
     fun isLiked(surahNumber: Int, reciterId: Int): Flow<Boolean>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM playlist_items pi INNER JOIN playlists p ON pi.playlistId = p.id WHERE p.isLikedCollection = 1 AND pi.surahNumber = :surahNumber AND pi.reciterId = :reciterId)")
+    suspend fun isLikedDirect(surahNumber: Int, reciterId: Int): Boolean
+
+    @Query("SELECT EXISTS(SELECT 1 FROM playlist_items WHERE playlistId = :playlistId AND surahNumber = :surahNumber AND reciterId = :reciterId)")
+    suspend fun isItemInPlaylist(playlistId: Long, surahNumber: Int, reciterId: Int): Boolean
+
+    @Query("DELETE FROM playlist_items WHERE id NOT IN (SELECT MIN(id) FROM playlist_items GROUP BY playlistId, surahNumber, reciterId)")
+    suspend fun removeDuplicatePlaylistItems()
+
+    @Query("SELECT * FROM playlists WHERE isLikedCollection = 1 LIMIT 1")
+    suspend fun getLikedCollectionDirect(): PlaylistEntity?
+
     @Query("DELETE FROM playlist_items WHERE playlistId IN (SELECT id FROM playlists WHERE isLikedCollection = 1) AND surahNumber = :surahNumber AND reciterId = :reciterId")
     suspend fun removeLiked(surahNumber: Int, reciterId: Int)
 }
