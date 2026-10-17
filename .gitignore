@@ -6,7 +6,6 @@ internal/
 *.apk
 *.aab
 *.ap_
-*.aab
 
 # Files for the ART/Dalvik VM
 *.dex
@@ -14,44 +13,66 @@ internal/
 # Java class files
 *.class
 
-# Generated files
+# Generated build files & directories
 bin/
 gen/
 out/
-
-# Gradle
-.gradle/
 build/
-*.hprof
+**/build/
 
-# Gradle wrapper (downloaded by users)
+# Gradle caches & daemons
+.gradle/
+.gradletasknamecache
+gradle-app.setting
+
+# Gradle wrapper (tracked in git)
+!gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 
-# Local configuration file
+# Kotlin compiler daemon caches
+.kotlin/
+kotlin-js-store/
+
+# Local configuration & environment
 local.properties
 
-# Android Studio / IntelliJ
+# Android Studio & IntelliJ IDEA
 .idea/
 *.iml
 *.iws
 *.ipr
 .navigation/
 captures/
+.shelf/
 
-# Keystore files (never commit signing keys)
+# Signing keys & secrets (never commit)
 *.jks
 *.keystore
-
-# Google Services (contains API keys)
 google-services.json
 
-# External native build
+# Native builds
 .cxx/
 .externalNativeBuild/
 
-# OS generated
+# Diagnostics, crash dumps & profiling
+*.hprof
+hs_err_pid*
+replay_pid*
+lint/
+lint-results*
+
+# OS-generated & temporary files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
 *.swp
+*.swo
 *~
+*.bak
+
+# Editor-specific
 .vscode/
