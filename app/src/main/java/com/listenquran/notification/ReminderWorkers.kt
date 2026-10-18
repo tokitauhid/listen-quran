@@ -57,7 +57,7 @@ class FridayKahfReminderWorker(
         )
 
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_app_logo)
             .setContentTitle("Surah Al-Kahf Reminder 📖")
             .setContentText("Today is blessed Friday! Don't forget to listen to Surah Al-Kahf for light between the two Fridays.")
             .setStyle(
@@ -95,7 +95,7 @@ class DailyStreakReminderWorker(
         )
 
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_app_logo)
             .setContentTitle("Keep Your Quran Connection Alive ✨")
             .setContentText("Take a moment today to listen to and reflect upon the Holy Quran.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

@@ -1,192 +1,87 @@
-# Listen Quran 🎧📖
+<div align="center">
+  <img src="./assets/logo.png" alt="Listen Quran Logo" width="150" height="150" style="border-radius: 28px;" />
+  <h1>Listen Quran — استمع للقرآن</h1>
+  <p><em>A modern, native Android offline-first Quran audio streaming and study application inspired by Spotify and Quran Audio.</em></p>
 
-[![Version](https://img.shields.io/badge/Release-v1.0.0-006C4C.svg?logo=github&logoColor=white)](https://github.com/tokitauhid/listen-quran/releases/tag/v1.0.0)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Compose BOM](https://img.shields.io/badge/Compose_BOM-2024.12.01-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![Material 3](https://img.shields.io/badge/Material_Design-3_(Material_You)-006C4C.svg)](https://m3.material.io/)
-[![Jetpack Media3](https://img.shields.io/badge/Jetpack_Media3-1.5.1-00838F.svg)](https://developer.android.com/media/media3)
-[![Room](https://img.shields.io/badge/Room_SQLite-2.6.1-2E7D32.svg)](https://developer.android.com/training/data-storage/room)
-[![Android Min SDK](https://img.shields.io/badge/Min_SDK-26_(Android_8.0+)-brightgreen.svg)](https://developer.android.com)
-[![Target SDK](https://img.shields.io/badge/Target_SDK-35_(Android_15)-green.svg)](https://developer.android.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-**Listen Quran** is a modern, native Android offline-first Quran audio streaming and study application inspired by Spotify and Quran Audio. Built from the ground up with 100% Kotlin, Jetpack Compose, Material Design 3 (Material You), and Jetpack Media3.
-
----
-
-## 🌟 Highlights & Philosophy
-
-- **Zero Accounts, Zero Tracking**: 100% local, on-device data sovereignty. Your playlists, bookmarks, listening statistics, and Khatma milestones never leave your device.
-- **Durable Khatam Tracker**: Single source of truth across all 6,236 Ayahs. Physically isolated SQLite database (`khatam.db`) with an immutable append-only event log (`khatam_events`), materialized snapshots (`khatam_snapshots`) with self-repairing replay, full WAL/fsync durability, interactive 30-Juz visual grid, and automated background playback tracking (80% listened rule).
-- **Quran.com Continuous Radio**: Non-stop live streaming recitations powered by official Quran.com / QuranicAudio broadcast stations with resilient queue recovery, state protection for your last-played surah, and an adaptive radio interface.
-- **Authentic Material Design 3**: Bespoke tonal palette anchored by Islamic Teal (`#006C4C`) and Quranic Amber/Gold (`#7D5700`), with full Dark, Light, and AMOLED Pitch Black themes.
-- **Modern Audio Architecture**: Built strictly on Jetpack Media3 (`ExoPlayer` + `AudioPlayerManager` + `MediaLibraryService`). First-class lockscreen controls, notification shade integration, Android Auto readiness, and gapless audio streaming.
-- **255+ Verified CDN Reciters**: Stream or download high-fidelity recitations from [Quran.com](https://quran.com) CDN across diverse Riwayahs (Hafs, Warsh, Qalun, and more).
-- **Lyrics-Style Synchronized Ayahs**: Karaoke-style real-time verse tracking with English translation, word-by-word highlight mode, and instant tap-to-seek navigation.
-- **Hifz Repetition Engine**: Targeted memorization loops with custom verse ranges ($A \to B$), repetition counts ($1\times, 3\times, 5\times, \infty$), and inter-verse delay intervals.
+  <p>
+    <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.0.0-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
+    <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/Kotlin-2.1.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
+    <img src="https://img.shields.io/badge/Compose-Material%203-006C4C?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose M3" />
+    <img src="https://img.shields.io/badge/Media3-ExoPlayer-00838F?style=for-the-badge&logo=google&logoColor=white" alt="Media3" />
+    <img src="https://img.shields.io/badge/Room-SQLite%20Offline-2E7D32?style=for-the-badge&logo=sqlite&logoColor=white" alt="Room SQLite" />
+    <img src="https://img.shields.io/badge/License-MIT-F8BD48?style=for-the-badge&logo=open-source-initiative&logoColor=black" alt="License" />
+  </p>
+</div>
 
 ---
 
-## 📱 Features
+**Listen Quran** is a data-dense, offline-first Quran recitation and memorization companion built with Jetpack Compose, Material Design 3, and Jetpack Media3. Designed with 100% on-device data sovereignty, it combines Spotify-style fluid navigation with authentic Arabic calligraphy, continuous live radio streams, gapless audio playback, and a self-healing Khatam progress tracker.
 
-### 🏠 1. Home & Exploration
-- **Pinned Playlists Carousel**: Immediate 1-tap access to your Liked Surahs and custom playlists right at the top.
-- **Trending Mixes**: Daily & Weekly curated mixes streamed directly from Quran.com.
-- **Recently Listened Grid**: Rapid resume tiles with memory of the last active Surah, Ayah, and reciter.
-- **Radio Streams**: Continuous non-stop live recitation streaming with dedicated radio badges and stream watchdog recovery.
-- **Reciter Discovery**: Recommendation shelves to discover new reciters and diverse Riwayahs.
-- **Khatma Progress Card**: Circular progress visualizer tracking total Quran completion across all 30 Juz, 604 pages, and 6,236 ayahs with quick-resume action.
+## 📱 App Screenshots
 
-### 📖 2. Durable Khatam Tracker
-- **Physical Database Isolation**: Dedicated `khatam.db` completely separated from the catalog database, immune to app data wipes or catalog updates.
-- **Append-Only Event Sourcing**: Every progress change is an immutable event (`KHATAM_STARTED`, `RANGE_ADDED`, `RANGE_REMOVED`, `GOAL_CHANGED`, `KHATAM_COMPLETED`).
-- **Self-Repairing Snapshots**: Startup integrity check (`PRAGMA quick_check;`) automatically reconstructs the snapshot table from the event log if desynchronization is detected.
-- **Service-Level Playback Recording**: Tracks ayah completion (80% listened threshold) inside the Media3 foreground service, working reliably with screen-off and app backgrounded.
-- **Interactive 30-Juz Grid**: Visual progress grid with completion badges, goal pacing calculations, and rolling checksummed JSON snapshots.
-
-### 🔍 3. Instant Search & Quick Assist
-- **Direct Verse Parser**: Type any `Surah:Ayah` shortcut (e.g. `2:255` for *Ayatul Kursi*, `36:1` for *Yasin*) to get an instant 1-tap playback card.
-- **Full Catalog Search**: Lightning-fast instant search across all 114 Surahs, 6,236 Ayahs, and 250+ reciters powered by pre-packaged Room SQLite with standard SQL LIKE & in-memory filtering.
-- **Quick Assist Chips**: Instant 1-tap shortcuts for popular surahs and verses (*Ayatul Kursi*, *Al-Mulk*, *Yasin*, *Ar-Rahman*, *4 Quls*).
-- **Thematic Categories**: Curated 2-column browsing (Ruqyah, Sleep & Peace, Juz & Hizb, Tahajjud, Quranic Duas).
-- **Dedicated Browsable Surah Grid**: Dense, quick-scrolling full Surah catalog screen with revelation place and verse counts.
-
-### 📚 4. Library & Hifz (Memorization)
-- **Custom Playlists**: Create, rename, reorder (via `sh.calvin.reorderable` drag-and-drop), and export custom playlists.
-- **Verse Bookmarks**: Bookmark individual Ayahs with personal tadabbur (reflection) notes.
-- **Hifz Repetition Engine**:
-  - Configure precise verse ranges (e.g. Ayah 1 to 10).
-  - Configurable repetition counter ($1\times, 3\times, 5\times, 10\times, \infty$).
-  - Configurable pause intervals between ayahs ($0\text{s}, 3\text{s}, 5\text{s}$).
-- **Timed Listening (Sleep Timer)**:
-  - Quick duration presets (15m, 30m, 45m, 1h, 2h, 3h).
-  - Exact stop-time picker (e.g. stop at 11:30 PM or Fajr).
-
-### 🎵 5. Player Experience
-- **Floating M3 Mini-Player**: Floats 8dp above the navigation bar with rounded 16dp corners, reactive linear progress indicator, and smooth shared-element expansion.
-- **Full Player Screen**:
-  - 28dp rounded hero artwork card with Surah metadata, Arabic script title, and reciter label.
-  - 6dp thick Material 3 scrubber with elapsed and total time indicators.
-  - Prominent 64dp Play/Pause FAB, shuffle, repeat, and playback speed controller ($0.5\times$ to $1.5\times$).
-- **Queue Management**: Up Next sheet with drag-and-drop reordering, item removal, and manual track selection.
-- **Lyrics-Style Synchronized Ayahs**:
-  - High-contrast Arabic Uthmani script (`Amiri Quran` font) with 2.2 line-height multiplier to prevent diacritic clipping.
-  - Active Ayah card highlighted with primary teal border.
-  - Tap any verse card to immediately jump audio to that exact timestamp.
-- **Share Ayah as Image**: Export verses onto curated backgrounds with customizable typography and share via Android system share sheet.
-
-### ⚙️ 6. Settings & Data Sovereignty
-- **Theme Customization**: System Default, Dark Theme, Light Theme, and pure AMOLED Pitch Black.
-- **Offline Storage Manager**: View cached audio storage usage, configure download quality (MP3 128kbps, 192kbps, lossless), or clear cache in one tap.
-- **Complete Data Backup**: Export and import your playlists, bookmarks, and listening stats as clean JSON files via Android Storage Access Framework (SAF).
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="20%">
+        <img src="./assets/screenshots/01_home_khatam.png" alt="Home & Khatma Tracker" width="100%" /><br />
+        <sub><b>Home & Khatma Tracker</b></sub>
+      </td>
+      <td align="center" width="20%">
+        <img src="./assets/screenshots/02_radio_streams.png" alt="Continuous Radio" width="100%" /><br />
+        <sub><b>Continuous Radio Streams</b></sub>
+      </td>
+      <td align="center" width="20%">
+        <img src="./assets/screenshots/03_browse_categories.png" alt="Browse Categories" width="100%" /><br />
+        <sub><b>Curated Categories</b></sub>
+      </td>
+      <td align="center" width="20%">
+        <img src="./assets/screenshots/04_reciters_discovery.png" alt="255+ Reciters Discovery" width="100%" /><br />
+        <sub><b>255+ Verified Reciters</b></sub>
+      </td>
+      <td align="center" width="20%">
+        <img src="./assets/screenshots/05_library_hifz.png" alt="Library & Sleep Timer" width="100%" /><br />
+        <sub><b>Library & Sleep Timer</b></sub>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## ✨ Features
 
-The application adheres to Clean Architecture, Unidirectional Data Flow (UDF), and MVVM patterns:
+- 📖 **Durable Khatam Tracker** — Single source of truth across all 6,236 Ayahs. Physically isolated SQLite database (`khatam.db`) with append-only event sourcing (`khatam_events`), self-repairing snapshots (`khatam_snapshots`), 30-Juz visual completion grid, and automated background playback tracking (80% duration rule).
+- 📻 **Continuous Quran.com Radio** — Non-stop recitation broadcasts streamed directly from Quran.com / QuranicAudio open CDN with resilient 10-second watchdog auto-reconnect and state protection for your last-played surah.
+- 🎧 **Modern Media3 Audio Engine** — Built on Jetpack Media3 (`ExoPlayer` + `AudioPlayerManager` + `MediaLibraryService`). Features a floating M3 mini-player with shared-element expansion, gapless playback, lockscreen controls, and Android Auto integration.
+- 🎙️ **255+ Verified CDN Reciters** — High-fidelity audio streams and offline downloads from Quran.com across multiple riwayahs (Hafs, Warsh, Qalun, Mujawwad, Murattal).
+- 📜 **Lyrics-Style Synchronized Ayahs** — Karaoke-style real-time verse tracking with English translation, word-by-word highlight mode, tap-to-seek, and Amiri Quran Uthmani calligraphy with generous 2.2 line-height spacing.
+- 🔁 **Hifz Repetition Engine** — Flexible memorization loops with custom ayah ranges ($A \to B$), configurable repetitions ($1\times, 3\times, 5\times, \infty$), and custom inter-verse pause intervals.
+- ⏱️ **Timed Listening (Sleep Timer)** — Quick presets (15m, 30m, 1h, 3h, End of Surah) and exact target stop times (e.g. stop at 11:30 PM or Fajr).
+- 🔍 **Instant Search & Dense Catalog** — Instant 1-tap `Surah:Ayah` parser (e.g. `2:255` for *Ayatul Kursi*), pre-packaged Room SQLite with standard SQL `LIKE` filtering, quick-assist chips, and browsable dense Surah grid.
+- 🛡️ **Zero Accounts, 100% Privacy** — Complete on-device data sovereignty. Export and import your playlists, bookmarks, and listening stats as clean JSON via Android Storage Access Framework (SAF).
 
-```
-┌────────────────────────────────────────────────────────┐
-│                      UI Layer                          │
-│  Jetpack Compose + Material 3 (1.3+) + Navigation BOM  │
-│         MainViewModel (StateFlow & Compose UDF)        │
-└───────────────────────────▲────────────────────────────┘
-                            │
-┌───────────────────────────┴────────────────────────────┐
-│                    Domain Layer                        │
-│     Domain Models (Surah, Ayah, Reciter, Khatam)       │
-│          Repository Interfaces & Business Rules        │
-└───────────────────────────▲────────────────────────────┘
-                            │
-┌───────────────────────────┴────────────────────────────┐
-│                     Data Layer                         │
-│  Room DB (Catalog & Khatam) ── DataStore ── QuranApi   │
-│  (listen_quran.db & khatam.db) (Preferences) (Retrofit)│
-└───────────────────────────▲────────────────────────────┘
-                            │
-┌───────────────────────────┴────────────────────────────┐
-│                 Media Playback Engine                  │
-│       Jetpack Media3 (ExoPlayer + MediaLibraryService)  │
-│        QuranForwardingPlayer + AudioPlayerManager      │
-└────────────────────────────────────────────────────────┘
-```
-
-### Core Libraries & Versions
-
-| Component | Library | Version |
-| :--- | :--- | :--- |
-| **Language** | Kotlin | `2.1.0` |
-| **UI Framework** | Jetpack Compose (BOM) | `2024.12.01` |
-| **Design System** | Material Design 3 | `1.3.1` (via BOM) |
-| **Audio Engine** | Jetpack Media3 (ExoPlayer, Session, UI) | `1.5.1` |
-| **Dependency Injection** | Dagger Hilt | `2.53.1` |
-| **Local Database** | Room Database | `2.6.1` |
-| **Preferences** | Jetpack DataStore Preferences | `1.1.1` |
-| **Networking** | Retrofit + OkHttp + Moshi (Codegen) | `2.11.0` / `4.12.0` |
-| **Image Loading** | Coil Compose | `2.7.0` |
-| **Compiler Plugins** | KSP + Compose Compiler Plugin | `2.1.0-1.0.29` |
-| **Drag and Drop** | Reorderable | `2.4.1` |
-| **Widgets** | Jetpack Glance (M3) | `1.1.1` |
+### 🚧 Coming Soon
+- 🌐 **Word-by-Word Audio Sync** — Micro-timestamps for granular word-level pronunciation practice.
+- 📱 **Home Screen Glance Widgets** — Interactive playback controls and Khatma progress directly on your Android launcher.
 
 ---
 
-## 🎨 Material Design 3 Palette
+## 🛠️ Tech Stack
 
-| Role | Dark Theme (Default) | Light Theme | AMOLED Mode |
-| :--- | :--- | :--- | :--- |
-| **Primary** | `#6CDAA2` (Teal) | `#006C4C` | `#6CDAA2` |
-| **Primary Container** | `#005237` | `#89F8BD` | `#005237` |
-| **Tertiary (Accents)** | `#F8BD48` (Gold) | `#7D5700` | `#F8BD48` |
-| **Surface** | `#111413` | `#FBFDF9` | `#000000` |
-| **Surface Container** | `#1D211F` | `#F0F4EF` | `#0D0D0D` |
-| **Surface High** | `#282B29` | `#EAEFE9` | `#161616` |
-
----
-
-## 📂 Repository Structure
-
-```
-listen-quran/
-├── .github/
-│   └── workflows/
-│       └── release.yml                 # Automated GitHub release build on tag push
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── assets/
-│   │   │   │   ├── chapters.json       # All 114 Surahs metadata
-│   │   │   │   ├── reciters.json       # 255 verified CDN reciters
-│   │   │   │   └── listen_quran.db     # Pre-packaged Room SQLite database
-│   │   │   ├── java/com/listenquran/
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── local/          # Room DBs (Catalog & Khatam), DAOs, Entities, DataStore
-│   │   │   │   │   ├── remote/         # Retrofit Quran.com API service & DTOs
-│   │   │   │   │   └── repository/     # Quran, Reciter, Playlist, Khatam & User repositories
-│   │   │   │   ├── di/                 # Hilt DI modules (Database, Media, Network)
-│   │   │   │   ├── domain/model/       # Domain models (Surah, Ayah, Reciter, Khatam)
-│   │   │   │   ├── player/             # Media3 service, AudioPlayerManager, ForwardingPlayer
-│   │   │   │   └── ui/
-│   │   │   │       ├── components/     # MiniPlayer, KhatamCard, and shared widgets
-│   │   │   │       ├── navigation/     # Navigation graph and destination routes
-│   │   │   │       ├── screens/        # Home, Search, Khatam, Library, Player, Playlist, Reciter, Settings
-│   │   │   │       └── theme/          # Color, Type, Theme tokens
-│   │   │   └── res/
-│   │   │       ├── font/amiri_quran.ttf# Arabic Uthmani font asset
-│   │   │       └── values/             # Themes, colors, strings
-│   │   └── test/                       # Unit tests (CDN URLs, Queue, Khatam Durability)
-│   ├── compose_compiler_config.conf    # Compose compiler stability configuration
-│   └── build.gradle.kts                # App-level build configuration
-├── gradle/
-│   ├── libs.versions.toml              # Version Catalog for dependencies
-│   └── wrapper/                        # Gradle wrapper binaries & properties
-├── AGENTS.md                           # Agent guidelines & strict architectural rules
-├── CLAUDE.md                           # Guidelines for Anthropic Claude
-├── .cursorrules                        # Rules for Cursor AI
-├── .mcp.json                           # Model Context Protocol server registrations
-├── LICENSE                             # MIT License
-└── README.md                           # Project documentation
-```
+| Layer | Technology |
+|---|---|
+| **UI Framework** | Jetpack Compose + Material Design 3 (`1.3.1` via BOM `2024.12.01`) |
+| **Language** | 100% Kotlin `2.1.0` (Coroutines, StateFlow, Unidirectional Data Flow) |
+| **Audio Architecture** | Jetpack Media3 `1.5.1` (`ExoPlayer` + `MediaLibraryService` + `MediaSession`) |
+| **Local Database** | Room Database `2.6.1` (`listen_quran.db` pre-pack + `khatam.db` isolated) |
+| **Preferences** | Jetpack DataStore Preferences `1.1.1` |
+| **Dependency Injection** | Dagger Hilt `2.53.1` |
+| **Networking & Serialization** | Retrofit `2.11.0` + OkHttp `4.12.0` + Moshi `1.15.1` (KSP Codegen) |
+| **Image Loading** | Coil Compose `2.7.0` |
+| **Lists & Drag-and-Drop** | `sh.calvin.reorderable` `2.4.1` + Paging 3 |
+| **Background Processing** | Jetpack WorkManager `2.10.0` |
+| **Typography** | King Fahd Complex / Amiri Quran Uthmani Calligraphy (`.ttf`) |
 
 ---
 
@@ -195,7 +90,7 @@ listen-quran/
 ### Prerequisites
 - **JDK**: Java Development Kit 17 or higher
 - **Android SDK**: Compile SDK `35`, Min SDK `26`
-- **IDE**: Android Studio Ladybug (2024.2.1+) or command line build tools
+- **IDE**: Android Studio Ladybug (2024.2.1+) or command-line build tools
 
 ### 1. Clone the Repository
 ```bash
@@ -211,13 +106,13 @@ cd listen-quran
 ```
 *Output: `app/build/outputs/apk/debug/app-debug.apk`*
 
-**Release Build (Minified & Optimized)**:
+**Release Build (Minified with R8 & Shrink Resources)**:
 ```bash
 ./gradlew assembleRelease
 ```
 *Output: `app/build/outputs/apk/release/app-release.apk`*
 
-### 3. Run Unit Tests
+### 3. Run Unit & Durability Tests
 ```bash
 ./gradlew testDebugUnitTest
 ```
@@ -233,34 +128,51 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 
 ---
 
-## 🧪 Testing & Verification
+## 📱 Building for Mobile
 
-The project includes thorough unit and durability test suites:
-- **Audio CDN URL Verification**: Validates Quran.com CDN audio stream URL patterns across reciters.
-- **Queue Logic Engine**: Tests queue insertions, Play Next, Up Next reordering, and loop/shuffle states.
-- **Khatam Durability & Rebuild**: Verifies append-only event replay, checksummed rolling snapshots, and disjoint interval math under simulated process kill.
-- **Radio Playback**: Tests state protection for previous surahs during live station streaming.
-
-Run tests:
+### Option 1: Automated Release Build & ADB Deployment (CLI)
+Build an optimized production release APK with full R8 optimization, resource shrinking, and baseline profiles:
 ```bash
-./gradlew testDebugUnitTest --info
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
----
-
-## 🛠️ Developer & Agent Tooling
-
-This repository is pre-configured with Model Context Protocol (MCP) servers:
-- **`context7`**: Documentation and API lookup for modern Jetpack Compose & Media3 APIs.
-- **`serena`**: Semantic Kotlin symbol indexing and code intelligence via LSP.
-- **`sqlite-quran`**: Inspection of pre-packaged SQLite database schemas and tables.
-- **`fetch`**: Verification of live Quran.com API v4 schemas.
-- **`android-adb`**: Automated UI element inspection, screenshot capture, and logcat diagnostics.
-
-Refer to [`AGENTS.md`](AGENTS.md) for architectural rules and development guidelines.
+### Option 2: Android Studio Workflow
+1. Open the repository root directory in Android Studio.
+2. Allow Gradle sync to complete and download dependencies.
+3. Select the `app` run configuration and choose your connected physical device or emulator.
+4. Click **Run** (`Shift + F10`) or **Build > Generate Signed Bundle / APK**.
 
 ---
 
-## 📄 License
+## 📦 Releasing & Versioning
 
-This project is open-source and released under the [MIT License](LICENSE).
+Listen Quran uses automated GitHub Actions workflows triggered on semantic version tags (`v*`):
+
+```bash
+# 1. Update version in app/build.gradle.kts (versionCode & versionName)
+# 2. Commit and create an annotated git tag:
+git tag -a v1.0.0 -m "Release v1.0.0"
+
+# 3. Push tag to GitHub:
+git push origin v1.0.0
+```
+
+The GitHub Actions workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)) will automatically:
+1. Check out code and set up JDK 17.
+2. Build the minified, production-ready release APK via `./gradlew assembleRelease`.
+3. Publish a GitHub Release attaching `app-release.apk` with auto-generated release notes.
+
+---
+
+## 🙏 Credits & Attribution
+
+- **[Quran.com / Quran Foundation](https://quran.com)** — Open data APIs, chapter metadata, translations, and high-fidelity recitation audio CDN via QuranicAudio.
+- **[Amiri Font Project](https://github.com/aliftype/amiri)** — Authentic Uthmani Quranic Arabic typography designed by Dr. Khaled Hosny and Dr. Nezar Al-Rawi.
+- **[Quran Audio & Batoul Apps](https://github.com/batoulapps)** — Inspiration for clean, offline-first Islamic software engineering.
+
+---
+
+## 📄 Licence
+
+MIT — see [LICENSE](./LICENSE) for details.

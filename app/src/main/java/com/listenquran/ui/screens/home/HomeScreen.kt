@@ -1,8 +1,11 @@
 package com.listenquran.ui.screens.home
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.res.painterResource
+import com.listenquran.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -305,21 +308,14 @@ fun HomeScreen(
                         )
                     },
                     navigationIcon = {
-                        Box(
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "Listen Quran Logo",
                             modifier = Modifier
                                 .padding(start = 16.dp, end = 8.dp)
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "LQ",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 14.sp
-                            )
-                        }
+                        )
                     },
                     actions = {
                         IconButton(onClick = { isSearchOpen = true }) {
