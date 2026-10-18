@@ -53,17 +53,12 @@
 
 - 📖 **Durable Khatam Tracker** — Single source of truth across all 6,236 Ayahs. Physically isolated SQLite database (`khatam.db`) with append-only event sourcing (`khatam_events`), self-repairing snapshots (`khatam_snapshots`), 30-Juz visual completion grid, and automated background playback tracking (80% duration rule).
 - 📻 **Continuous Quran.com Radio** — Non-stop recitation broadcasts streamed directly from Quran.com / QuranicAudio open CDN with resilient 10-second watchdog auto-reconnect and state protection for your last-played surah.
-- 🎧 **Modern Media3 Audio Engine** — Built on Jetpack Media3 (`ExoPlayer` + `AudioPlayerManager` + `MediaLibraryService`). Features a floating M3 mini-player with shared-element expansion, gapless playback, lockscreen controls, and Android Auto integration.
 - 🎙️ **255+ Verified CDN Reciters** — High-fidelity audio streams and offline downloads from Quran.com across multiple riwayahs (Hafs, Warsh, Qalun, Mujawwad, Murattal).
 - 📜 **Lyrics-Style Synchronized Ayahs** — Karaoke-style real-time verse tracking with English translation, word-by-word highlight mode, tap-to-seek, and Amiri Quran Uthmani calligraphy with generous 2.2 line-height spacing.
 - 🔁 **Hifz Repetition Engine** — Flexible memorization loops with custom ayah ranges ($A \to B$), configurable repetitions ($1\times, 3\times, 5\times, \infty$), and custom inter-verse pause intervals.
-- ⏱️ **Timed Listening (Sleep Timer)** — Quick presets (15m, 30m, 1h, 3h, End of Surah) and exact target stop times (e.g. stop at 11:30 PM or Fajr).
 - 🔍 **Instant Search & Dense Catalog** — Instant 1-tap `Surah:Ayah` parser (e.g. `2:255` for *Ayatul Kursi*), pre-packaged Room SQLite with standard SQL `LIKE` filtering, quick-assist chips, and browsable dense Surah grid.
 - 🛡️ **Zero Accounts, 100% Privacy** — Complete on-device data sovereignty. Export and import your playlists, bookmarks, and listening stats as clean JSON via Android Storage Access Framework (SAF).
 
-### 🚧 Coming Soon
-- 🌐 **Word-by-Word Audio Sync** — Micro-timestamps for granular word-level pronunciation practice.
-- 📱 **Home Screen Glance Widgets** — Interactive playback controls and Khatma progress directly on your Android launcher.
 
 ---
 
