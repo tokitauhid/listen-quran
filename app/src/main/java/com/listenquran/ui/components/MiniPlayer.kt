@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.player.PlaybackState
 
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MiniPlayer(
@@ -33,15 +38,20 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     onToggleLike: () -> Unit,
     onOpenFullPlayer: () -> Unit,
+    onStopRadio: (() -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
 ) {
-    val surah = playbackState.currentSurah ?: return
+    val isRadio = playbackState.isRadio
+    val station = playbackState.currentRadioStation
+    val surah = playbackState.currentSurah
 
-    val title = surah.nameSimple
+    if (!isRadio && surah == null) return
+
+    val title = if (isRadio) station?.name ?: surah?.nameSimple ?: "Quran Radio" else surah?.nameSimple ?: ""
     val reciter = playbackState.currentReciter?.englishName ?: ""
-    val subtitle = "$reciter • Ayah ${playbackState.currentAyahNumber}"
+    val subtitle = if (isRadio) "Radio · ${station?.name ?: "Quran.com"}" else "$reciter • Ayah ${playbackState.currentAyahNumber}"
 
     val containerModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
         with(sharedTransitionScope) {
@@ -89,6 +99,13 @@ fun MiniPlayer(
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .padding(bottom = 8.dp)
+            .semantics {
+                contentDescription = if (isRadio) {
+                    "Radio station ${station?.name ?: "Quran Radio"}, ${if (playbackState.isPlaying) "Playing" else "Paused"}, tap to open player"
+                } else {
+                    "Now playing ${surah?.nameSimple}, tap to open player"
+                }
+            }
             .then(containerModifier),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -108,17 +125,38 @@ fun MiniPlayer(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .background(if (isRadio) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer)
                         .then(artworkModifier),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "${surah.id}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontSize = 15.sp,
-                    )
+                    if (isRadio) {
+                        if (!station?.bannerUrl.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                                    .data(station?.bannerUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = station?.name,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Radio,
+                                contentDescription = "Quran Radio",
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "${surah?.id}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 15.sp,
+                        )
+                    }
                 }
 
                 // Title & Subtitle column
@@ -126,14 +164,32 @@ fun MiniPlayer(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = titleModifier
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isRadio) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.padding(end = 6.dp)
+                            ) {
+                                Text(
+                                    text = "RADIO",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiary,
+                                    fontSize = 9.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = titleModifier
+                        )
+                    }
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.bodySmall,
@@ -144,17 +200,31 @@ fun MiniPlayer(
                     )
                 }
 
-                // Heart / Like button (for Surahs)
-                IconButton(
-                    onClick = onToggleLike,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isLiked) "Unlike" else "Like",
-                        tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
-                    )
+                // Stop Radio Button or Heart / Like button (for Surahs)
+                if (isRadio) {
+                    IconButton(
+                        onClick = { onStopRadio?.invoke() },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Stop Radio",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = onToggleLike,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isLiked) "Unlike" else "Like",
+                            tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
                 // M3 Play/Pause FAB (40x40dp, shape: 12dp, container: primary)
@@ -167,16 +237,34 @@ fun MiniPlayer(
                         contentColor = MaterialTheme.colorScheme.onPrimary,
                     )
                 ) {
-                    Icon(
-                        imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (playbackState.isBuffering) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
 
             // Bottom edge linear progress indicator
-            if (playbackState.durationMs > 0) {
+            if (isRadio) {
+                if (playbackState.isBuffering) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    )
+                }
+            } else if (playbackState.durationMs > 0) {
                 LinearProgressIndicator(
                     progress = {
                         val dur = playbackState.durationMs

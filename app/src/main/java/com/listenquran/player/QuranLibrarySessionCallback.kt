@@ -292,6 +292,16 @@ class QuranLibrarySessionCallback @Inject constructor(
         for (item in mediaItems) {
             if (item.localConfiguration?.uri != null) {
                 resolvedList.add(item)
+            } else if (item.mediaId.startsWith("radio:")) {
+                val parts = item.mediaId.split(":")
+                val surahId = parts.getOrNull(3)?.toIntOrNull() ?: 1
+                val reciterId = parts.getOrNull(4)?.toIntOrNull() ?: defaultReciter.id
+                val audioData = quranRepository.getChapterAudio(reciterId, surahId)
+                if (audioData != null) {
+                    resolvedList.add(item.buildUpon().setUri(audioData.audioUrl).build())
+                } else {
+                    resolvedList.add(item)
+                }
             } else {
                 val surahId = parseSurahId(item.mediaId) ?: 1
                 val reciterId = parseReciterId(item.mediaId) ?: defaultReciter.id

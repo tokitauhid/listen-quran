@@ -24,6 +24,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -47,6 +48,8 @@ android {
 
 composeCompiler {
     stabilityConfigurationFiles.add(project.layout.projectDirectory.file("compose_compiler_config.conf"))
+    reportsDestination.set(layout.buildDirectory.dir("compose_compiler"))
+    metricsDestination.set(layout.buildDirectory.dir("compose_compiler"))
 }
 
 dependencies {

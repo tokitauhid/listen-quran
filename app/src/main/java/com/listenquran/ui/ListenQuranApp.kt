@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.RecordVoiceOver
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Bookmarks
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,15 +29,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.listenquran.domain.model.Ayah
 import com.listenquran.domain.model.Playlist
 import com.listenquran.domain.model.Reciter
+import com.listenquran.domain.model.Surah
 import com.listenquran.ui.components.MiniPlayer
 import com.listenquran.ui.navigation.ListenQuranNavHost
 import com.listenquran.ui.navigation.TopLevelDestination
+import com.listenquran.ui.navigation.navigateToTab
 import com.listenquran.ui.screens.player.*
 import com.listenquran.ui.screens.playlist.AddToPlaylistSheet
 import com.listenquran.ui.screens.playlist.PlaylistDetailScreen
@@ -84,10 +88,14 @@ fun ListenQuranApp(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showActionsMenuSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var surahToAddToPlaylist by remember { mutableStateOf<Surah?>(null) }
     var selectedPlaylistForDetail by remember { mutableStateOf<Playlist?>(null) }
     var selectedReciterForProfile by remember { mutableStateOf<Reciter?>(null) }
     var ayahToShare by remember { mutableStateOf<Ayah?>(null) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+
+    var homeResetTrigger by remember { mutableIntStateOf(0) }
+    var libraryResetTrigger by remember { mutableIntStateOf(0) }
 
     var backPressedOnce by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -98,9 +106,14 @@ fun ListenQuranApp(
             ayahToShare != null ||
             showSleepTimerDialog ||
             showAddToPlaylistSheet ||
+            surahToAddToPlaylist != null ||
             showActionsMenuSheet ||
             showQueueSheet ||
             showVersesSheet
+
+    BackHandler(enabled = surahToAddToPlaylist != null) {
+        surahToAddToPlaylist = null
+    }
 
     // Priority 1: Dismiss Reciter Profile overlay if open
     BackHandler(enabled = selectedReciterForProfile != null) {
@@ -117,31 +130,24 @@ fun ListenQuranApp(
         showFullPlayer = false
     }
 
-    // Priority 4: Return to Home tab if on another bottom-bar tab
-    BackHandler(
-        enabled = !hasAnyOverlayOpen && currentRoute != null && currentRoute != TopLevelDestination.HOME.route
-    ) {
-        navController.navigate(TopLevelDestination.HOME.route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
-            }
-            launchSingleTop = true
-            restoreState = true
-        }
-    }
-
-    // Priority 5: Double-back to exit on Home tab (prevents accidental app closures)
-    BackHandler(
-        enabled = !hasAnyOverlayOpen && (currentRoute == null || currentRoute == TopLevelDestination.HOME.route)
-    ) {
-        if (backPressedOnce) {
-            context.findActivity()?.finish()
+    // Priority 4: Back handling when no overlay is open
+    BackHandler(enabled = !hasAnyOverlayOpen) {
+        val currentDestination = navBackStackEntry?.destination
+        val isAtHomeRoot = currentDestination?.route == TopLevelDestination.HOME.route
+        if (!isAtHomeRoot && navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        } else if (!isAtHomeRoot) {
+            navController.navigateToTab(TopLevelDestination.HOME)
         } else {
-            backPressedOnce = true
-            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
-            coroutineScope.launch {
-                delay(2000)
-                backPressedOnce = false
+            if (backPressedOnce) {
+                context.findActivity()?.finish()
+            } else {
+                backPressedOnce = true
+                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                coroutineScope.launch {
+                    delay(2000)
+                    backPressedOnce = false
+                }
             }
         }
     }
@@ -152,7 +158,7 @@ fun ListenQuranApp(
                 bottomBar = {
                     Column {
                         AnimatedVisibility(
-                            visible = playbackState.currentSurah != null && !showFullPlayer,
+                            visible = (playbackState.currentSurah != null || playbackState.isRadio) && !showFullPlayer,
                             enter = fadeIn(tween(300)) + expandVertically(tween(300)),
                             exit = fadeOut(tween(300)) + shrinkVertically(tween(300))
                         ) {
@@ -163,6 +169,7 @@ fun ListenQuranApp(
                                 onTogglePlayPause = { viewModel.togglePlayPause() },
                                 onToggleLike = { viewModel.toggleLikeCurrentSurah() },
                                 onOpenFullPlayer = { showFullPlayer = true },
+                                onStopRadio = { viewModel.stopRadio() },
                                 sharedTransitionScope = this@SharedTransitionLayout,
                                 animatedVisibilityScope = this@AnimatedVisibility,
                             )
@@ -174,17 +181,39 @@ fun ListenQuranApp(
                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
                         tonalElevation = 0.dp,
                     ) {
-                        TopLevelDestination.values().forEach { destination ->
-                            val selected = currentRoute == destination.route
+                        val currentDestination = navBackStackEntry?.destination
+                        TopLevelDestination.bottomNavDestinations.forEach { destination ->
+                            val selected = currentDestination?.hierarchy?.any {
+                                it.route == destination.graphRoute || it.route == destination.route
+                            } == true
                             NavigationBarItem(
                                 selected = selected,
                                 onClick = {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                                    // Dismiss all open modal overlays & sheets so the tapped tab is immediately visible
+                                    selectedPlaylistForDetail = null
+                                    selectedReciterForProfile = null
+                                    showFullPlayer = false
+                                    showVersesSheet = false
+                                    showQueueSheet = false
+                                    showActionsMenuSheet = false
+                                    showAddToPlaylistSheet = false
+                                    showSleepTimerDialog = false
+                                    ayahToShare = null
+
+                                    if (destination == TopLevelDestination.HOME) {
+                                        homeResetTrigger++
+                                    }
+                                    if (destination == TopLevelDestination.LIBRARY) {
+                                        libraryResetTrigger++
+                                    }
+
+                                    navController.navigateToTab(destination) {
+                                        if (destination == TopLevelDestination.HOME) {
+                                            homeResetTrigger++
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
+                                        if (destination == TopLevelDestination.LIBRARY) {
+                                            libraryResetTrigger++
+                                        }
                                     }
                                 },
                                 icon = {
@@ -194,6 +223,8 @@ fun ListenQuranApp(
                                         TopLevelDestination.SEARCH -> if (selected) Icons.Filled.Search else Icons.Outlined.Search
                                         TopLevelDestination.LIBRARY -> if (selected) Icons.Rounded.Bookmarks else Icons.Outlined.Bookmarks
                                         TopLevelDestination.SETTINGS -> if (selected) Icons.Filled.Settings else Icons.Outlined.Settings
+                                        TopLevelDestination.SURAHS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
+                                        TopLevelDestination.RADIO -> Icons.Rounded.Radio
                                     }
                                     Icon(imageVector = icon, contentDescription = destination.label)
                                 },
@@ -232,6 +263,9 @@ fun ListenQuranApp(
                 notificationsEnabled = notificationsEnabled,
                 onOpenPlaylistDetail = { selectedPlaylistForDetail = it },
                 onOpenReciterProfile = { selectedReciterForProfile = it },
+                onAddToPlaylist = { surahToAddToPlaylist = it },
+                homeResetTrigger = homeResetTrigger,
+                libraryResetTrigger = libraryResetTrigger,
                 modifier = Modifier.padding(innerPadding),
             )
         }
@@ -267,6 +301,11 @@ fun ListenQuranApp(
                     onOpenQueue = { showQueueSheet = true },
                     onOpenSleepTimer = { showSleepTimerDialog = true },
                     onOpenActionsMenu = { showActionsMenuSheet = true },
+                    onStopRadio = { viewModel.stopRadio() },
+                    onResumeSurah = { viewModel.resumeSurahAfterRadio() },
+                    onRetryRadio = {
+                        playbackState.currentRadioStation?.let { viewModel.playRadio(it) }
+                    },
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@AnimatedVisibility,
                 )
@@ -363,16 +402,24 @@ fun ListenQuranApp(
         }
 
         // Add to Playlist Sheet
-        if (showAddToPlaylistSheet && playbackState.currentSurah != null) {
+        val targetSurahForPlaylist = surahToAddToPlaylist ?: if (showAddToPlaylistSheet) playbackState.currentSurah else null
+        if (targetSurahForPlaylist != null) {
             AddToPlaylistSheet(
-                surah = playbackState.currentSurah!!,
+                surah = targetSurahForPlaylist,
                 playlists = playlists,
-                onDismiss = { showAddToPlaylistSheet = false },
+                onDismiss = {
+                    surahToAddToPlaylist = null
+                    showAddToPlaylistSheet = false
+                },
                 onSelectPlaylist = { pl ->
-                    viewModel.addToPlaylist(pl.id, playbackState.currentSurah!!)
+                    viewModel.addToPlaylist(pl.id, targetSurahForPlaylist)
+                    surahToAddToPlaylist = null
+                    showAddToPlaylistSheet = false
                 },
                 onCreateAndAdd = { name ->
-                    viewModel.createAndAddToPlaylist(name, playbackState.currentSurah!!)
+                    viewModel.createAndAddToPlaylist(name, targetSurahForPlaylist)
+                    surahToAddToPlaylist = null
+                    showAddToPlaylistSheet = false
                 }
             )
         }

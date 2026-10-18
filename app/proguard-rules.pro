@@ -10,3 +10,6 @@
 
 # Keep Room entities
 -keep class com.listenquran.data.local.** { *; }
+
+# Keep Radio and Domain models
+-keep class com.listenquran.domain.model.** { *; }

@@ -16,6 +16,8 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.ListenQuran">
 
+        <profileable android:shell="true" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

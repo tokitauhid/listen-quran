@@ -28,6 +28,7 @@ class MainViewModel @Inject constructor(
     private val statsRepository: StatsRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
+    private val radioRepository: com.listenquran.data.repository.RadioRepository,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -77,6 +78,9 @@ class MainViewModel @Inject constructor(
 
     val notificationsEnabled: StateFlow<Boolean> = userPreferencesRepository.notificationsEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val radioStations: StateFlow<List<RadioStation>> = radioRepository.getRadioStations()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CuratedRadioStations)
 
     val downloadedSurahs: StateFlow<List<com.listenquran.data.local.entity.DownloadedSurahEntity>> = downloadRepository.getAllDownloadedSurahs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -171,14 +175,28 @@ class MainViewModel @Inject constructor(
         playerManager.playRadio(station)
     }
 
+    fun stopRadio() {
+        playerManager.stopRadio()
+    }
+
+    fun resumeSurahAfterRadio() {
+        playerManager.resumeSurahAfterRadio()
+    }
+
     fun playReciterRadio(reciter: Reciter) {
-        val allSurahs = surahs.value.shuffled()
-        if (allSurahs.isEmpty()) return
-        playerManager.clearQueue()
-        for (i in 1 until allSurahs.size) {
-            playerManager.addToQueue(allSurahs[i], reciter)
-        }
-        playSurah(allSurahs.first(), reciter)
+        val station = RadioStation(
+            id = "reciter_${reciter.id}",
+            name = "${reciter.englishName} Radio",
+            description = "24/7 continuous recitation by ${reciter.englishName}",
+            type = RadioStationType.RECITER,
+            bannerUrl = reciter.photoUrl ?: com.listenquran.util.ReciterImages.getPhotoUrl(reciter.id, reciter.englishName),
+            reciterId = reciter.id,
+            reciterName = reciter.englishName,
+            targetSurahs = (1..114).toList(),
+            poolReciterIds = listOf(reciter.id),
+            city = reciter.style?.ifBlank { "Hafs" } ?: "Hafs"
+        )
+        playerManager.playRadio(station)
     }
 
     fun reorderQueue(newQueue: List<QueueItem>) {

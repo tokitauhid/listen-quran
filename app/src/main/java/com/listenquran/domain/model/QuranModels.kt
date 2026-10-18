@@ -89,64 +89,68 @@ data class ChapterAudio(
     val timestamps: List<VerseTiming> = emptyList(),
 )
 
+enum class RadioStationType {
+    CURATED,
+    RECITER,
+    LIVE_STREAM
+}
+
 @Immutable
 data class RadioStation(
     val id: String,
     val name: String,
     val description: String,
-    val streamUrl: String,
-    val city: String = "Live",
+    val type: RadioStationType = RadioStationType.CURATED,
+    val bannerUrl: String? = null,
+    val reciterId: Int? = null,
+    val reciterName: String? = null,
+    val targetSurahs: List<Int> = emptyList(),
+    val poolReciterIds: List<Int> = emptyList(),
+    val streamUrl: String? = null,
+    val isLive: Boolean = false,
+    val city: String = "Quran.com",
 )
 
 val CuratedRadioStations = listOf(
     RadioStation(
-        id = "makkah",
-        name = "Makkah Live Radio",
-        description = "Live Holy Quran recitation from Makkah",
-        streamUrl = "https://backup.qurango.net/radio/makkah",
-        city = "Makkah"
+        id = "curated_1",
+        name = "Popular Recitations",
+        description = "Daily curated feed of recitations",
+        type = RadioStationType.CURATED,
+        bannerUrl = "https://quran.com/images/stations/1.jpeg",
+        poolReciterIds = listOf(7, 3, 10, 4), // Mishary, Sudais, Shuraym, Shatri
+        targetSurahs = (1..114).toList(),
+        city = "Curated"
     ),
     RadioStation(
-        id = "cairo",
-        name = "Cairo Quran Radio",
-        description = "Official Egypt Radio Holy Quran broadcast",
-        streamUrl = "https://stream.radiojar.com/8s5u8tpdt7uvv",
-        city = "Cairo"
+        id = "curated_2",
+        name = "Yaseen, Al-Waqiah, Al-Mulk",
+        description = "The Surahs from a curation of reciters",
+        type = RadioStationType.CURATED,
+        bannerUrl = "https://quran.com/images/stations/2.jpg",
+        poolReciterIds = listOf(7),
+        targetSurahs = listOf(36, 56, 67),
+        city = "Curated"
     ),
     RadioStation(
-        id = "alafasi",
-        name = "Mishary Al-Afasy Radio",
-        description = "24/7 continuous recitations by Sheikh Mishary",
-        streamUrl = "https://backup.qurango.net/radio/mishary_alafasi",
-        city = "Kuwait"
+        id = "curated_3",
+        name = "Surah Al-Kahf",
+        description = "Listen to Surah Alkahf on repeat",
+        type = RadioStationType.CURATED,
+        bannerUrl = "https://quran.com/images/stations/3.jpeg",
+        poolReciterIds = listOf(7, 3, 10, 4),
+        targetSurahs = listOf(18),
+        city = "Curated"
     ),
     RadioStation(
-        id = "abdulbasit",
-        name = "Abdulbasit Abdulsamad Radio",
-        description = "Legendary Mojawwad recitations 24/7",
-        streamUrl = "https://backup.qurango.net/radio/abdulbasit_abdulsamad_mojawwad",
-        city = "Cairo"
-    ),
-    RadioStation(
-        id = "hussary",
-        name = "Mahmoud Khalil Al-Husary",
-        description = "Masterful Murattal tajweed instruction",
-        streamUrl = "https://backup.qurango.net/radio/mahmoud_khalil_alhussary",
-        city = "Egypt"
-    ),
-    RadioStation(
-        id = "ghamdi",
-        name = "Saad Al-Ghamdi Radio",
-        description = "Heart-softening continuous recitation",
-        streamUrl = "https://backup.qurango.net/radio/saad_alghamdi",
-        city = "Dammam"
-    ),
-    RadioStation(
-        id = "shatri",
-        name = "Abu Bakr Al-Shatri Radio",
-        description = "Revered emotional Quran recitation",
-        streamUrl = "https://backup.qurango.net/radio/abu_bakr_alshatri",
-        city = "Jeddah"
-    ),
+        id = "curated_4",
+        name = "Juz Amma",
+        description = "Listen to the final Juz of the Quran",
+        type = RadioStationType.CURATED,
+        bannerUrl = "https://quran.com/images/stations/4.jpeg",
+        poolReciterIds = listOf(7, 3, 10, 4),
+        targetSurahs = (78..114).toList(),
+        city = "Curated"
+    )
 )
 

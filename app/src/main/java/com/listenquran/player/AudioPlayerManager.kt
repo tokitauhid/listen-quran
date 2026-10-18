@@ -47,6 +47,10 @@ data class PlaybackState(
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val isRadio: Boolean = false,
+    val currentRadioStation: RadioStation? = null,
+    val radioError: String? = null,
+    val lastSurahBeforeRadio: Surah? = null,
+    val lastReciterBeforeRadio: Reciter? = null,
 )
 
 @Singleton
@@ -76,6 +80,7 @@ class AudioPlayerManager @Inject constructor(
 
     private var progressJob: Job? = null
     private var sleepTimerJob: Job? = null
+    private var radioWatchdogJob: Job? = null
     private var sessionStartTime: Long = 0L
     private val history = mutableListOf<QueueItem>()
 
@@ -128,6 +133,8 @@ class AudioPlayerManager @Inject constructor(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _playbackState.update { it.copy(isPlaying = isPlaying) }
                 if (isPlaying) {
+                    radioWatchdogJob?.cancel()
+                    _playbackState.update { it.copy(radioError = null, isBuffering = false) }
                     sessionStartTime = System.currentTimeMillis()
                     startProgressTracker()
                 } else {
@@ -145,6 +152,10 @@ class AudioPlayerManager @Inject constructor(
                         durationMs = duration
                     )
                 }
+                if (state == Player.STATE_READY && _playbackState.value.isRadio) {
+                    radioWatchdogJob?.cancel()
+                    _playbackState.update { it.copy(radioError = null, isBuffering = false) }
+                }
                 if (state == Player.STATE_ENDED) {
                     if (_playbackState.value.stopAtEndOfSurah) {
                         _playbackState.update { it.copy(stopAtEndOfSurah = false) }
@@ -159,7 +170,14 @@ class AudioPlayerManager @Inject constructor(
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                mediaItem?.let { syncFromMediaItem(it) }
+                mediaItem?.let {
+                    if (it.mediaId.startsWith("radio:")) {
+                        syncFromRadioMediaItem(it)
+                        extendRadioQueueIfNeeded()
+                    } else {
+                        syncFromMediaItem(it)
+                    }
+                }
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -173,7 +191,22 @@ class AudioPlayerManager @Inject constructor(
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.e("AudioPlayerManager", "MediaController playback error: ${error.errorCodeName}", error)
                 _playbackState.update { it.copy(isBuffering = false) }
-                if (_playbackState.value.queue.isNotEmpty()) {
+                if (_playbackState.value.isRadio) {
+                    _playbackState.update {
+                        it.copy(
+                            radioError = "Playback error: ${error.errorCodeName}. Retrying..."
+                        )
+                    }
+                    scope.launch {
+                        delay(2000)
+                        if (_playbackState.value.isRadio) {
+                            val station = _playbackState.value.currentRadioStation
+                            if (station != null) {
+                                playRadio(station)
+                            }
+                        }
+                    }
+                } else if (_playbackState.value.queue.isNotEmpty()) {
                     scope.launch {
                         delay(1200)
                         playNext()
@@ -192,6 +225,10 @@ class AudioPlayerManager @Inject constructor(
 
     private fun syncFromMediaItem(mediaItem: MediaItem) {
         val mediaId = mediaItem.mediaId
+        if (mediaId.startsWith("radio:")) {
+            syncFromRadioMediaItem(mediaItem)
+            return
+        }
         val surahId = parseSurahId(mediaId) ?: return
         val reciterId = parseReciterId(mediaId)
 
@@ -207,12 +244,45 @@ class AudioPlayerManager @Inject constructor(
                 val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
                 _playbackState.update {
                     it.copy(
+                        isRadio = false,
+                        currentRadioStation = null,
                         currentSurah = surah,
                         currentReciter = reciter,
                         verseTimings = audioData?.timestamps ?: emptyList(),
                         currentAyahNumber = 1
                     )
                 }
+            }
+        }
+    }
+
+    private fun syncFromRadioMediaItem(mediaItem: MediaItem) {
+        val parts = mediaItem.mediaId.split(":")
+        // Format: radio:{stationId}:{timestamp}:{surahId}:{reciterId}
+        val stationId = parts.getOrNull(1)
+        val surahId = parts.getOrNull(3)?.toIntOrNull()
+        val reciterId = parts.getOrNull(4)?.toIntOrNull()
+
+        scope.launch {
+            val surah = surahId?.let { quranRepository.getSurahById(it) }
+            val reciter = reciterId?.let { reciterRepository.getReciterById(it) } ?: reciterRepository.getDefaultReciter()
+            val audioData = if (surah != null) quranRepository.getChapterAudio(reciter.id, surah.id) else null
+
+            _playbackState.update { current ->
+                val station = current.currentRadioStation ?: if (stationId != null) {
+                    CuratedRadioStations.find { it.id == stationId }
+                } else null
+
+                current.copy(
+                    isRadio = true,
+                    currentRadioStation = station ?: current.currentRadioStation,
+                    currentSurah = surah ?: current.currentSurah,
+                    currentReciter = reciter,
+                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    currentAyahNumber = 1,
+                    radioError = null,
+                    isBuffering = false
+                )
             }
         }
     }
@@ -245,6 +315,7 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
+        radioWatchdogJob?.cancel()
         val prevSurah = _playbackState.value.currentSurah
         val prevReciter = _playbackState.value.currentReciter
         if (prevSurah != null && prevReciter != null && (prevSurah.id != surah.id || prevReciter.id != reciter.id)) {
@@ -262,6 +333,8 @@ class AudioPlayerManager @Inject constructor(
                     isBuffering = true,
                     currentAyahNumber = startAyah,
                     isRadio = false,
+                    currentRadioStation = null,
+                    radioError = null,
                 )
             }
 
@@ -388,59 +461,166 @@ class AudioPlayerManager @Inject constructor(
         _playbackState.update { it.copy(queue = newQueue) }
     }
 
+    private data class RadioTrack(
+        val surah: Surah,
+        val reciter: Reciter,
+        val audioUrl: String,
+        val timestamps: List<VerseTiming>
+    )
+
+    private suspend fun buildRadioTrack(station: RadioStation): RadioTrack? {
+        val targetSurahs = if (station.targetSurahs.isNotEmpty()) station.targetSurahs else (1..114).toList()
+        val poolReciters = if (station.poolReciterIds.isNotEmpty()) {
+            station.poolReciterIds
+        } else {
+            listOf(station.reciterId ?: 7)
+        }
+
+        val surahId = targetSurahs.random()
+        val reciterId = poolReciters.random()
+        val surah = quranRepository.getSurahById(surahId) ?: return null
+        val reciter = reciterRepository.getReciterById(reciterId) ?: reciterRepository.getDefaultReciter()
+        val audioData = quranRepository.getChapterAudio(reciter.id, surah.id) ?: return null
+        return RadioTrack(surah, reciter, audioData.audioUrl, audioData.timestamps)
+    }
+
+    private fun buildRadioMediaItem(station: RadioStation, track: RadioTrack): MediaItem {
+        val artworkUri = station.bannerUrl?.let { Uri.parse(it) }
+            ?: Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+
+        return MediaItem.Builder()
+            .setMediaId("radio:${station.id}:${System.nanoTime()}:${track.surah.id}:${track.reciter.id}")
+            .setUri(track.audioUrl)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("${track.surah.id}. ${track.surah.nameSimple} (${track.surah.nameArabic})")
+                    .setSubtitle("Radio · ${station.name}")
+                    .setArtist("${track.reciter.englishName} • Radio · ${station.name}")
+                    .setAlbumTitle("Quran.com Radio")
+                    .setAlbumArtist(track.reciter.englishName)
+                    .setDisplayTitle("${track.surah.id}. ${track.surah.nameSimple}")
+                    .setDescription("${track.surah.translatedName} • ${track.reciter.englishName}")
+                    .setArtworkUri(artworkUri)
+                    .setIsPlayable(true)
+                    .setIsBrowsable(false)
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_RADIO_STATION)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun extendRadioQueueIfNeeded() {
+        val station = _playbackState.value.currentRadioStation ?: return
+        withController { controller ->
+            val remainingCount = controller.mediaItemCount - (controller.currentMediaItemIndex + 1)
+            if (remainingCount < 3) {
+                scope.launch {
+                    val nextTrack = buildRadioTrack(station) ?: return@launch
+                    val nextItem = buildRadioMediaItem(station, nextTrack)
+                    withController { c ->
+                        c.addMediaItem(nextItem)
+                    }
+                }
+            }
+        }
+    }
+
     fun playRadio(station: RadioStation) {
         ensureServiceRunning()
+        radioWatchdogJob?.cancel()
         _currentPositionMs.value = 0L
+
+        val prevSurah = if (!_playbackState.value.isRadio) _playbackState.value.currentSurah else _playbackState.value.lastSurahBeforeRadio
+        val prevReciter = if (!_playbackState.value.isRadio) _playbackState.value.currentReciter else _playbackState.value.lastReciterBeforeRadio
+
+        _playbackState.update {
+            it.copy(
+                isRadio = true,
+                currentRadioStation = station,
+                isBuffering = true,
+                radioError = null,
+                lastSurahBeforeRadio = prevSurah,
+                lastReciterBeforeRadio = prevReciter,
+                queue = emptyList(),
+            )
+        }
+
+        // 10-second watchdog for initial buffering timeout
+        radioWatchdogJob = scope.launch {
+            delay(10000)
+            if (_playbackState.value.isRadio && _playbackState.value.isBuffering && !_playbackState.value.isPlaying) {
+                _playbackState.update {
+                    it.copy(
+                        isBuffering = false,
+                        radioError = "Playback connection timed out. Tap to retry."
+                    )
+                }
+            }
+        }
+
         scope.launch {
-            val dummySurah = Surah(
-                id = 0,
-                nameSimple = station.name,
-                nameComplex = station.name,
-                nameArabic = "إذاعة القرآن الكريم",
-                revelationPlace = station.city,
-                revelationOrder = 0,
-                versesCount = 0,
-                translatedName = station.description
-            )
-            val dummyReciter = Reciter(
-                id = 0,
-                name = station.name,
-                englishName = "Live Quran Radio",
-                style = "Live 24/7",
-            )
+            val initialTracks = mutableListOf<RadioTrack>()
+            for (i in 0 until 3) {
+                val track = buildRadioTrack(station)
+                if (track != null) {
+                    initialTracks.add(track)
+                }
+            }
+
+            if (initialTracks.isEmpty()) {
+                radioWatchdogJob?.cancel()
+                _playbackState.update {
+                    it.copy(
+                        isBuffering = false,
+                        radioError = "Failed to load station tracks. Please check connection."
+                    )
+                }
+                return@launch
+            }
+
+            val firstTrack = initialTracks.first()
             _playbackState.update {
                 it.copy(
-                    currentSurah = dummySurah,
-                    currentReciter = dummyReciter,
-                    isBuffering = true,
+                    currentSurah = firstTrack.surah,
+                    currentReciter = firstTrack.reciter,
                     currentAyahNumber = 1,
-                    verseTimings = emptyList(),
-                    isRadio = true,
+                    verseTimings = firstTrack.timestamps,
                 )
             }
-            val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
-            val mediaMetadata = MediaMetadata.Builder()
-                .setTitle(station.name)
-                .setArtist("Live Quran Radio • ${station.city}")
-                .setAlbumTitle("Quran.com Radio")
-                .setDisplayTitle(station.name)
-                .setSubtitle(station.description)
-                .setArtworkUri(artworkUri)
-                .setIsPlayable(true)
-                .setIsBrowsable(false)
-                .build()
 
-            val mediaItem = MediaItem.Builder()
-                .setMediaId("radio:${station.id}")
-                .setUri(station.streamUrl)
-                .setMediaMetadata(mediaMetadata)
-                .build()
+            val mediaItems = initialTracks.map { buildRadioMediaItem(station, it) }
 
             withController { controller ->
-                controller.setMediaItem(mediaItem)
+                controller.setMediaItems(mediaItems, 0, 0L)
                 controller.prepare()
                 controller.play()
             }
+        }
+    }
+
+    fun stopRadio() {
+        radioWatchdogJob?.cancel()
+        withController { controller ->
+            controller.pause()
+            controller.clearMediaItems()
+        }
+        _playbackState.update {
+            it.copy(
+                isRadio = false,
+                currentRadioStation = null,
+                isPlaying = false,
+                isBuffering = false,
+                radioError = null,
+            )
+        }
+    }
+
+    fun resumeSurahAfterRadio() {
+        val surah = _playbackState.value.lastSurahBeforeRadio
+        val reciter = _playbackState.value.lastReciterBeforeRadio ?: runBlocking { reciterRepository.getDefaultReciter() }
+        if (surah != null) {
+            stopRadio()
+            playSurah(surah, reciter)
         }
     }
 
@@ -465,6 +645,27 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playNext() {
+        if (_playbackState.value.isRadio) {
+            withController { controller ->
+                if (controller.hasNextMediaItem()) {
+                    controller.seekToNextMediaItem()
+                } else {
+                    val station = _playbackState.value.currentRadioStation
+                    if (station != null) {
+                        scope.launch {
+                            val nextTrack = buildRadioTrack(station) ?: return@launch
+                            val nextItem = buildRadioMediaItem(station, nextTrack)
+                            withController { c ->
+                                c.addMediaItem(nextItem)
+                                c.seekToNextMediaItem()
+                            }
+                        }
+                    }
+                }
+            }
+            return
+        }
+
         val q = _playbackState.value.queue
         if (q.isNotEmpty()) {
             val nextItem = q.first()
@@ -490,6 +691,11 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun playPrevious() {
+        if (_playbackState.value.isRadio) {
+            seekTo(0L)
+            return
+        }
+
         val pos = browser?.currentPosition ?: _currentPositionMs.value
         if (pos > 3000L) {
             seekTo(0L)

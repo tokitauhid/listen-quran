@@ -152,3 +152,16 @@ Token efficiency is a core engineering requirement for all agent interactions:
 6. **Privacy & Credential Protection**: Never commit, log, or hardcode API keys, personal access tokens, or sensitive user data. Local-only on-device storage must remain completely private.
 7. **Verification Before Claiming Success**: Always test and compile changes using Gradle or unit tests (`./gradlew testDebugUnitTest`). Never claim physical or emulator device validation unless an active device is verified via `adb devices`.
 
+---
+
+## 8. Radio and Playback State Rules
+1. **Quran.com Radio Architecture**: Radio stations operate as continuous, infinite broadcasts via lazy-extended recitation queues (`radio:{stationId}:{timestamp}:{surahId}:{reciterId}`) resolved from Quran.com / QuranicAudio CDN audio files. Do not use unverified external Icecast URLs.
+2. **Explicit User Intent Over Session Restore**: When the user starts a Radio station, explicit user action always wins. Background session reconnection, controller attach, or `onPlaybackResumption` must never overwrite active radio playback with a default surah (e.g., Al-Fatihah).
+3. **Preservation of Last-Played Surah**: Starting or stopping a radio station must never overwrite the user's last-played surah in DataStore or Room stats. The previous surah is cached in `PlaybackState.lastSurahBeforeRadio`, allowing the user to seamlessly resume their surah recitation via "Resume [Surah]" in the UI.
+4. **Watchdog & Error States**: A 10-second timeout watchdog prevents infinite loading spinners during connection or stream drops. `onPlayerError` and connection failures must be surfaced with actionable "Retry" and "Stop Radio" buttons.
+5. **Continuous Broadcast UI Constraints**:
+   - Mini Player, Full Player, Lockscreen, and Android Auto must show a `RADIO` badge and subtitle `"Radio · [Station Name]"`.
+   - Show `LIVE` only when the station is an active live stream.
+   - For continuous radio streams, hide controls that do not apply: scrubber seek bar, shuffle, repeat, and previous track. Allow next track to skip recitation.
+6. **Quran.com Attribution & Data Terms**: Adhere strictly to Quran.com / Quran Foundation open data guidelines and terms of use. Audio recitations are served via Quran.com / QuranicAudio open CDN with proper reciter and surah metadata.
+
