@@ -76,6 +76,29 @@ ehthumbs.db
 
 # Editor-specific
 .vscode/
-.serena/
 scratch/
+
+# AI agent instructions, skills, rules & configurations
+.agents/
+skills/
+.skills/
+**/skills/
+**/.skills/
+AGENTS.md
+AGENTS.md*
+CLAUDE.md
+CLAUDE.md*
+GEMINI.md
+GEMINI.md*
+.cursorrules
+.cursorrules*
+.cursor/
+.mcp.json
+.mcp.json*
+.serena/
+.gemini/
+.windsurf/
+.windsurfrules
+.copilot/
+.github/copilot*
 
