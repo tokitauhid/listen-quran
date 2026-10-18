@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -19,21 +20,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.Surah
 import com.listenquran.ui.screens.home.SurahListItem
 import com.listenquran.ui.theme.AmiriQuranFont
-
-data class BrowseCategory(
-    val title: String,
-    val description: String,
-    val icon: ImageVector,
-    val surahTargetId: Int,
-)
+import com.listenquran.util.ReciterImages
 
 data class ParsedVerseQuery(
     val surahNumber: Int,
@@ -49,8 +49,10 @@ fun SearchScreen(
     onSurahClick: (Surah) -> Unit,
     onVerseClick: (Surah, Int) -> Unit,
     onReciterClick: (Reciter) -> Unit,
+    onBrowseSurahsClick: () -> Unit,
     onPlayNext: ((Surah) -> Unit)? = null,
     onAddToQueue: ((Surah) -> Unit)? = null,
+    onAddToPlaylist: ((Surah) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -69,15 +71,6 @@ fun SearchScreen(
         Triple("Surah Al-Waqi'ah", 56, 1),
         Triple("Surah Al-Kahf", 18, 1),
         Triple("The 4 Quls (112:1)", 112, 1),
-    )
-
-    val categories = listOf(
-        BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.AutoStories, 1),
-        BrowseCategory("Ruqyah & Peace", "Protection & calming verses", Icons.Rounded.HealthAndSafety, 1),
-        BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67),
-        BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55),
-        BrowseCategory("Quranic Duas", "Supplications from the Quran", Icons.Rounded.Favorite, 2),
-        BrowseCategory("The 4 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112),
     )
 
     // Detect Surah:Ayah pattern e.g. "2:255" or "18:10"
@@ -280,6 +273,7 @@ fun SearchScreen(
                                 onClick = { onSurahClick(surah) },
                                 onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
                                 onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
+                                onAddToPlaylist = onAddToPlaylist?.let { fn -> { fn(surah) } },
                             )
                         }
                     }
@@ -364,47 +358,6 @@ fun SearchScreen(
                         }
                     }
 
-                    // 2-Column Browse Categories
-                    item {
-                        Text(
-                            text = "Browse Categories",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val chunked = categories.chunked(2)
-                            for (pair in chunked) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    for (category in pair) {
-                                        CategoryCard(
-                                            category = category,
-                                            onClick = {
-                                                surahs.find { it.id == category.surahTargetId }?.let(onSurahClick)
-                                            },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    if (pair.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     if (searchFilter == "Reciters") {
                         item {
                             Text(
@@ -424,25 +377,66 @@ fun SearchScreen(
                             )
                         }
                     } else {
-                        // All 114 Surahs catalog in Search
+                        // Browse Surahs dedicated entry
                         item {
                             Text(
-                                text = "All 114 Surahs",
+                                text = "Surahs",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 16.dp)
                             )
-                        }
-
-                        items(surahs, key = { it.id }) { surah ->
-                            SurahListItem(
-                                surah = surah,
-                                onClick = { onSurahClick(surah) },
-                                onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
-                                onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable(onClick = onBrowseSurahsClick),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                tonalElevation = 2.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.AutoStories,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Browse All Surahs",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        
+                                    }
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Browse Surahs",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .rotate(180f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -457,6 +451,11 @@ fun ReciterSearchItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val photoUrl = remember(reciter) {
+        ReciterImages.getPhotoUrl(reciter.id, reciter.englishName, reciter.photoUrl)
+    }
+    var isImageError by remember(photoUrl) { mutableStateOf(false) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -480,10 +479,24 @@ fun ReciterSearchItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = reciter.englishName.take(1),
+                    text = reciter.englishName.take(1).uppercase(),
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
+                if (photoUrl != null && !isImageError) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(photoUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = reciter.englishName,
+                        contentScale = ContentScale.Crop,
+                        onError = { isImageError = true },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -503,50 +516,6 @@ fun ReciterSearchItem(
                 fontSize = 18.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-fun CategoryCard(
-    category: BrowseCategory,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier
-            .height(104.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Icon(
-                imageVector = category.icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-            Column {
-                Text(
-                    text = category.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = category.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
         }
     }
 }
