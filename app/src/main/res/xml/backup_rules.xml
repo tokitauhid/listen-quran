@@ -8,6 +8,4 @@
     <include domain="file" path="khatam_snapshots" />
     <!-- Include user preferences -->
     <include domain="sharedpref" path="." />
-    <!-- Exclude caches and transient audio downloads from cloud backup -->
-    <exclude domain="root" path="cache" />
 </full-backup-content>
