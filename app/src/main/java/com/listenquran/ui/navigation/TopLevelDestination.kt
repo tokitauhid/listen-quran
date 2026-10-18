@@ -18,7 +18,8 @@ enum class TopLevelDestination(
     LIBRARY(route = "library", graphRoute = "library_graph", label = "Library"),
     SETTINGS(route = "settings", graphRoute = "home_graph", label = "Settings"),
     SURAHS(route = "surahs", graphRoute = "home_graph", label = "Surahs"),
-    RADIO(route = "radio", graphRoute = "home_graph", label = "Radio");
+    RADIO(route = "radio", graphRoute = "home_graph", label = "Radio"),
+    KHATAM(route = "khatam", graphRoute = "home_graph", label = "Khatam Tracker");
 
     val startRoute: String get() = route
 
@@ -35,6 +36,7 @@ enum class TopLevelDestination(
                 route == SEARCH.route -> HOME
                 route == SURAHS.route -> HOME
                 route == RADIO.route -> HOME
+                route == KHATAM.route -> HOME
                 route.startsWith("home") -> HOME
                 route.startsWith("reciter") -> RECITERS
                 route.startsWith("library") || route.startsWith("playlist") -> LIBRARY

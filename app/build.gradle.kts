@@ -44,6 +44,15 @@ android {
     buildFeatures {
         compose = true
     }
+
+    sourceSets {
+        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+        getByName("test").assets.srcDirs("$projectDir/schemas")
+    }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 composeCompiler {
@@ -119,6 +128,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.room.testing)
     testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

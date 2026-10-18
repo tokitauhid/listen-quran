@@ -29,6 +29,7 @@ class MainViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
     private val radioRepository: com.listenquran.data.repository.RadioRepository,
+    private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -56,8 +57,29 @@ class MainViewModel @Inject constructor(
     val bookmarks: StateFlow<List<Bookmark>> = bookmarkRepository.getAllBookmarks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val khatmaProgress: StateFlow<KhatmaProgress> = khatmaRepository.getKhatmaProgress()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), KhatmaProgress())
+    val khatmaProgress: StateFlow<KhatmaProgress> = combine(
+        khatamTrackerRepository.activeKhatam,
+        khatamTrackerRepository.activeRangeSet
+    ) { khatam, rangeSet ->
+        val nextAyah = rangeSet.nextUnreadAyah ?: 1
+        val (surahNum, ayahNum) = com.listenquran.domain.model.khatam.QuranAyahMetadata.toSurahAyah(nextAyah)
+        val currentJuz = com.listenquran.domain.model.khatam.QuranAyahMetadata.toJuz(nextAyah)
+        val currentPage = com.listenquran.domain.model.khatam.QuranAyahMetadata.toPage(nextAyah)
+        val targetDays = khatam?.targetDays ?: 30
+        val pagesPerDay = maxOf(1, (604 - currentPage) / maxOf(1, targetDays))
+        KhatmaProgress(
+            id = 1L,
+            title = khatam?.title ?: "Daily Khatma",
+            currentPage = currentPage,
+            totalPages = 604,
+            currentJuz = currentJuz,
+            lastSurahNumber = surahNum,
+            lastAyahNumber = ayahNum,
+            targetDays = targetDays,
+            pagesPerDayTarget = pagesPerDay,
+            updatedAt = System.currentTimeMillis()
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), KhatmaProgress())
 
     val statsSummary: StateFlow<ListeningStatsSummary> = statsRepository.getSummary()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ListeningStatsSummary())

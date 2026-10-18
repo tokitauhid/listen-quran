@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Include Room Khatam tracker database and journal -->
+    <include domain="database" path="khatam.db" />
+    <include domain="database" path="khatam.db-wal" />
+    <include domain="database" path="khatam.db-shm" />
+    <!-- Include rolling snapshot backups -->
+    <include domain="file" path="khatam_snapshots" />
+    <!-- Include user preferences -->
+    <include domain="sharedpref" path="." />
+    <!-- Exclude caches and transient audio downloads from cloud backup -->
+    <exclude domain="root" path="cache" />
+</full-backup-content>

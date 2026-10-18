@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="khatam.db" />
+        <include domain="database" path="khatam.db-wal" />
+        <include domain="database" path="khatam.db-shm" />
+        <include domain="file" path="khatam_snapshots" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="root" path="cache" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="khatam.db" />
+        <include domain="database" path="khatam.db-wal" />
+        <include domain="database" path="khatam.db-shm" />
+        <include domain="file" path="khatam_snapshots" />
+        <include domain="sharedpref" path="." />
+        <exclude domain="root" path="cache" />
+    </device-transfer>
+</data-extraction-rules>

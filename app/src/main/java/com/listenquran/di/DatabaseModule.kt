@@ -47,4 +47,26 @@ object DatabaseModule {
 
     @Provides
     fun provideDownloadDao(db: ListenQuranDatabase): DownloadDao = db.downloadDao()
+
+    @Provides
+    @Singleton
+    fun provideKhatamDatabase(@ApplicationContext context: Context): com.listenquran.data.local.khatam.KhatamDatabase {
+        return Room.databaseBuilder(
+            context,
+            com.listenquran.data.local.khatam.KhatamDatabase::class.java,
+            "khatam.db"
+        )
+            .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+            .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    super.onOpen(db)
+                    // Durability requirement: synchronous = FULL ensures writes survive sudden power loss
+                    db.query("PRAGMA synchronous = FULL;").close()
+                }
+            })
+            .build()
+    }
+
+    @Provides
+    fun provideKhatamDao(db: com.listenquran.data.local.khatam.KhatamDatabase): com.listenquran.data.local.khatam.KhatamDao = db.khatamDao()
 }

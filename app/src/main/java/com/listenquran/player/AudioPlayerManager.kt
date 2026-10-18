@@ -60,6 +60,7 @@ class AudioPlayerManager @Inject constructor(
     private val reciterRepository: ReciterRepository,
     private val statsRepository: StatsRepository,
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
+    private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -83,6 +84,13 @@ class AudioPlayerManager @Inject constructor(
     private var radioWatchdogJob: Job? = null
     private var sessionStartTime: Long = 0L
     private val history = mutableListOf<QueueItem>()
+
+    // Khatam playback tracking state
+    private var trackedSurahId: Int? = null
+    private var trackedAyahNumber: Int? = null
+    private var trackedAyahAccumulatedMs: Long = 0L
+    private var trackedAyahLastPos: Long = -1L
+    private var trackedAyahRecorded: Boolean = false
 
     init {
         connectBrowser()
@@ -820,6 +828,7 @@ class AudioPlayerManager @Inject constructor(
                 }
 
                 updateAyahAtPosition(pos)
+                checkKhatamPlaybackTracking(pos)
                 checkHifzLoop(pos)
                 delay(200L)
             }
@@ -853,6 +862,52 @@ class AudioPlayerManager @Inject constructor(
             if (_playbackState.value.currentAyahNumber != ayahNum) {
                 _playbackState.update {
                     it.copy(currentAyahNumber = ayahNum)
+                }
+            }
+        }
+    }
+
+    private fun checkKhatamPlaybackTracking(pos: Long) {
+        val state = _playbackState.value
+        // Only track during active recitation playback, ignoring radio stations
+        if (!state.isPlaying || state.isRadio) {
+            trackedAyahLastPos = pos
+            return
+        }
+
+        val surahId = state.currentSurah?.id ?: return
+        val timings = state.verseTimings
+        if (timings.isEmpty()) return
+
+        val matchedTiming = timings.find { pos in it.timestampFrom until it.timestampTo }
+            ?: timings.lastOrNull { pos >= it.timestampFrom } ?: return
+
+        val ayahNum = matchedTiming.verseKey.split(":").getOrNull(1)?.toIntOrNull() ?: 1
+        val verseDuration = matchedTiming.timestampTo - matchedTiming.timestampFrom
+
+        if (trackedSurahId != surahId || trackedAyahNumber != ayahNum) {
+            trackedSurahId = surahId
+            trackedAyahNumber = ayahNum
+            trackedAyahAccumulatedMs = 0L
+            trackedAyahLastPos = pos
+            trackedAyahRecorded = false
+        } else {
+            if (trackedAyahLastPos >= 0L) {
+                val delta = pos - trackedAyahLastPos
+                // Normal advancement: 0 to 1000ms. If user sought, delta is outside this range -> reset
+                if (delta in 0..1000) {
+                    trackedAyahAccumulatedMs += delta
+                } else {
+                    trackedAyahAccumulatedMs = 0L
+                }
+            }
+            trackedAyahLastPos = pos
+
+            // 80% threshold: ayah counts as listened only after at least 80% real playback
+            if (!trackedAyahRecorded && verseDuration > 0 && trackedAyahAccumulatedMs >= (verseDuration * 0.8)) {
+                trackedAyahRecorded = true
+                scope.launch(Dispatchers.IO) {
+                    khatamTrackerRepository.recordPlaybackAyah(surahId, ayahNum)
                 }
             }
         }

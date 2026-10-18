@@ -106,6 +106,7 @@ fun HomeScreen(
     currentRadioStation: RadioStation? = null,
     isRadioPlaying: Boolean = false,
     onNavigateToRadio: (() -> Unit)? = null,
+    onOpenKhatam: (() -> Unit)? = null,
     resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
@@ -763,6 +764,7 @@ fun HomeScreen(
                         KhatmaWidget(
                             progress = khatmaProgress,
                             onContinue = onContinueKhatma,
+                            onClick = onOpenKhatam ?: onContinueKhatma,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
@@ -980,10 +982,13 @@ fun QuickAccessTile(
 fun KhatmaWidget(
     progress: KhatmaProgress,
     onContinue: () -> Unit,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 4.dp

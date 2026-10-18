@@ -75,6 +75,7 @@ fun ListenQuranNavHost(
                     onSurahClick = onSurahClick,
                     onPlaylistClick = onOpenPlaylistDetail,
                     onContinueKhatma = onContinueKhatma,
+                    onOpenKhatam = { navController.navigateToDetail(TopLevelDestination.KHATAM.route) },
                     onOpenSettings = onOpenSettings,
                     onNavigateToSearch = onNavigateToSearch,
                     onNavigateToSurahs = onNavigateToSurahs,
@@ -122,6 +123,20 @@ fun ListenQuranNavHost(
                     onPlayNext = { surah -> viewModel.playNextInQueue(surah) },
                     onAddToQueue = { surah -> viewModel.addToQueue(surah) },
                     onAddToPlaylist = onAddToPlaylist,
+                )
+            }
+            composable(TopLevelDestination.KHATAM.route) {
+                val khatamViewModel: com.listenquran.ui.screens.khatam.KhatamViewModel = hiltViewModel()
+                val surahs by viewModel.surahs.collectAsStateWithLifecycle()
+                com.listenquran.ui.screens.khatam.KhatamScreen(
+                    viewModel = khatamViewModel,
+                    onBackClick = { navController.popBackStack() },
+                    onContinueAyah = { surahNumber, ayahNumber ->
+                        val targetSurah = surahs.find { it.id == surahNumber }
+                        if (targetSurah != null) {
+                            viewModel.playSurah(targetSurah, startAyah = ayahNumber)
+                        }
+                    }
                 )
             }
             composable(TopLevelDestination.SETTINGS.route) {

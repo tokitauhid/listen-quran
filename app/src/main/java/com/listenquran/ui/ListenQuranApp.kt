@@ -225,6 +225,7 @@ fun ListenQuranApp(
                                         TopLevelDestination.SETTINGS -> if (selected) Icons.Filled.Settings else Icons.Outlined.Settings
                                         TopLevelDestination.SURAHS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
                                         TopLevelDestination.RADIO -> Icons.Rounded.Radio
+                                        TopLevelDestination.KHATAM -> Icons.Filled.Home
                                     }
                                     Icon(imageVector = icon, contentDescription = destination.label)
                                 },

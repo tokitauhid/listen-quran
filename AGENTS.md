@@ -165,3 +165,16 @@ Token efficiency is a core engineering requirement for all agent interactions:
    - For continuous radio streams, hide controls that do not apply: scrubber seek bar, shuffle, repeat, and previous track. Allow next track to skip recitation.
 6. **Quran.com Attribution & Data Terms**: Adhere strictly to Quran.com / Quran Foundation open data guidelines and terms of use. Audio recitations are served via Quran.com / QuranicAudio open CDN with proper reciter and surah metadata.
 
+---
+
+## 9. Khatam Tracker Rules & Durability Architecture
+1. **Physical Database Isolation**: Khatam progress must strictly reside in its own dedicated Room database (`khatam.db`), completely separated from the read-only catalog database (`listen_quran.db`). Asset database updates or catalog schema migrations must never touch, alter, or risk wiping Khatam progress.
+2. **Append-Only Event Log & Snapshot**: Ground truth is stored in an immutable, append-only event log (`khatam_events`). Events (`RANGE_ADDED`, `RANGE_REMOVED`, `GOAL_CHANGED`, `KHATAM_STARTED`, `KHATAM_COMPLETED`) are never updated or deleted. Current progress is derived from the event log into a materialized snapshot table (`khatam_snapshots`) that can always be self-repaired and reconstructed by replaying the event log.
+3. **Ayah-Level Granularity**: The single source of truth is the 6,236 Ayahs. Juz, Surah, Page, and percentage metrics are pure derived views, never stored as independent columns, preventing desynchronization.
+4. **Write-Through & Atomic Transactions**: Never hold progress only in memory or ViewModel. Mutating events and snapshots must happen in a single Room `@Transaction`. Playback progress is flushed at verse boundaries and upon pause/stop.
+5. **Full Durability Settings**: Always configure `PRAGMA journal_mode = WAL;` and `PRAGMA synchronous = FULL;` on `khatam.db` so committed writes survive sudden battery pulls and hardware power loss.
+6. **No Destructive Migrations**: Never use `fallbackToDestructiveMigration()` on `khatam.db`. Always export schemas (`app/schemas/`), write explicit migrations, and verify them via `MigrationTestHelper`. If a migration throws, the database must fall back to read-only recovery mode rather than wiping data.
+7. **Integrity Check & Rolling Snapshots**: On startup, run `PRAGMA quick_check;`. If snapshot disagrees with event log, rebuild snapshot from the log. Keep 5 rolling checksummed JSON snapshots in app-private storage (`khatam_snapshots/`) and support manual SAF export/import with union merge.
+8. **Service-Level Playback Recording**: Ayah completion (80% listened threshold) must be tracked inside the Media3 playback service (`AudioPlayerManager`), surviving Activity destruction and screen-off lockscreen playback. Seeking past an ayah or skipping must never count toward completion.
+
+
