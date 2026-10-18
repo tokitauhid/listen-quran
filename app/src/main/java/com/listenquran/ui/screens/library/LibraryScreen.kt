@@ -48,10 +48,17 @@ fun LibraryScreen(
     onStartHifzLoop: (HifzLoopConfig) -> Unit,
     onSetSleepTimer: (Int) -> Unit,
     onSetSleepTimerUntilTime: (Int, Int) -> Unit = { _, _ -> },
+    resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by remember { mutableStateOf("Playlists") }
     val filters = listOf("Playlists", "Saved Ayahs", "Hifz Loops", "Reciters")
+
+    LaunchedEffect(resetTrigger) {
+        if (resetTrigger > 0) {
+            selectedFilter = "Playlists"
+        }
+    }
 
     BackHandler(enabled = selectedFilter != "Playlists") {
         selectedFilter = "Playlists"
