@@ -501,301 +501,270 @@ fun FullPlayerScreen(
                 }
             }
 
-            // Playback Speed & Status indicators
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!playbackState.isRadio) {
-                    FilterChip(
-                        selected = playbackState.playbackSpeed != 1.0f,
-                        onClick = { showSpeedDialog = true },
-                        label = { Text("${playbackState.playbackSpeed}x") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            labelColor = MaterialTheme.colorScheme.onSurface,
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        )
-                    )
-                }
-
-                if (playbackState.isHifzActive) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SuggestionChip(
-                        onClick = {},
-                        label = { Text("Hifz Loop #${playbackState.hifzCurrentLoop}") },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    )
-                }
-
-                if (playbackState.stopAtEndOfSurah) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    SuggestionChip(
-                        onClick = onOpenSleepTimer,
-                        label = { Text("Stops End of Surah") },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                } else if (playbackState.sleepTimerRemainingSeconds != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val mins = playbackState.sleepTimerRemainingSeconds / 60
-                    val secs = playbackState.sleepTimerRemainingSeconds % 60
-                    SuggestionChip(
-                        onClick = onOpenSleepTimer,
-                        label = { Text("Timer: ${mins}:${String.format(Locale.getDefault(), "%02d", secs)}") },
-                        colors = SuggestionChipDefaults.suggestionChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-            }
-
-            // Media Control Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                if (playbackState.isRadio) {
-                    // In continuous radio stream: hide shuffle, prev, repeat
-                    Spacer(modifier = Modifier.size(48.dp))
-
-                    // Large M3 Play/Pause FAB
-                    FilledIconButton(
-                        onClick = onTogglePlayPause,
-                        modifier = Modifier.size(68.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    ) {
-                        if (playbackState.isBuffering) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(28.dp),
-                                strokeWidth = 3.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                    }
-
-                    // Next (skips recitation track)
-                    IconButton(
-                        onClick = onNext,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipNext,
-                            contentDescription = "Next Track",
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.size(48.dp))
-                } else {
-                    // Shuffle toggle
-                    IconButton(onClick = onToggleShuffle) {
-                        Icon(
-                            imageVector = Icons.Rounded.Shuffle,
-                            contentDescription = "Shuffle",
-                            tint = if (playbackState.isShuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Previous
-                    IconButton(
-                        onClick = onPrevious,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipPrevious,
-                            contentDescription = "Previous Surah",
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Large M3 Play/Pause FAB (64x64dp, shape 20dp, container primary)
-                    FilledIconButton(
-                        onClick = onTogglePlayPause,
-                        modifier = Modifier.size(68.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    ) {
-                        if (playbackState.isBuffering) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(28.dp),
-                                strokeWidth = 3.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                    }
-
-                    // Next
-                    IconButton(
-                        onClick = onNext,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SkipNext,
-                            contentDescription = "Next Surah",
-                            modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    // Repeat toggle
-                    IconButton(onClick = onToggleRepeat) {
-                        val icon = if (playbackState.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat
-                        val isRepeatActive = playbackState.repeatMode != Player.REPEAT_MODE_OFF
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = "Repeat",
-                            tint = if (isRepeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Radio Stop & Resume Surah Actions Row
-            if (playbackState.isRadio) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onStopRadio?.invoke() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Stop,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Stop Radio")
-                    }
-
-                    if (playbackState.lastSurahBeforeRadio != null) {
-                        FilledTonalButton(
-                            onClick = { onResumeSurah?.invoke() },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text(
-                                text = "Resume ${playbackState.lastSurahBeforeRadio.nameSimple}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // Bottom Action Dock: Queue and Verses Sheet Peek Buttons
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Queue Button
-                Surface(
-                    modifier = Modifier
-                        .weight(0.35f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable(onClick = onOpenQueue),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                // Secondary Action Row: Queue (above Shuffle) | Speed & Status Chips | Verses (above Repeat)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
+                    // Queue Icon (directly above Shuffle)
+                    IconButton(
+                        onClick = onOpenQueue,
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                             contentDescription = "Queue",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            tint = if (playbackState.queue.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Queue (${playbackState.queue.size})",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
+                    }
+
+                    // Center: Speed & Status Chips
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (!playbackState.isRadio) {
+                            FilterChip(
+                                selected = playbackState.playbackSpeed != 1.0f,
+                                onClick = { showSpeedDialog = true },
+                                label = { Text("${playbackState.playbackSpeed}x") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                )
+                            )
+                        }
+
+                        if (playbackState.isHifzActive) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text("Hifz #${playbackState.hifzCurrentLoop}") },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            )
+                        }
+
+                        if (playbackState.stopAtEndOfSurah) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            SuggestionChip(
+                                onClick = onOpenSleepTimer,
+                                label = { Text("End of Surah") },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        } else if (playbackState.sleepTimerRemainingSeconds != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            val mins = playbackState.sleepTimerRemainingSeconds / 60
+                            val secs = playbackState.sleepTimerRemainingSeconds % 60
+                            SuggestionChip(
+                                onClick = onOpenSleepTimer,
+                                label = { Text("Timer: ${mins}:${String.format(Locale.getDefault(), "%02d", secs)}") },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    // Verses Icon (directly above Repeat)
+                    IconButton(
+                        onClick = onOpenVersesSheet,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoStories,
+                            contentDescription = "Verses & Translation",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
 
-                // Verses Sheet Peek Button
-                Surface(
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Media Control Bar
+                Row(
                     modifier = Modifier
-                        .weight(0.65f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable(onClick = onOpenVersesSheet),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    if (playbackState.isRadio) {
+                        // In continuous radio stream: hide shuffle, prev, repeat
+                        Spacer(modifier = Modifier.size(48.dp))
+
+                        // Large M3 Play/Pause FAB
+                        FilledIconButton(
+                            onClick = onTogglePlayPause,
+                            modifier = Modifier.size(68.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        ) {
+                            if (playbackState.isBuffering) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(28.dp),
+                                    strokeWidth = 3.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+
+                        // Next (skips recitation track)
+                        IconButton(
+                            onClick = onNext,
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.AutoStories,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Verses & Translation",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface
+                                imageVector = Icons.Rounded.SkipNext,
+                                contentDescription = "Next Track",
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Open Verses",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.size(48.dp))
+                    } else {
+                        // Shuffle toggle
+                        IconButton(
+                            onClick = onToggleShuffle,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (playbackState.isShuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        // Previous
+                        IconButton(
+                            onClick = onPrevious,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SkipPrevious,
+                                contentDescription = "Previous Surah",
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Large M3 Play/Pause FAB (64x64dp, shape 20dp, container primary)
+                        FilledIconButton(
+                            onClick = onTogglePlayPause,
+                            modifier = Modifier.size(68.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        ) {
+                            if (playbackState.isBuffering) {
+                                CircularProgressIndicator(
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(28.dp),
+                                    strokeWidth = 3.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+
+                        // Next
+                        IconButton(
+                            onClick = onNext,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SkipNext,
+                                contentDescription = "Next Surah",
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Repeat toggle
+                        IconButton(
+                            onClick = onToggleRepeat,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            val icon = if (playbackState.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat
+                            val isRepeatActive = playbackState.repeatMode != Player.REPEAT_MODE_OFF
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = "Repeat",
+                                tint = if (isRepeatActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Radio Stop & Resume Surah Actions Row
+                if (playbackState.isRadio) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onStopRadio?.invoke() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Stop,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Stop Radio")
+                        }
+
+                        if (playbackState.lastSurahBeforeRadio != null) {
+                            FilledTonalButton(
+                                onClick = { onResumeSurah?.invoke() },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "Resume ${playbackState.lastSurahBeforeRadio.nameSimple}",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
