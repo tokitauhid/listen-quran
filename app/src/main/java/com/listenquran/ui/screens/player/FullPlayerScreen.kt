@@ -71,17 +71,32 @@ fun FullPlayerScreen(
     var showSpeedDialog by remember { mutableStateOf(false) }
     var isDraggingSlider by remember { mutableStateOf(false) }
     var sliderDragPosition by remember { mutableFloatStateOf(0f) }
+    var pendingSeekPosition by remember { mutableStateOf<Long?>(null) }
 
     val continuousPos by (currentPositionMsFlow ?: remember { MutableStateFlow(0L) })
         .collectAsStateWithLifecycle()
 
+    LaunchedEffect(continuousPos, pendingSeekPosition) {
+        val pending = pendingSeekPosition
+        if (pending != null && kotlin.math.abs(continuousPos - pending) < 1500L) {
+            pendingSeekPosition = null
+        }
+    }
+
+    LaunchedEffect(pendingSeekPosition) {
+        if (pendingSeekPosition != null) {
+            kotlinx.coroutines.delay(1200L)
+            pendingSeekPosition = null
+        }
+    }
+
     val surah = playbackState.currentSurah
     val reciter = playbackState.currentReciter
 
-    val currentPosition = if (isDraggingSlider) {
-        (sliderDragPosition * playbackState.durationMs).toLong()
-    } else {
-        continuousPos
+    val currentPosition = when {
+        isDraggingSlider -> (sliderDragPosition * playbackState.durationMs).toLong()
+        pendingSeekPosition != null -> pendingSeekPosition!!
+        else -> continuousPos
     }
 
     val sliderProgress = if (playbackState.durationMs > 0) {
@@ -474,8 +489,12 @@ fun FullPlayerScreen(
                             sliderDragPosition = it
                         },
                         onValueChangeFinished = {
+                            val targetPos = if (playbackState.durationMs > 0) {
+                                (sliderDragPosition * playbackState.durationMs).toLong()
+                            } else 0L
+                            pendingSeekPosition = targetPos
                             isDraggingSlider = false
-                            onSeekTo((sliderDragPosition * playbackState.durationMs).toLong())
+                            onSeekTo(targetPos)
                         },
                         colors = SliderDefaults.colors(
                             thumbColor = MaterialTheme.colorScheme.primary,

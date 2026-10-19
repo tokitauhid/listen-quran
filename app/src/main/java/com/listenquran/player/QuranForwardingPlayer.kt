@@ -15,6 +15,11 @@ class QuranForwardingPlayer(
             .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
             .add(Player.COMMAND_SEEK_TO_PREVIOUS)
             .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+            .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+            .add(Player.COMMAND_SEEK_TO_MEDIA_ITEM)
+            .add(Player.COMMAND_SEEK_TO_DEFAULT_POSITION)
+            .add(Player.COMMAND_SEEK_BACK)
+            .add(Player.COMMAND_SEEK_FORWARD)
             .build()
     }
 
@@ -23,28 +28,53 @@ class QuranForwardingPlayer(
             Player.COMMAND_SEEK_TO_NEXT,
             Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
             Player.COMMAND_SEEK_TO_PREVIOUS,
-            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM -> true
+            Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+            Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_MEDIA_ITEM,
+            Player.COMMAND_SEEK_TO_DEFAULT_POSITION,
+            Player.COMMAND_SEEK_BACK,
+            Player.COMMAND_SEEK_FORWARD -> true
             else -> super.isCommandAvailable(command)
         }
     }
 
-    override fun hasNextMediaItem(): Boolean = true
+    override fun hasNextMediaItem(): Boolean {
+        return super.hasNextMediaItem() || playerManagerProvider.get().playbackState.value.isRadio
+    }
 
-    override fun hasPreviousMediaItem(): Boolean = true
+    override fun hasPreviousMediaItem(): Boolean {
+        return super.hasPreviousMediaItem()
+    }
 
     override fun seekToNext() {
-        playerManagerProvider.get().playNext()
+        if (super.hasNextMediaItem()) {
+            super.seekToNext()
+        } else {
+            playerManagerProvider.get().playNext()
+        }
     }
 
     override fun seekToNextMediaItem() {
-        playerManagerProvider.get().playNext()
+        if (super.hasNextMediaItem()) {
+            super.seekToNextMediaItem()
+        } else {
+            playerManagerProvider.get().playNext()
+        }
     }
 
     override fun seekToPrevious() {
-        playerManagerProvider.get().playPrevious()
+        if (super.hasPreviousMediaItem()) {
+            super.seekToPrevious()
+        } else {
+            playerManagerProvider.get().playPrevious()
+        }
     }
 
     override fun seekToPreviousMediaItem() {
-        playerManagerProvider.get().playPrevious()
+        if (super.hasPreviousMediaItem()) {
+            super.seekToPreviousMediaItem()
+        } else {
+            playerManagerProvider.get().playPrevious()
+        }
     }
 }

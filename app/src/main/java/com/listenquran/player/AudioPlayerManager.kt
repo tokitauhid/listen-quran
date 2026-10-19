@@ -187,15 +187,24 @@ class AudioPlayerManager @Inject constructor(
 
             override fun onPlaybackStateChanged(state: Int) {
                 val isBuffering = state == Player.STATE_BUFFERING
-                val duration = if (controller.duration > 0) controller.duration else 0L
+                val rawDuration = controller.duration
+                val duration = if (rawDuration > 0) {
+                    rawDuration
+                } else {
+                    _playbackState.value.durationMs.takeIf { it > 0 }
+                        ?: _playbackState.value.verseTimings.lastOrNull()?.timestampTo
+                        ?: 0L
+                }
                 _playbackState.update {
                     it.copy(
                         isBuffering = isBuffering,
                         durationMs = duration
                     )
                 }
-                if (state == Player.STATE_READY && _playbackState.value.isRadio) {
-                    radioWatchdogJob?.cancel()
+                if (state == Player.STATE_READY) {
+                    if (_playbackState.value.isRadio) {
+                        radioWatchdogJob?.cancel()
+                    }
                     _playbackState.update { it.copy(radioError = null, isBuffering = false) }
                 }
                 if (state == Player.STATE_ENDED) {
@@ -307,6 +316,9 @@ class AudioPlayerManager @Inject constructor(
                 }
                 val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
                 val timings = audioData?.timestamps ?: emptyList()
+                val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
+                val dur = browser?.duration?.takeIf { it > 0 } ?: surahDuration
+                _currentPositionMs.value = 0L
                 syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
                 _playbackState.update {
                     it.copy(
@@ -314,6 +326,7 @@ class AudioPlayerManager @Inject constructor(
                         currentRadioStation = null,
                         currentSurah = surah,
                         currentReciter = reciter,
+                        durationMs = dur,
                         verseTimings = timings,
                         isSyncAvailable = timings.isNotEmpty(),
                         hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
@@ -405,12 +418,14 @@ class AudioPlayerManager @Inject constructor(
         scope.launch {
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
             val timings = audioData?.timestamps ?: emptyList()
+            val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
             syncTracker.setTimings(surah.id, reciter.id, timings, 0L)
             _playbackState.update {
                 it.copy(
                     currentSurah = surah,
                     currentReciter = reciter,
                     isBuffering = true,
+                    durationMs = surahDuration,
                     currentAyahNumber = startAyah,
                     verseTimings = timings,
                     isSyncAvailable = timings.isNotEmpty(),
@@ -455,12 +470,14 @@ class AudioPlayerManager @Inject constructor(
         scope.launch {
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = targetSurah.id)
             val timings = audioData?.timestamps ?: emptyList()
+            val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
             syncTracker.setTimings(targetSurah.id, reciter.id, timings, 0L)
             _playbackState.update {
                 it.copy(
                     currentSurah = targetSurah,
                     currentReciter = reciter,
                     isBuffering = true,
+                    durationMs = surahDuration,
                     currentAyahNumber = startAyah,
                     verseTimings = timings,
                     isSyncAvailable = timings.isNotEmpty(),
@@ -551,11 +568,12 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
-        syncTracker.onSeek(positionMs)
+        val clampedPos = positionMs.coerceAtLeast(0L)
+        _currentPositionMs.value = clampedPos
+        syncTracker.onSeek(clampedPos)
         withController { controller ->
-            controller.seekTo(positionMs)
+            controller.seekTo(clampedPos)
         }
-        _currentPositionMs.value = positionMs
     }
 
     fun seekToAyah(ayahNumber: Int) {
@@ -922,10 +940,15 @@ class AudioPlayerManager @Inject constructor(
         progressJob?.cancel()
         progressJob = scope.launch {
             while (isActive) {
+                val isBuffering = browser?.playbackState == Player.STATE_BUFFERING
                 val pos = browser?.currentPosition ?: _currentPositionMs.value
-                val dur = browser?.duration?.takeIf { it > 0 } ?: _playbackState.value.durationMs
+                val dur = browser?.duration?.takeIf { it > 0 }
+                    ?: _playbackState.value.verseTimings.lastOrNull()?.timestampTo
+                    ?: _playbackState.value.durationMs
 
-                _currentPositionMs.value = pos
+                if (!isBuffering || kotlin.math.abs(pos - _currentPositionMs.value) < 1000) {
+                    _currentPositionMs.value = pos
+                }
 
                 if (_playbackState.value.durationMs != dur && dur > 0) {
                     _playbackState.update { it.copy(durationMs = dur) }
