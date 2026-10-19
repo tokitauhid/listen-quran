@@ -38,7 +38,7 @@ class ReciterRepository @Inject constructor(
             ReciterEntity(8, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Mujawwad", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(8, "Mohamed Siddiq al-Minshawi"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/mujawwad/"),
             ReciterEntity(9, "محمد صديق المنشاوي", "Mohamed Siddiq al-Minshawi", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(9, "Mohamed Siddiq al-Minshawi"), 114, isFavorite = true, audioServer = "https://download.quranicaudio.com/qdc/siddiq_minshawi/murattal/"),
             ReciterEntity(10, "سعود الشريم", "Sa`ud ash-Shuraym", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(10, "Sa`ud ash-Shuraym"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/qdc/sa3d_al-ghaamidi/complete/"),
-            ReciterEntity(11, "محمد محمود الطبلاوي", "Mohamed al-Tablawi", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(11, "Mohamed al-Tablawi"), 114, isFavorite = false, audioServer = null),
+            ReciterEntity(11, "محمد محمود الطبلاوي", "Mohamed al-Tablawi", "Murattal", "Hafs 'an 'Asim", ReciterImages.getPhotoUrl(11, "Mohamed al-Tablawi"), 114, isFavorite = false, audioServer = "https://download.quranicaudio.com/quran/abdul_muhsin_alqasim/"),
         )
     }
 
@@ -189,6 +189,6 @@ class ReciterRepository @Inject constructor(
         photoUrl = ReciterImages.getPhotoUrl(id, englishName, photoUrl),
         surahsCount = surahsCount,
         isFavorite = isFavorite,
-        audioServer = audioServer,
+        audioServer = if (id == 11) "https://download.quranicaudio.com/quran/abdul_muhsin_alqasim/" else audioServer,
     )
 }

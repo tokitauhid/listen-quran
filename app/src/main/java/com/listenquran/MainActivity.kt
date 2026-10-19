@@ -42,7 +42,8 @@ class MainActivity : ComponentActivity() {
         val surahId = intent?.getIntExtra("PLAY_SURAH_ID", -1) ?: -1
         if (surahId > 0) {
             val startAyah = intent?.getIntExtra("PLAY_START_AYAH", 1) ?: 1
-            viewModel.playSurahById(surahId, startAyah)
+            val reciterId = intent?.getIntExtra("PLAY_RECITER_ID", -1) ?: -1
+            viewModel.playSurahById(surahId, startAyah, if (reciterId > 0) reciterId else null)
         }
     }
 }

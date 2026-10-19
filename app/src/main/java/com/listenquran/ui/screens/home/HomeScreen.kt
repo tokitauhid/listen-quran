@@ -76,7 +76,7 @@ val BrowseCategories = listOf(
     BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67, listOf(67, 32, 56, 76)),
     BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55, listOf(55, 56, 67, 73)),
     BrowseCategory("Quranic Duas", "Supplications from the Quran", Icons.Filled.Favorite, 2, listOf(2, 3, 14)),
-    BrowseCategory("The 4 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112, listOf(112, 113, 114)),
+    BrowseCategory("The 3 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112, listOf(112, 113, 114)),
 )
 
 // Cached gradient brushes to avoid shader allocations during scrolling

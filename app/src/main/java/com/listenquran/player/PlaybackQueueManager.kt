@@ -89,7 +89,7 @@ class PlaybackQueueManager @Inject constructor(
             downloaded != null && File(downloaded.localFilePath).exists() -> Uri.fromFile(File(downloaded.localFilePath))
             reciter.audioServer != null -> {
                 val server = reciter.audioServer.trimEnd('/') + "/"
-                val url = if (server.contains("mp3quran.net")) {
+                val url = if (server.contains("mp3quran.net") || server.contains("/quran/")) {
                     server + String.format("%03d.mp3", surah.id)
                 } else {
                     server + "${surah.id}.mp3"
@@ -100,7 +100,7 @@ class PlaybackQueueManager @Inject constructor(
                 val defaultMatch = ReciterRepository.defaultReciters.find { it.id == reciter.id }
                 if (defaultMatch?.audioServer != null) {
                     val server = defaultMatch.audioServer.trimEnd('/') + "/"
-                    val url = if (server.contains("mp3quran.net")) {
+                    val url = if (server.contains("mp3quran.net") || server.contains("/quran/")) {
                         server + String.format("%03d.mp3", surah.id)
                     } else {
                         server + "${surah.id}.mp3"

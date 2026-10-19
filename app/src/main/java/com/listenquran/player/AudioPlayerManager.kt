@@ -38,6 +38,8 @@ data class PlaybackState(
     val durationMs: Long = 0L,
     val playbackSpeed: Float = 1.0f,
     val verseTimings: List<VerseTiming> = emptyList(),
+    val isSyncAvailable: Boolean = false,
+    val hasWordTimings: Boolean = false,
     val isHifzActive: Boolean = false,
     val hifzConfig: HifzLoopConfig? = null,
     val hifzCurrentLoop: Int = 0,
@@ -62,19 +64,20 @@ class AudioPlayerManager @Inject constructor(
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
     private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
     val queueManager: PlaybackQueueManager,
+    val syncTracker: PlaybackSyncTracker,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
+    val syncState: StateFlow<PlaybackSyncState> = syncTracker.syncState
     val queueState: StateFlow<PlaybackQueueState> = queueManager.queueState
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
 
-    private val _currentWordIndex = MutableStateFlow(0)
-    val currentWordIndex: StateFlow<Int> = _currentWordIndex.asStateFlow()
+    val currentWordIndex: StateFlow<Int> = syncTracker.currentWordIndex
 
     private var browserFuture: ListenableFuture<MediaBrowser>? = null
     private var browser: MediaBrowser? = null
@@ -88,15 +91,19 @@ class AudioPlayerManager @Inject constructor(
     private var sessionStartTime: Long = 0L
     private val history = mutableListOf<QueueItem>()
 
-    // Khatam playback tracking state
-    private var trackedSurahId: Int? = null
-    private var trackedAyahNumber: Int? = null
-    private var trackedAyahAccumulatedMs: Long = 0L
-    private var trackedAyahLastPos: Long = -1L
-    private var trackedAyahRecorded: Boolean = false
-
     init {
         connectBrowser()
+        scope.launch {
+            syncTracker.syncState.collect { sync ->
+                _playbackState.update { current ->
+                    current.copy(
+                        currentAyahNumber = sync.currentAyahNumber,
+                        isSyncAvailable = sync.isSyncAvailable,
+                        hasWordTimings = sync.hasWordTimings,
+                    )
+                }
+            }
+        }
     }
 
     private fun connectBrowser() {
@@ -143,11 +150,35 @@ class AudioPlayerManager @Inject constructor(
         controller.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 _playbackState.update { it.copy(isPlaying = isPlaying) }
+                syncTracker.onPlayStateChanged(isPlaying) { browser }
                 if (isPlaying) {
                     radioWatchdogJob?.cancel()
                     _playbackState.update { it.copy(radioError = null, isBuffering = false) }
                     sessionStartTime = System.currentTimeMillis()
                     startProgressTracker()
+
+                    // Resilient fetch: If cold-start network lag caused timings to be empty initially,
+                    // re-fetch them in background now that the player has buffered and network is live.
+                    if (_playbackState.value.verseTimings.isEmpty() && !_playbackState.value.isRadio) {
+                        val surah = _playbackState.value.currentSurah
+                        val reciter = _playbackState.value.currentReciter
+                        if (surah != null && reciter != null) {
+                            scope.launch {
+                                val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
+                                val timings = audioData?.timestamps ?: emptyList()
+                                if (timings.isNotEmpty()) {
+                                    syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
+                                    _playbackState.update {
+                                        it.copy(
+                                            verseTimings = timings,
+                                            isSyncAvailable = true,
+                                            hasWordTimings = timings.any { t -> t.segments.isNotEmpty() }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
                     recordSessionDuration()
                     stopProgressTracker()
@@ -210,6 +241,7 @@ class AudioPlayerManager @Inject constructor(
                 newPosition: Player.PositionInfo,
                 reason: Int
             ) {
+                syncTracker.onSeek(newPosition.positionMs)
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION || reason == Player.DISCONTINUITY_REASON_SEEK) {
                     queueManager.rebuildQueueState(controller)
                 }
@@ -245,6 +277,7 @@ class AudioPlayerManager @Inject constructor(
         // Synchronize initial state from controller if it was already playing
         if (controller.isPlaying) {
             _playbackState.update { it.copy(isPlaying = true) }
+            syncTracker.onPlayStateChanged(true) { browser }
             startProgressTracker()
         }
         controller.currentMediaItem?.let { syncFromMediaItem(it) }
@@ -262,6 +295,9 @@ class AudioPlayerManager @Inject constructor(
 
         if (_playbackState.value.currentSurah?.id != surahId ||
             (reciterId != null && _playbackState.value.currentReciter?.id != reciterId)) {
+            val targetReciterId = reciterId ?: _playbackState.value.currentReciter?.id ?: 7
+            syncTracker.onMediaItemChanged(surahId, targetReciterId, 1)
+
             scope.launch {
                 val surah = quranRepository.getSurahById(surahId) ?: return@launch
                 val reciter = if (reciterId != null) {
@@ -270,13 +306,17 @@ class AudioPlayerManager @Inject constructor(
                     _playbackState.value.currentReciter ?: reciterRepository.getDefaultReciter()
                 }
                 val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
+                val timings = audioData?.timestamps ?: emptyList()
+                syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
                 _playbackState.update {
                     it.copy(
                         isRadio = false,
                         currentRadioStation = null,
                         currentSurah = surah,
                         currentReciter = reciter,
-                        verseTimings = audioData?.timestamps ?: emptyList(),
+                        verseTimings = timings,
+                        isSyncAvailable = timings.isNotEmpty(),
+                        hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
                         currentAyahNumber = 1
                     )
                 }
@@ -295,6 +335,12 @@ class AudioPlayerManager @Inject constructor(
             val surah = surahId?.let { quranRepository.getSurahById(it) }
             val reciter = reciterId?.let { reciterRepository.getReciterById(it) } ?: reciterRepository.getDefaultReciter()
             val audioData = if (surah != null) quranRepository.getChapterAudio(reciter.id, surah.id) else null
+            val timings = audioData?.timestamps ?: emptyList()
+
+            syncTracker.isRadio = true
+            if (surah != null) {
+                syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
+            }
 
             _playbackState.update { current ->
                 val station = current.currentRadioStation ?: if (stationId != null) {
@@ -306,7 +352,9 @@ class AudioPlayerManager @Inject constructor(
                     currentRadioStation = station ?: current.currentRadioStation,
                     currentSurah = surah ?: current.currentSurah,
                     currentReciter = reciter,
-                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    verseTimings = timings,
+                    isSyncAvailable = timings.isNotEmpty(),
+                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
                     currentAyahNumber = 1,
                     radioError = null,
                     isBuffering = false
@@ -349,18 +397,24 @@ class AudioPlayerManager @Inject constructor(
         queueTitle: String? = null
     ) {
         radioWatchdogJob?.cancel()
+        syncTracker.isRadio = false
+        syncTracker.onMediaItemChanged(surah.id, reciter.id, startAyah)
         ensureServiceRunning()
         _currentPositionMs.value = 0L
 
         scope.launch {
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
+            val timings = audioData?.timestamps ?: emptyList()
+            syncTracker.setTimings(surah.id, reciter.id, timings, 0L)
             _playbackState.update {
                 it.copy(
                     currentSurah = surah,
                     currentReciter = reciter,
                     isBuffering = true,
                     currentAyahNumber = startAyah,
-                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    verseTimings = timings,
+                    isSyncAvailable = timings.isNotEmpty(),
+                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
@@ -391,19 +445,26 @@ class AudioPlayerManager @Inject constructor(
     ) {
         if (surahs.isEmpty()) return
         radioWatchdogJob?.cancel()
+        syncTracker.isRadio = false
         ensureServiceRunning()
         _currentPositionMs.value = 0L
 
         val targetSurah = surahs.getOrNull(startIndex) ?: surahs.first()
+        syncTracker.onMediaItemChanged(targetSurah.id, reciter.id, startAyah)
+
         scope.launch {
             val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = targetSurah.id)
+            val timings = audioData?.timestamps ?: emptyList()
+            syncTracker.setTimings(targetSurah.id, reciter.id, timings, 0L)
             _playbackState.update {
                 it.copy(
                     currentSurah = targetSurah,
                     currentReciter = reciter,
                     isBuffering = true,
                     currentAyahNumber = startAyah,
-                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    verseTimings = timings,
+                    isSyncAvailable = timings.isNotEmpty(),
+                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
@@ -438,10 +499,20 @@ class AudioPlayerManager @Inject constructor(
         val targetSurah = allSurahs.find { it.id == targetItem.surahNumber }
         val targetReciter = allReciters.find { it.id == targetItem.reciterId }
 
+        if (targetSurah != null && targetReciter != null) {
+            syncTracker.isRadio = false
+            syncTracker.onMediaItemChanged(targetSurah.id, targetReciter.id, targetItem.startAyah)
+        }
+
         scope.launch {
             val audioData = if (targetSurah != null && targetReciter != null) {
                 quranRepository.getChapterAudio(reciterId = targetReciter.id, chapterId = targetSurah.id)
             } else null
+            val timings = audioData?.timestamps ?: emptyList()
+
+            if (targetSurah != null && targetReciter != null) {
+                syncTracker.setTimings(targetSurah.id, targetReciter.id, timings, 0L)
+            }
 
             _playbackState.update {
                 it.copy(
@@ -449,7 +520,9 @@ class AudioPlayerManager @Inject constructor(
                     currentReciter = targetReciter ?: it.currentReciter,
                     isBuffering = true,
                     currentAyahNumber = targetItem.startAyah,
-                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    verseTimings = timings,
+                    isSyncAvailable = timings.isNotEmpty(),
+                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
@@ -478,11 +551,11 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
+        syncTracker.onSeek(positionMs)
         withController { controller ->
             controller.seekTo(positionMs)
         }
         _currentPositionMs.value = positionMs
-        updateAyahAtPosition(positionMs)
     }
 
     fun seekToAyah(ayahNumber: Int) {
@@ -858,8 +931,6 @@ class AudioPlayerManager @Inject constructor(
                     _playbackState.update { it.copy(durationMs = dur) }
                 }
 
-                updateAyahAtPosition(pos)
-                checkKhatamPlaybackTracking(pos)
                 checkHifzLoop(pos)
                 delay(200L)
             }
@@ -869,79 +940,6 @@ class AudioPlayerManager @Inject constructor(
     private fun stopProgressTracker() {
         progressJob?.cancel()
         progressJob = null
-    }
-
-    private fun updateAyahAtPosition(pos: Long) {
-        val timings = _playbackState.value.verseTimings
-        if (timings.isEmpty()) return
-
-        val matchedTiming = timings.find { pos in it.timestampFrom until it.timestampTo }
-            ?: timings.lastOrNull { pos >= it.timestampFrom }
-
-        if (matchedTiming != null) {
-            val ayahNum = matchedTiming.verseKey.split(":").getOrNull(1)?.toIntOrNull() ?: 1
-            var wordIdx = 0
-            for (seg in matchedTiming.segments) {
-                if (pos in seg.startMs..seg.endMs) {
-                    wordIdx = seg.wordIndex
-                    break
-                }
-            }
-            if (_currentWordIndex.value != wordIdx) {
-                _currentWordIndex.value = wordIdx
-            }
-            if (_playbackState.value.currentAyahNumber != ayahNum) {
-                _playbackState.update {
-                    it.copy(currentAyahNumber = ayahNum)
-                }
-            }
-        }
-    }
-
-    private fun checkKhatamPlaybackTracking(pos: Long) {
-        val state = _playbackState.value
-        // Only track during active recitation playback, ignoring radio stations
-        if (!state.isPlaying || state.isRadio) {
-            trackedAyahLastPos = pos
-            return
-        }
-
-        val surahId = state.currentSurah?.id ?: return
-        val timings = state.verseTimings
-        if (timings.isEmpty()) return
-
-        val matchedTiming = timings.find { pos in it.timestampFrom until it.timestampTo }
-            ?: timings.lastOrNull { pos >= it.timestampFrom } ?: return
-
-        val ayahNum = matchedTiming.verseKey.split(":").getOrNull(1)?.toIntOrNull() ?: 1
-        val verseDuration = matchedTiming.timestampTo - matchedTiming.timestampFrom
-
-        if (trackedSurahId != surahId || trackedAyahNumber != ayahNum) {
-            trackedSurahId = surahId
-            trackedAyahNumber = ayahNum
-            trackedAyahAccumulatedMs = 0L
-            trackedAyahLastPos = pos
-            trackedAyahRecorded = false
-        } else {
-            if (trackedAyahLastPos >= 0L) {
-                val delta = pos - trackedAyahLastPos
-                // Normal advancement: 0 to 1000ms. If user sought, delta is outside this range -> reset
-                if (delta in 0..1000) {
-                    trackedAyahAccumulatedMs += delta
-                } else {
-                    trackedAyahAccumulatedMs = 0L
-                }
-            }
-            trackedAyahLastPos = pos
-
-            // 80% threshold: ayah counts as listened only after at least 80% real playback
-            if (!trackedAyahRecorded && verseDuration > 0 && trackedAyahAccumulatedMs >= (verseDuration * 0.8)) {
-                trackedAyahRecorded = true
-                scope.launch(Dispatchers.IO) {
-                    khatamTrackerRepository.recordPlaybackAyah(surahId, ayahNum)
-                }
-            }
-        }
     }
 
     private fun checkHifzLoop(pos: Long) {

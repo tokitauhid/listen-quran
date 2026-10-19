@@ -144,14 +144,53 @@ class QuranRepository @Inject constructor(
         }
     }
 
-    suspend fun getChapterAudio(reciterId: Int, chapterId: Int): ChapterAudio? {
-        var reciter = reciterDao.getReciterById(reciterId)
-        if (reciter == null || reciter.audioServer == null) {
-            val defaultMatch = ReciterRepository.defaultReciters.find { it.id == reciterId }
-            if (defaultMatch != null) {
-                reciter = defaultMatch
+    private val timingCache = java.util.concurrent.ConcurrentHashMap<String, List<VerseTiming>>()
+
+    suspend fun getVerseTimings(reciterId: Int, chapterId: Int): List<VerseTiming> {
+        val cacheKey = "$reciterId:$chapterId"
+        timingCache[cacheKey]?.let { return it }
+
+        if (reciterId !in 1..12) return emptyList()
+
+        for (attempt in 1..3) {
+            try {
+                val response = apiService.getChapterRecitation(reciterId = reciterId, chapterId = chapterId)
+                val parsed = response.audioFile.timestamps?.map { t ->
+                    val segs = t.segments?.mapNotNull { seg ->
+                        if (seg.size >= 3) {
+                            SegmentTiming(
+                                wordIndex = seg[0].toInt(),
+                                startMs = seg[1].toLong(),
+                                endMs = seg[2].toLong(),
+                            )
+                        } else null
+                    } ?: emptyList()
+
+                    VerseTiming(
+                        verseKey = t.verseKey,
+                        timestampFrom = t.timestampFrom,
+                        timestampTo = t.timestampTo,
+                        duration = t.duration ?: (t.timestampTo - t.timestampFrom),
+                        segments = segs,
+                    )
+                } ?: emptyList()
+
+                if (parsed.isNotEmpty()) {
+                    timingCache[cacheKey] = parsed
+                    return parsed
+                }
+            } catch (e: Exception) {
+                if (attempt < 3) {
+                    kotlinx.coroutines.delay(300L * attempt)
+                }
             }
         }
+        return emptyList()
+    }
+
+    suspend fun getChapterAudio(reciterId: Int, chapterId: Int): ChapterAudio? {
+        val reciter = reciterDao.getReciterById(reciterId)
+            ?: ReciterRepository.defaultReciters.find { it.id == reciterId }
         if (reciter?.audioServer != null) {
             val server = reciter.audioServer.trimEnd('/') + "/"
             val audioUrl = if (server.contains("mp3quran.net")) {
@@ -160,34 +199,7 @@ class QuranRepository @Inject constructor(
                 server + "$chapterId.mp3"
             }
 
-            var timings = emptyList<VerseTiming>()
-            // Attempt to get timestamps from Quran.com API if it's one of the supported recitation IDs
-            if (reciterId in 1..12) {
-                try {
-                    val response = apiService.getChapterRecitation(reciterId = reciterId, chapterId = chapterId)
-                    timings = response.audioFile.timestamps?.map { t ->
-                        val segs = t.segments?.mapNotNull { seg ->
-                            if (seg.size >= 3) {
-                                SegmentTiming(
-                                    wordIndex = seg[0].toInt(),
-                                    startMs = seg[1],
-                                    endMs = seg[2],
-                                )
-                            } else null
-                        } ?: emptyList()
-
-                        VerseTiming(
-                            verseKey = t.verseKey,
-                            timestampFrom = t.timestampFrom,
-                            timestampTo = t.timestampTo,
-                            duration = t.duration,
-                            segments = segs,
-                        )
-                    } ?: emptyList()
-                } catch (_: Exception) {
-                    // Non-blocking fallback: direct audio still plays instantly
-                }
-            }
+            val timings = getVerseTimings(reciterId, chapterId)
 
             return ChapterAudio(
                 chapterId = chapterId,
@@ -202,25 +214,7 @@ class QuranRepository @Inject constructor(
         return try {
             val response = apiService.getChapterRecitation(reciterId = reciterId, chapterId = chapterId)
             val audio = response.audioFile
-            val timings = audio.timestamps?.map { t ->
-                val segs = t.segments?.mapNotNull { seg ->
-                    if (seg.size >= 3) {
-                        SegmentTiming(
-                            wordIndex = seg[0].toInt(),
-                            startMs = seg[1],
-                            endMs = seg[2],
-                        )
-                    } else null
-                } ?: emptyList()
-
-                VerseTiming(
-                    verseKey = t.verseKey,
-                    timestampFrom = t.timestampFrom,
-                    timestampTo = t.timestampTo,
-                    duration = t.duration,
-                    segments = segs,
-                )
-            } ?: emptyList()
+            val timings = getVerseTimings(reciterId, chapterId)
 
             ChapterAudio(
                 chapterId = audio.chapterId,

@@ -51,7 +51,13 @@ fun MiniPlayer(
 
     val title = if (isRadio) station?.name ?: surah?.nameSimple ?: "Quran Radio" else surah?.nameSimple ?: ""
     val reciter = playbackState.currentReciter?.englishName ?: ""
-    val subtitle = if (isRadio) "Radio · ${station?.name ?: "Quran.com"}" else "$reciter • Ayah ${playbackState.currentAyahNumber}"
+    val subtitle = if (isRadio) {
+        "Radio · ${station?.name ?: "Quran.com"}"
+    } else if (playbackState.isSyncAvailable) {
+        "$reciter • Ayah ${playbackState.currentAyahNumber}"
+    } else {
+        reciter
+    }
 
     val containerModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
         with(sharedTransitionScope) {
