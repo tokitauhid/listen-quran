@@ -344,8 +344,10 @@ fun FullPlayerScreen(
                     val title = if (playbackState.isRadio) station?.name ?: surah?.nameSimple ?: "Quran Radio" else surah?.nameSimple ?: ""
                     val subtitle = if (playbackState.isRadio) {
                         "Radio · ${station?.name ?: "Quran.com"}${if (surah != null) " • ${surah.nameSimple}" else ""}"
-                    } else {
+                    } else if (playbackState.isSyncAvailable) {
                         "${reciter?.englishName ?: "Unknown Reciter"} • Ayah ${playbackState.currentAyahNumber}"
+                    } else {
+                        reciter?.englishName ?: "Unknown Reciter"
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -585,14 +587,15 @@ fun FullPlayerScreen(
                     }
 
                     // Verses Icon (directly above Repeat)
+                    val isSyncAvailable = playbackState.isSyncAvailable
                     IconButton(
                         onClick = onOpenVersesSheet,
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.AutoStories,
-                            contentDescription = "Verses & Translation",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            imageVector = if (isSyncAvailable) Icons.Filled.AutoStories else Icons.Outlined.AutoStories,
+                            contentDescription = if (isSyncAvailable) "Verse sync available" else "Verse sync not available",
+                            tint = if (isSyncAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
                     }
