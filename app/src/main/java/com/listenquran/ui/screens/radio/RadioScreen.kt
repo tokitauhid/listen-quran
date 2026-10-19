@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import com.listenquran.ui.components.LocalMiniPlayerInset
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -101,7 +102,7 @@ fun RadioScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 120.dp),
+            contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 0.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 1. Active Radio Status Banner (Playing / Buffering / Error / Stop)

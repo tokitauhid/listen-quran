@@ -44,6 +44,7 @@ import coil.request.ImageRequest
 import com.listenquran.domain.model.Reciter
 import com.listenquran.util.ReciterImages
 import com.listenquran.ui.theme.AmiriQuranFont
+import com.listenquran.ui.components.LocalMiniPlayerInset
 import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -172,7 +173,8 @@ fun RecitersScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .padding(bottom = LocalMiniPlayerInset.current),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -197,7 +199,8 @@ fun RecitersScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .padding(bottom = LocalMiniPlayerInset.current),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -241,7 +244,8 @@ fun RecitersScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .padding(bottom = LocalMiniPlayerInset.current),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -280,13 +284,14 @@ fun RecitersScreen(
 
             // Normal LazyVerticalGrid
             else -> {
+                val miniPlayerInset = LocalMiniPlayerInset.current
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 144.dp),
                     state = gridState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
-                    contentPadding = PaddingValues(16.dp),
+                        .padding(top = innerPadding.calculateTopPadding()),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = miniPlayerInset + 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {

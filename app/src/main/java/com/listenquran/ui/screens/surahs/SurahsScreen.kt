@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import com.listenquran.ui.components.LocalMiniPlayerInset
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -219,7 +220,8 @@ fun SurahsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(top = 64.dp),
+                            .padding(top = 64.dp)
+                            .padding(bottom = LocalMiniPlayerInset.current),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -229,7 +231,8 @@ fun SurahsScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(24.dp),
+                            .padding(24.dp)
+                            .padding(bottom = LocalMiniPlayerInset.current),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -245,7 +248,8 @@ fun SurahsScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(32.dp),
+                                .padding(32.dp)
+                                .padding(bottom = LocalMiniPlayerInset.current),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -267,7 +271,7 @@ fun SurahsScreen(
                             columns = GridCells.Adaptive(minSize = 100.dp),
                             state = gridState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
@@ -291,7 +295,7 @@ fun SurahsScreen(
                         LazyColumn(
                             state = listState,
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(

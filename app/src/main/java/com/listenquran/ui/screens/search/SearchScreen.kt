@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import com.listenquran.ui.components.LocalMiniPlayerInset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -198,7 +199,7 @@ fun SearchScreen(
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // 1. Direct Verse Match (plan.md §1.2: "Any Verse / Ayah by surah and ayah number")
@@ -320,7 +321,7 @@ fun SearchScreen(
                 // Discover & Browse View
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 90.dp),
+                    contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 0.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     // Popular Ayahs Shortcuts (plan.md §1.2: Popular Ayahs shortcuts)
