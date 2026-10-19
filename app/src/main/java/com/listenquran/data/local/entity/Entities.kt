@@ -122,3 +122,17 @@ data class DownloadedSurahEntity(
     val downloadedAt: Long = System.currentTimeMillis(),
 )
 
+@Entity(
+    tableName = "translations",
+    primaryKeys = ["surahNumber", "ayahNumber", "translationId"],
+    indices = [Index(value = ["surahNumber", "translationId"])]
+)
+data class TranslationEntity(
+    val surahNumber: Int,
+    val ayahNumber: Int,
+    val verseKey: String,
+    val translationId: Int,
+    val translationName: String,
+    val text: String,
+)
+

@@ -32,4 +32,10 @@ interface QuranApiService {
         @Query("fields") fields: String = "text_uthmani,chapter_id",
         @Query("per_page") perPage: Int = 300,
     ): VersesResponse
+
+    @GET("quran/translations/{resource_id}")
+    suspend fun getTranslationsByChapter(
+        @Path("resource_id") resourceId: Int = 20, // Saheeh International
+        @Query("chapter_number") chapterNumber: Int,
+    ): ChapterTranslationResponse
 }

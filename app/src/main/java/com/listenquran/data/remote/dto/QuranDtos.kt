@@ -61,8 +61,8 @@ data class VerseTimestampDto(
     @Json(name = "verse_key") val verseKey: String,
     @Json(name = "timestamp_from") val timestampFrom: Long,
     @Json(name = "timestamp_to") val timestampTo: Long,
-    @Json(name = "duration") val duration: Long,
-    @Json(name = "segments") val segments: List<List<Long>>?, // [word_index, start_ms, end_ms]
+    @Json(name = "duration") val duration: Long? = null,
+    @Json(name = "segments") val segments: List<List<Double>>? = null, // [word_index, start_ms, end_ms]
 )
 
 @JsonClass(generateAdapter = true)
@@ -86,8 +86,21 @@ data class VerseDto(
 
 @JsonClass(generateAdapter = true)
 data class VerseTranslationDto(
-    @Json(name = "id") val id: Int?,
+    @Json(name = "id") val id: Int? = null,
+    @Json(name = "resource_id") val resourceId: Int? = null,
     @Json(name = "text") val text: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class ChapterTranslationResponse(
+    @Json(name = "translations") val translations: List<VerseTranslationDto>,
+    @Json(name = "meta") val meta: TranslationMetaDto? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TranslationMetaDto(
+    @Json(name = "translation_name") val translationName: String? = null,
+    @Json(name = "author_name") val authorName: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

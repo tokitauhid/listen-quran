@@ -15,6 +15,43 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
+    private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `downloaded_surahs` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `surahNumber` INTEGER NOT NULL,
+                    `surahName` TEXT NOT NULL,
+                    `surahArabic` TEXT NOT NULL,
+                    `reciterId` INTEGER NOT NULL,
+                    `reciterName` TEXT NOT NULL,
+                    `localFilePath` TEXT NOT NULL,
+                    `audioUrl` TEXT NOT NULL,
+                    `sizeBytes` INTEGER NOT NULL,
+                    `downloadedAt` INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_downloaded_surahs_surahNumber_reciterId` ON `downloaded_surahs` (`surahNumber`, `reciterId`)")
+        }
+    }
+
+    val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `translations` (
+                    `surahNumber` INTEGER NOT NULL,
+                    `ayahNumber` INTEGER NOT NULL,
+                    `verseKey` TEXT NOT NULL,
+                    `translationId` INTEGER NOT NULL,
+                    `translationName` TEXT NOT NULL,
+                    `text` TEXT NOT NULL,
+                    PRIMARY KEY(`surahNumber`, `ayahNumber`, `translationId`)
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_translations_surahNumber_translationId` ON `translations` (`surahNumber`, `translationId`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ListenQuranDatabase {
@@ -23,7 +60,7 @@ object DatabaseModule {
             ListenQuranDatabase::class.java,
             "listen_quran_db"
         )
-            .fallbackToDestructiveMigration()
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .build()
     }
 
@@ -47,6 +84,9 @@ object DatabaseModule {
 
     @Provides
     fun provideDownloadDao(db: ListenQuranDatabase): DownloadDao = db.downloadDao()
+
+    @Provides
+    fun provideTranslationDao(db: ListenQuranDatabase): TranslationDao = db.translationDao()
 
     @Provides
     @Singleton

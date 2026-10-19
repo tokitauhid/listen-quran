@@ -228,3 +228,18 @@ interface DownloadDao {
     suspend fun clearAllDownloads()
 }
 
+@Dao
+interface TranslationDao {
+    @Query("SELECT * FROM translations WHERE surahNumber = :surahNumber AND translationId = :translationId ORDER BY ayahNumber ASC")
+    fun getTranslationsForSurah(surahNumber: Int, translationId: Int): Flow<List<TranslationEntity>>
+
+    @Query("SELECT * FROM translations WHERE surahNumber = :surahNumber AND translationId = :translationId ORDER BY ayahNumber ASC")
+    suspend fun getTranslationsForSurahOnce(surahNumber: Int, translationId: Int): List<TranslationEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTranslations(translations: List<TranslationEntity>)
+
+    @Query("SELECT COUNT(*) FROM translations WHERE surahNumber = :surahNumber AND translationId = :translationId")
+    suspend fun getTranslationCountForSurah(surahNumber: Int, translationId: Int): Int
+}
+
