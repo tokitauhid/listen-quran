@@ -6,13 +6,13 @@ import androidx.compose.runtime.Immutable
 data class Surah(
     val id: Int,
     val nameSimple: String,
-    val nameComplex: String,
-    val nameArabic: String,
-    val revelationPlace: String,
-    val revelationOrder: Int,
-    val versesCount: Int,
+    val nameComplex: String = "",
+    val nameArabic: String = "",
+    val revelationPlace: String = "makkah",
+    val revelationOrder: Int = 1,
+    val versesCount: Int = 0,
     val pages: List<Int> = emptyList(),
-    val translatedName: String,
+    val translatedName: String = "",
 ) {
     val isMakki: Boolean get() = revelationPlace.equals("makkah", ignoreCase = true)
 }
@@ -46,8 +46,8 @@ data class AyahWord(
 data class Reciter(
     val id: Int,
     val name: String,
-    val englishName: String,
-    val style: String?,
+    val englishName: String = name,
+    val style: String? = null,
     val qiraah: String = "Hafs 'an 'Asim",
     val photoUrl: String? = null,
     val surahsCount: Int = 114,
@@ -61,7 +61,9 @@ data class QueueItem(
     val surah: Surah,
     val reciter: Reciter,
     val startAyah: Int = 1,
+    val timelineIndex: Int = 0,
 )
+
 
 @Immutable
 data class VerseTiming(

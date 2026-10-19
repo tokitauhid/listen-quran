@@ -86,6 +86,7 @@ fun ListenQuranNavHost(
                     onAddToQueue = onAddToQueue,
                     onAddToPlaylist = onAddToPlaylist,
                     onRadioStationClick = onRadioStationClick,
+                    onPlayCategory = { title, ids -> viewModel.playBrowseCategory(title, ids) },
                     resetTrigger = homeResetTrigger,
                 )
             }

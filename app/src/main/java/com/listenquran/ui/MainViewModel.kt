@@ -118,6 +118,7 @@ class MainViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
+    val queueState: StateFlow<com.listenquran.player.PlaybackQueueState> = playerManager.queueState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
 
@@ -362,6 +363,10 @@ class MainViewModel @Inject constructor(
         playerManager.clearQueue()
     }
 
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        playerManager.moveQueueItem(fromIndex, toIndex)
+    }
+
     fun setSleepTimerUntilTime(hour: Int, minute: Int) {
         playerManager.setSleepTimerUntilTime(hour, minute)
     }
@@ -443,23 +448,40 @@ class MainViewModel @Inject constructor(
         return playlistRepository.getPlaylistItems(playlistId)
     }
 
-    fun playPlaylistItem(item: PlaylistItem) {
-        val surah = surahs.value.find { it.id == item.surahNumber } ?: return
-        val reciter = reciters.value.find { it.id == item.reciterId } ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
-        playSurah(surah, reciter, item.startAyah)
+    fun playPlaylistItem(
+        item: PlaylistItem,
+        playlistItems: List<PlaylistItem>? = null,
+        playlistTitle: String? = null
+    ) {
+        val allSurahs = surahs.value
+        val allReciters = reciters.value
+        if (playlistItems != null && playlistItems.isNotEmpty()) {
+            val startIndex = playlistItems.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+            playerManager.playPlaylist(
+                items = playlistItems,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = startIndex,
+                queueTitle = playlistTitle ?: "Playlist"
+            )
+        } else {
+            val surah = allSurahs.find { it.id == item.surahNumber } ?: return
+            val reciter = allReciters.find { it.id == item.reciterId } ?: playbackState.value.currentReciter ?: allReciters.firstOrNull() ?: return
+            playerManager.playSurah(surah, reciter, item.startAyah, queueTitle = playlistTitle)
+        }
     }
 
-    fun playAllPlaylist(items: List<PlaylistItem>) {
+    fun playAllPlaylist(items: List<PlaylistItem>, playlistTitle: String? = null) {
         if (items.isEmpty()) return
-        playerManager.clearQueue()
-        val first = items.first()
-        for (i in 1 until items.size) {
-            val item = items[i]
-            surahs.value.find { it.id == item.surahNumber }?.let {
-                playerManager.addToQueue(it)
-            }
-        }
-        playPlaylistItem(first)
+        val allSurahs = surahs.value
+        val allReciters = reciters.value
+        playerManager.playPlaylist(
+            items = items,
+            allSurahs = allSurahs,
+            allReciters = allReciters,
+            startIndex = 0,
+            queueTitle = playlistTitle ?: "Playlist"
+        )
     }
 
     fun toggleFavoriteReciter(reciter: Reciter) {
@@ -471,11 +493,31 @@ class MainViewModel @Inject constructor(
     fun playAllWithReciter(reciter: Reciter) {
         val allSurahs = surahs.value
         if (allSurahs.isEmpty()) return
-        playerManager.clearQueue()
-        for (i in 1 until allSurahs.size) {
-            playerManager.addToQueue(allSurahs[i])
-        }
-        playSurah(allSurahs.first(), reciter)
+        playerManager.playSurahs(
+            surahs = allSurahs,
+            reciter = reciter,
+            startIndex = 0,
+            startAyah = 1,
+            queueTitle = "Recitations by ${reciter.englishName}"
+        )
+    }
+
+    fun playBrowseCategory(categoryTitle: String, surahIds: List<Int>) {
+        val allSurahs = surahs.value
+        val matchedSurahs = surahIds.mapNotNull { id -> allSurahs.find { it.id == id } }
+        if (matchedSurahs.isEmpty()) return
+        val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        playerManager.playSurahs(
+            surahs = matchedSurahs,
+            reciter = reciter,
+            startIndex = 0,
+            startAyah = 1,
+            queueTitle = categoryTitle
+        )
+    }
+
+    fun playMix(mixTitle: String, surahIds: List<Int>) {
+        playBrowseCategory(mixTitle, surahIds)
     }
 
     fun exportPlaylists() {

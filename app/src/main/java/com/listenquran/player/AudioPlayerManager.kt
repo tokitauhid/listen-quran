@@ -61,11 +61,14 @@ class AudioPlayerManager @Inject constructor(
     private val statsRepository: StatsRepository,
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
     private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
+    val queueManager: PlaybackQueueManager,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    val queueState: StateFlow<PlaybackQueueState> = queueManager.queueState
 
     private val _currentPositionMs = MutableStateFlow(0L)
     val currentPositionMs: StateFlow<Long> = _currentPositionMs.asStateFlow()
@@ -120,7 +123,7 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
-    private fun withController(action: (MediaBrowser) -> Unit) {
+    internal fun withController(action: (MediaBrowser) -> Unit) {
         val b = browser
         if (b != null) {
             action(b)
@@ -177,6 +180,10 @@ class AudioPlayerManager @Inject constructor(
                 }
             }
 
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                queueManager.rebuildQueueState(controller)
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 mediaItem?.let {
                     if (it.mediaId.startsWith("radio:")) {
@@ -186,6 +193,7 @@ class AudioPlayerManager @Inject constructor(
                         syncFromMediaItem(it)
                     }
                 }
+                queueManager.rebuildQueueState(controller)
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -194,6 +202,17 @@ class AudioPlayerManager @Inject constructor(
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 _playbackState.update { it.copy(isShuffleEnabled = shuffleModeEnabled) }
+                queueManager.rebuildQueueState(controller)
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION || reason == Player.DISCONTINUITY_REASON_SEEK) {
+                    queueManager.rebuildQueueState(controller)
+                }
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -229,6 +248,7 @@ class AudioPlayerManager @Inject constructor(
             startProgressTracker()
         }
         controller.currentMediaItem?.let { syncFromMediaItem(it) }
+        queueManager.rebuildQueueState(controller)
     }
 
     private fun syncFromMediaItem(mediaItem: MediaItem) {
@@ -322,79 +342,128 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
-    fun playSurah(surah: Surah, reciter: Reciter, startAyah: Int = 1) {
+    fun playSurah(
+        surah: Surah,
+        reciter: Reciter,
+        startAyah: Int = 1,
+        queueTitle: String? = null
+    ) {
         radioWatchdogJob?.cancel()
-        val prevSurah = _playbackState.value.currentSurah
-        val prevReciter = _playbackState.value.currentReciter
-        if (prevSurah != null && prevReciter != null && (prevSurah.id != surah.id || prevReciter.id != reciter.id)) {
-            history.add(QueueItem(surah = prevSurah, reciter = prevReciter))
-            if (history.size > 50) history.removeAt(0)
-        }
-
         ensureServiceRunning()
         _currentPositionMs.value = 0L
+
         scope.launch {
+            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
             _playbackState.update {
                 it.copy(
                     currentSurah = surah,
                     currentReciter = reciter,
                     isBuffering = true,
                     currentAyahNumber = startAyah,
+                    verseTimings = audioData?.timestamps ?: emptyList(),
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
                 )
             }
 
-            val downloaded = downloadRepository.getDownloadedSurah(surah.id, reciter.id)
-            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = surah.id)
-            val effectiveUri = when {
-                downloaded != null && java.io.File(downloaded.localFilePath).exists() -> Uri.fromFile(java.io.File(downloaded.localFilePath))
-                audioData != null -> Uri.parse(audioData.audioUrl)
-                else -> null
+            val allSurahs = queueManager.getAllSurahs()
+            val targetSurahs = if (allSurahs.isNotEmpty()) allSurahs else listOf(surah)
+            val startIndex = targetSurahs.indexOfFirst { it.id == surah.id }.coerceAtLeast(0)
+
+            queueManager.playQueue(
+                surahs = targetSurahs,
+                reciter = reciter,
+                startIndex = startIndex,
+                startAyah = startAyah,
+                queueTitle = queueTitle ?: "The Holy Quran",
+                withController = ::withController
+            )
+        }
+    }
+
+    fun playSurahs(
+        surahs: List<Surah>,
+        reciter: Reciter,
+        startIndex: Int = 0,
+        startAyah: Int = 1,
+        queueTitle: String? = null
+    ) {
+        if (surahs.isEmpty()) return
+        radioWatchdogJob?.cancel()
+        ensureServiceRunning()
+        _currentPositionMs.value = 0L
+
+        val targetSurah = surahs.getOrNull(startIndex) ?: surahs.first()
+        scope.launch {
+            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = targetSurah.id)
+            _playbackState.update {
+                it.copy(
+                    currentSurah = targetSurah,
+                    currentReciter = reciter,
+                    isBuffering = true,
+                    currentAyahNumber = startAyah,
+                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    isRadio = false,
+                    currentRadioStation = null,
+                    radioError = null,
+                )
             }
 
-            if (effectiveUri != null) {
-                val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
-                val mediaMetadata = MediaMetadata.Builder()
-                    .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
-                    .setArtist(reciter.englishName)
-                    .setAlbumTitle("The Holy Quran")
-                    .setAlbumArtist(reciter.englishName)
-                    .setDisplayTitle("${surah.id}. ${surah.nameSimple}")
-                    .setSubtitle("${reciter.englishName} • Ayah $startAyah")
-                    .setDescription("${surah.translatedName} • ${surah.revelationPlace.replaceFirstChar { it.uppercase() }} • ${surah.versesCount} Verses")
-                    .setArtworkUri(artworkUri)
-                    .setIsPlayable(true)
-                    .setIsBrowsable(false)
-                    .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                    .build()
+            queueManager.playQueue(
+                surahs = surahs,
+                reciter = reciter,
+                startIndex = startIndex,
+                startAyah = startAyah,
+                queueTitle = queueTitle,
+                withController = ::withController
+            )
+        }
+    }
 
-                val mediaItem = MediaItem.Builder()
-                    .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
-                    .setUri(effectiveUri)
-                    .setMediaMetadata(mediaMetadata)
-                    .build()
+    fun playPlaylist(
+        items: List<PlaylistItem>,
+        allSurahs: List<Surah>,
+        allReciters: List<Reciter>,
+        startIndex: Int = 0,
+        queueTitle: String? = null
+    ) {
+        if (items.isEmpty()) return
+        radioWatchdogJob?.cancel()
+        ensureServiceRunning()
+        _currentPositionMs.value = 0L
 
-                _playbackState.update {
-                    it.copy(verseTimings = audioData?.timestamps ?: emptyList())
-                }
+        val clamped = startIndex.coerceIn(0, items.size - 1)
+        val targetItem = items[clamped]
+        val targetSurah = allSurahs.find { it.id == targetItem.surahNumber }
+        val targetReciter = allReciters.find { it.id == targetItem.reciterId }
 
-                var startPositionMs = 0L
-                if (startAyah > 1 && audioData != null) {
-                    val targetTiming = audioData.timestamps.find { it.verseKey == "${surah.id}:$startAyah" }
-                    if (targetTiming != null) {
-                        startPositionMs = targetTiming.timestampFrom
-                        _currentPositionMs.value = startPositionMs
-                    }
-                }
+        scope.launch {
+            val audioData = if (targetSurah != null && targetReciter != null) {
+                quranRepository.getChapterAudio(reciterId = targetReciter.id, chapterId = targetSurah.id)
+            } else null
 
-                withController { controller ->
-                    controller.setMediaItem(mediaItem, startPositionMs)
-                    controller.prepare()
-                    controller.play()
-                }
+            _playbackState.update {
+                it.copy(
+                    currentSurah = targetSurah ?: it.currentSurah,
+                    currentReciter = targetReciter ?: it.currentReciter,
+                    isBuffering = true,
+                    currentAyahNumber = targetItem.startAyah,
+                    verseTimings = audioData?.timestamps ?: emptyList(),
+                    isRadio = false,
+                    currentRadioStation = null,
+                    radioError = null,
+                )
             }
+
+            queueManager.playPlaylist(
+                items = items,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = clamped,
+                queueTitle = queueTitle,
+                withController = ::withController
+            )
         }
     }
 
@@ -432,41 +501,33 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun addToQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
-        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
-        val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
-        _playbackState.update { it.copy(queue = it.queue + item) }
+        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
+        queueManager.addToQueue(surah, targetReciter, ::withController)
     }
 
     fun playNextInQueue(surah: Surah, reciter: Reciter? = null, startAyah: Int = 1) {
-        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: return
-        val item = QueueItem(surah = surah, reciter = targetReciter, startAyah = startAyah)
-        _playbackState.update { it.copy(queue = listOf(item) + it.queue) }
+        val targetReciter = reciter ?: _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
+        queueManager.playNext(surah, targetReciter, ::withController)
     }
 
-    fun playQueueItem(index: Int) {
-        val currentQueue = _playbackState.value.queue
-        if (index in currentQueue.indices) {
-            val target = currentQueue[index]
-            val remaining = currentQueue.toMutableList().apply { removeAt(index) }
-            _playbackState.update { it.copy(queue = remaining) }
-            playSurah(target.surah, target.reciter, target.startAyah)
-        }
+    fun playQueueItem(timelineIndex: Int) {
+        queueManager.seekToTimelineIndex(timelineIndex, ::withController)
     }
 
-    fun removeFromQueue(index: Int) {
-        val currentQueue = _playbackState.value.queue.toMutableList()
-        if (index in currentQueue.indices) {
-            currentQueue.removeAt(index)
-            _playbackState.update { it.copy(queue = currentQueue) }
-        }
+    fun removeFromQueue(timelineIndex: Int) {
+        queueManager.removeFromQueue(timelineIndex, ::withController)
     }
 
     fun clearQueue() {
-        _playbackState.update { it.copy(queue = emptyList()) }
+        queueManager.clearUpcoming(::withController)
+    }
+
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        queueManager.moveQueueItem(fromIndex, toIndex, ::withController)
     }
 
     fun reorderQueue(newQueue: List<QueueItem>) {
-        _playbackState.update { it.copy(queue = newQueue) }
+        // Handled via moveQueueItem in PlaybackQueueManager
     }
 
     private data class RadioTrack(
@@ -633,11 +694,7 @@ class AudioPlayerManager @Inject constructor(
     }
 
     fun toggleShuffle() {
-        withController { controller ->
-            val newShuffle = !controller.shuffleModeEnabled
-            controller.shuffleModeEnabled = newShuffle
-            _playbackState.update { it.copy(isShuffleEnabled = newShuffle) }
-        }
+        queueManager.toggleShuffle(::withController)
     }
 
     fun toggleRepeat() {
@@ -674,26 +731,11 @@ class AudioPlayerManager @Inject constructor(
             return
         }
 
-        val q = _playbackState.value.queue
-        if (q.isNotEmpty()) {
-            val nextItem = q.first()
-            _playbackState.update { it.copy(queue = q.drop(1)) }
-            playSurah(nextItem.surah, nextItem.reciter, nextItem.startAyah)
-            return
-        }
-
-        val reciter = _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
-        val current = _playbackState.value.currentSurah ?: return
-        val nextId = if (_playbackState.value.isShuffleEnabled) {
-            (1..114).random()
-        } else {
-            if (current.id < 114) current.id + 1 else 1
-        }
-
-        scope.launch {
-            val nextSurah = quranRepository.getSurahById(nextId)
-            if (nextSurah != null) {
-                playSurah(nextSurah, reciter)
+        withController { controller ->
+            if (controller.hasNextMediaItem()) {
+                controller.seekToNextMediaItem()
+            } else if (controller.mediaItemCount > 0) {
+                controller.seekTo(0, 0L)
             }
         }
     }
@@ -704,25 +746,14 @@ class AudioPlayerManager @Inject constructor(
             return
         }
 
-        val pos = browser?.currentPosition ?: _currentPositionMs.value
-        if (pos > 3000L) {
-            seekTo(0L)
-            return
-        }
-
-        if (history.isNotEmpty()) {
-            val prevItem = history.removeAt(history.lastIndex)
-            playSurah(prevItem.surah, prevItem.reciter, prevItem.startAyah)
-            return
-        }
-
-        val current = _playbackState.value.currentSurah ?: return
-        val prevId = if (current.id > 1) current.id - 1 else 114
-        val reciter = _playbackState.value.currentReciter ?: runBlocking { reciterRepository.getDefaultReciter() }
-        scope.launch {
-            val prevSurah = quranRepository.getSurahById(prevId)
-            if (prevSurah != null) {
-                playSurah(prevSurah, reciter)
+        withController { controller ->
+            val pos = controller.currentPosition
+            if (pos > 3000L) {
+                controller.seekTo(0L)
+            } else if (controller.hasPreviousMediaItem()) {
+                controller.seekToPreviousMediaItem()
+            } else if (controller.mediaItemCount > 0) {
+                controller.seekTo(controller.mediaItemCount - 1, 0L)
             }
         }
     }

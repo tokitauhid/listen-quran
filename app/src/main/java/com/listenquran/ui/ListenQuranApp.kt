@@ -80,6 +80,7 @@ fun ListenQuranApp(
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    val queueState by viewModel.queueState.collectAsStateWithLifecycle()
     val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
     val defaultReciterId by viewModel.defaultReciterId.collectAsStateWithLifecycle()
@@ -308,8 +309,8 @@ fun ListenQuranApp(
                                 playlist = pl,
                                 items = items,
                                 onBack = { selectedPlaylistForDetail = null },
-                                onPlayTrack = { viewModel.playPlaylistItem(it) },
-                                onPlayAll = { viewModel.playAllPlaylist(items) },
+                                onPlayTrack = { viewModel.playPlaylistItem(it, items, pl.name) },
+                                onPlayAll = { viewModel.playAllPlaylist(items, pl.name) },
                                 onDeleteItem = { viewModel.deletePlaylistItem(it) },
                                 onDeletePlaylist = {
                                     viewModel.deletePlaylist(pl.id)
@@ -362,6 +363,7 @@ fun ListenQuranApp(
                 FullPlayerScreen(
                     playbackState = playbackState,
                     isLiked = isCurrentSurahLiked,
+                    queueState = queueState,
                     currentPositionMsFlow = viewModel.currentPositionMs,
                     onCollapse = { showFullPlayer = false },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -415,12 +417,13 @@ fun ListenQuranApp(
         // Queue Modal Bottom Sheet
         if (showQueueSheet) {
             QueueModalSheet(
+                queueState = queueState,
                 playbackState = playbackState,
                 onDismiss = { showQueueSheet = false },
-                onPlayQueueItem = { viewModel.playQueueItem(it) },
+                onSeekToQueueItem = { viewModel.playQueueItem(it) },
                 onRemoveFromQueue = { viewModel.removeFromQueue(it) },
                 onClearQueue = { viewModel.clearQueue() },
-                onReorderQueue = { viewModel.reorderQueue(it) },
+                onMoveQueueItem = { from, to -> viewModel.moveQueueItem(from, to) },
             )
         }
 

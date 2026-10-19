@@ -39,12 +39,14 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.listenquran.domain.model.RadioStationType
+import com.listenquran.player.PlaybackQueueState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun FullPlayerScreen(
     playbackState: PlaybackState,
     isLiked: Boolean,
+    queueState: PlaybackQueueState? = null,
     currentPositionMsFlow: StateFlow<Long>? = null,
     onCollapse: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -521,7 +523,7 @@ fun FullPlayerScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                             contentDescription = "Queue",
-                            tint = if (playbackState.queue.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if ((queueState?.upcomingItems?.isNotEmpty() == true) || playbackState.queue.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
                     }

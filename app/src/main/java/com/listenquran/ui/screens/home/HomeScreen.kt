@@ -67,15 +67,16 @@ data class BrowseCategory(
     val description: String,
     val icon: ImageVector,
     val surahTargetId: Int,
+    val surahIds: List<Int> = listOf(surahTargetId),
 )
 
 val BrowseCategories = listOf(
-    BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.AutoStories, 1),
-    BrowseCategory("Ruqyah & Peace", "Protection & calming verses", Icons.Rounded.HealthAndSafety, 1),
-    BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67),
-    BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55),
-    BrowseCategory("Quranic Duas", "Supplications from the Quran", Icons.Filled.Favorite, 2),
-    BrowseCategory("The 4 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112),
+    BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.AutoStories, 1, (1..114).toList()),
+    BrowseCategory("Ruqyah & Peace", "Protection & calming verses", Icons.Rounded.HealthAndSafety, 1, listOf(1, 2, 112, 113, 114, 36)),
+    BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67, listOf(67, 32, 56, 76)),
+    BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55, listOf(55, 56, 67, 73)),
+    BrowseCategory("Quranic Duas", "Supplications from the Quran", Icons.Filled.Favorite, 2, listOf(2, 3, 14)),
+    BrowseCategory("The 4 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112, listOf(112, 113, 114)),
 )
 
 // Cached gradient brushes to avoid shader allocations during scrolling
@@ -106,6 +107,7 @@ fun HomeScreen(
     onAddToQueue: ((Surah) -> Unit)? = null,
     onAddToPlaylist: ((Surah) -> Unit)? = null,
     onRadioStationClick: ((RadioStation) -> Unit)? = null,
+    onPlayCategory: ((String, List<Int>) -> Unit)? = null,
     radioStations: List<RadioStation> = CuratedRadioStations,
     currentRadioStation: RadioStation? = null,
     isRadioPlaying: Boolean = false,
@@ -712,7 +714,11 @@ fun HomeScreen(
                                 CategoryCard(
                                     category = category,
                                     onClick = {
-                                        surahs.find { it.id == category.surahTargetId }?.let(onSurahClick)
+                                        if (onPlayCategory != null) {
+                                            onPlayCategory(category.title, category.surahIds)
+                                        } else {
+                                            surahs.find { it.id == category.surahTargetId }?.let(onSurahClick)
+                                        }
                                     },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -784,7 +790,13 @@ fun HomeScreen(
                                     title = "Daily Mix",
                                     subtitle = "Al-Kahf • Yasin • Mulk",
                                     gradient = DailyMixGradient,
-                                    onClick = { surahs.firstOrNull()?.let(onSurahClick) }
+                                    onClick = {
+                                        if (onPlayCategory != null) {
+                                            onPlayCategory("Daily Mix", listOf(18, 36, 67))
+                                        } else {
+                                            surahs.find { it.id == 18 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
+                                        }
+                                    }
                                 )
                             }
                             item(key = "weekly_mix", contentType = "mix_card") {
@@ -792,7 +804,13 @@ fun HomeScreen(
                                     title = "Weekly Mix",
                                     subtitle = "Ar-Rahman • Al-Waqi'ah",
                                     gradient = WeeklyMixGradient,
-                                    onClick = { surahs.getOrNull(54)?.let(onSurahClick) }
+                                    onClick = {
+                                        if (onPlayCategory != null) {
+                                            onPlayCategory("Weekly Mix", listOf(55, 56, 67))
+                                        } else {
+                                            surahs.find { it.id == 55 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
+                                        }
+                                    }
                                 )
                             }
                             item(key = "friday_surahs", contentType = "mix_card") {
@@ -800,7 +818,13 @@ fun HomeScreen(
                                     title = "Friday Surahs",
                                     subtitle = "Surah Al-Kahf recitation",
                                     gradient = FridayMixGradient,
-                                    onClick = { surahs.find { it.id == 18 }?.let(onSurahClick) }
+                                    onClick = {
+                                        if (onPlayCategory != null) {
+                                            onPlayCategory("Friday Surahs", listOf(18, 32, 76, 62))
+                                        } else {
+                                            surahs.find { it.id == 18 }?.let(onSurahClick)
+                                        }
+                                    }
                                 )
                             }
                             item(key = "tahajjud_mix", contentType = "mix_card") {
@@ -808,7 +832,13 @@ fun HomeScreen(
                                     title = "Tahajjud Mix",
                                     subtitle = "Deep contemplation recitations",
                                     gradient = TahajjudMixGradient,
-                                    onClick = { surahs.getOrNull(66)?.let(onSurahClick) }
+                                    onClick = {
+                                        if (onPlayCategory != null) {
+                                            onPlayCategory("Tahajjud Mix", listOf(73, 75, 76, 67))
+                                        } else {
+                                            surahs.find { it.id == 73 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
+                                        }
+                                    }
                                 )
                             }
                         }
