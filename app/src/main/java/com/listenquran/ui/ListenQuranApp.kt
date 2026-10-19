@@ -392,6 +392,10 @@ fun ListenQuranApp(
         // Synced Scripture Bottom Sheet
         if (showVersesSheet) {
             val currentWordIndex by viewModel.currentWordIndex.collectAsStateWithLifecycle()
+            val isWordByWordEnabled by viewModel.isWordByWordEnabled.collectAsStateWithLifecycle()
+            val isTranslationEnabled by viewModel.isTranslationEnabled.collectAsStateWithLifecycle()
+            val translationState by viewModel.translationState.collectAsStateWithLifecycle()
+
             LaunchedEffect(playbackState.currentSurah?.id) {
                 viewModel.loadVersesForCurrentSurah()
             }
@@ -400,6 +404,12 @@ fun ListenQuranApp(
                 verses = currentVerses,
                 currentWordIndex = currentWordIndex,
                 reciters = reciters,
+                isWordByWordEnabled = isWordByWordEnabled,
+                onToggleWordByWord = { viewModel.toggleWordByWord() },
+                isTranslationEnabled = isTranslationEnabled,
+                onToggleTranslation = { viewModel.toggleTranslation() },
+                translationState = translationState,
+                onRetryTranslation = { viewModel.retryLoadTranslation() },
                 onDismiss = { showVersesSheet = false },
                 onSeekToAyah = { viewModel.seekToAyah(it) },
                 onSaveBookmark = { ayah, note -> viewModel.saveBookmark(ayah, note) },

@@ -29,6 +29,8 @@ class UserPreferencesRepository @Inject constructor(
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val HIFZ_REPEAT_COUNT = intPreferencesKey("hifz_repeat_count")
         val HIFZ_DELAY_SECONDS = intPreferencesKey("hifz_delay_seconds")
+        val WORD_BY_WORD_ENABLED = booleanPreferencesKey("word_by_word_enabled")
+        val TRANSLATION_ENABLED = booleanPreferencesKey("translation_enabled")
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data
@@ -78,6 +80,14 @@ class UserPreferencesRepository @Inject constructor(
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { preferences -> preferences[PreferencesKeys.HIFZ_DELAY_SECONDS] ?: 3 }
 
+    val wordByWordEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { preferences -> preferences[PreferencesKeys.WORD_BY_WORD_ENABLED] ?: false }
+
+    val translationEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { preferences -> preferences[PreferencesKeys.TRANSLATION_ENABLED] ?: false }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.THEME_MODE] = mode.name
@@ -118,6 +128,18 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.HIFZ_REPEAT_COUNT] = repeatCount
             preferences[PreferencesKeys.HIFZ_DELAY_SECONDS] = delaySeconds
+        }
+    }
+
+    suspend fun setWordByWordEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.WORD_BY_WORD_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setTranslationEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.TRANSLATION_ENABLED] = enabled
         }
     }
 }

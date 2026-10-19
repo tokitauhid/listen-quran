@@ -30,6 +30,7 @@ class MainViewModel @Inject constructor(
     private val downloadRepository: com.listenquran.data.repository.QuranDownloadRepository,
     private val radioRepository: com.listenquran.data.repository.RadioRepository,
     private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
+    private val translationRepository: com.listenquran.data.repository.TranslationRepository,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -121,6 +122,7 @@ class MainViewModel @Inject constructor(
     val queueState: StateFlow<com.listenquran.player.PlaybackQueueState> = playerManager.queueState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
+    val syncState: StateFlow<com.listenquran.player.PlaybackSyncState> = playerManager.syncState
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val isCurrentSurahLiked: StateFlow<Boolean> = combine(
@@ -146,6 +148,49 @@ class MainViewModel @Inject constructor(
 
     private val _currentVerses = MutableStateFlow<List<Ayah>>(emptyList())
     val currentVerses: StateFlow<List<Ayah>> = _currentVerses.asStateFlow()
+
+    val isWordByWordEnabled: StateFlow<Boolean> = userPreferencesRepository.wordByWordEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isTranslationEnabled: StateFlow<Boolean> = userPreferencesRepository.translationEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val retryTranslationTrigger = MutableStateFlow(0)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val translationState: StateFlow<com.listenquran.data.repository.TranslationState> = combine(
+        playbackState.map { it.currentSurah?.id }.distinctUntilChanged(),
+        userPreferencesRepository.translationEnabled,
+        retryTranslationTrigger
+    ) { surahId, isEnabled, _ ->
+        Pair(surahId, isEnabled)
+    }.flatMapLatest { (surahId, isEnabled) ->
+        if (surahId != null && isEnabled) {
+            translationRepository.getTranslationsForSurah(surahId)
+        } else {
+            flowOf(com.listenquran.data.repository.TranslationState.Success(surahId ?: 0, emptyMap()))
+        }
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        com.listenquran.data.repository.TranslationState.Success(0, emptyMap())
+    )
+
+    fun toggleWordByWord() {
+        viewModelScope.launch {
+            userPreferencesRepository.setWordByWordEnabled(!isWordByWordEnabled.value)
+        }
+    }
+
+    fun toggleTranslation() {
+        viewModelScope.launch {
+            userPreferencesRepository.setTranslationEnabled(!isTranslationEnabled.value)
+        }
+    }
+
+    fun retryLoadTranslation() {
+        retryTranslationTrigger.value += 1
+    }
 
     init {
         viewModelScope.launch {
@@ -183,10 +228,11 @@ class MainViewModel @Inject constructor(
         playerManager.playSurah(surah, targetReciter, startAyah)
     }
 
-    fun playSurahById(surahId: Int, startAyah: Int = 1) {
+    fun playSurahById(surahId: Int, startAyah: Int = 1, reciterId: Int? = null) {
         viewModelScope.launch {
             val surah = quranRepository.getSurahById(surahId) ?: return@launch
-            val targetReciter = playbackState.value.currentReciter
+            val targetReciter = (if (reciterId != null) reciterRepository.getReciterById(reciterId) else null)
+                ?: playbackState.value.currentReciter
                 ?: defaultReciter.value
                 ?: reciters.value.firstOrNull()
                 ?: reciterRepository.getDefaultReciter()
