@@ -8,6 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.PieChart
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,20 +24,19 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.listenquran.domain.model.DailyListeningActivity
 import com.listenquran.domain.model.ListeningStatsSummary
+import com.listenquran.domain.model.ReciterListeningShare
 
-data class DayListeningData(
-    val day: String,
-    val minutes: Int,
-    val isFriday: Boolean = false,
-)
-
-data class ReciterShareData(
+data class ReciterColorShare(
     val name: String,
     val percentage: Float,
+    val seconds: Long,
     val color: Color,
 )
 
@@ -42,32 +45,29 @@ fun WeeklyListeningBarChart(
     statsSummary: ListeningStatsSummary,
     modifier: Modifier = Modifier,
 ) {
-    // Derive weekly listening distribution, emphasizing Friday as Sunnah peak
-    val totalMins = (statsSummary.totalSecondsListened / 60).toInt()
-    val baseMins = if (totalMins > 0) totalMins else 165
-
-    val weeklyData = remember(baseMins) {
-        listOf(
-            DayListeningData("Mon", (baseMins * 0.10f).toInt().coerceAtLeast(15)),
-            DayListeningData("Tue", (baseMins * 0.12f).toInt().coerceAtLeast(18)),
-            DayListeningData("Wed", (baseMins * 0.08f).toInt().coerceAtLeast(12)),
-            DayListeningData("Thu", (baseMins * 0.15f).toInt().coerceAtLeast(25)),
-            DayListeningData("Fri", (baseMins * 0.32f).toInt().coerceAtLeast(50), isFriday = true),
-            DayListeningData("Sat", (baseMins * 0.13f).toInt().coerceAtLeast(22)),
-            DayListeningData("Sun", (baseMins * 0.10f).toInt().coerceAtLeast(16)),
-        )
-    }
-
-    val maxMinutes = remember(weeklyData) {
-        (weeklyData.maxOfOrNull { it.minutes } ?: 60).coerceAtLeast(30)
-    }
+    val weeklyData = statsSummary.weeklyActivity
+    val hasData = weeklyData.any { it.minutes > 0 }
+    val totalWeeklyMinutes = weeklyData.sumOf { it.minutes }
 
     val animationProgress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         animationProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 750, easing = FastOutSlowInEasing)
         )
+    }
+
+    val maxMinutes = remember(weeklyData) {
+        (weeklyData.maxOfOrNull { it.minutes } ?: 1).coerceAtLeast(1)
+    }
+
+    val chartDescription = remember(weeklyData, totalWeeklyMinutes) {
+        if (!hasData) {
+            "Weekly listening activity: No listening recorded yet this week."
+        } else {
+            val breakdown = weeklyData.joinToString(", ") { "${it.dayLabel}: ${it.minutes}m" }
+            "Weekly listening activity: $totalWeeklyMinutes minutes total. $breakdown"
+        }
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -75,7 +75,9 @@ fun WeeklyListeningBarChart(
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = chartDescription },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
@@ -89,7 +91,7 @@ fun WeeklyListeningBarChart(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Weekly Listening Activity",
                         style = MaterialTheme.typography.titleMedium,
@@ -97,7 +99,7 @@ fun WeeklyListeningBarChart(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Minutes listened per day (Kahf Peak on Friday)",
+                        text = "Daily minutes over the past 7 days (Kahf on Friday)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -108,7 +110,7 @@ fun WeeklyListeningBarChart(
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Text(
-                        text = "${weeklyData.sumOf { it.minutes }}m total",
+                        text = "${totalWeeklyMinutes}m total",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -119,71 +121,88 @@ fun WeeklyListeningBarChart(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Canvas Bar Chart
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val canvasWidth = size.width
-                    val canvasHeight = size.height
-                    val barCount = weeklyData.size
-                    val spacing = canvasWidth / (barCount * 2f)
-                    val barWidth = spacing
-
-                    weeklyData.forEachIndexed { index, data ->
-                        val xOffset = spacing / 2f + index * (barWidth + spacing)
-                        val fraction = (data.minutes.toFloat() / maxMinutes.toFloat()) * animationProgress.value
-                        val barHeight = (canvasHeight * fraction).coerceAtLeast(8f)
-                        val yOffset = canvasHeight - barHeight
-
-                        // Background track
-                        drawRoundRect(
-                            color = trackColor.copy(alpha = 0.5f),
-                            topLeft = Offset(xOffset, 0f),
-                            size = Size(barWidth, canvasHeight),
-                            cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                        )
-
-                        // Active bar (Friday highlighted in Quranic Amber/Gold)
-                        val barColor = if (data.isFriday) tertiaryColor else primaryColor
-                        drawRoundRect(
-                            color = barColor,
-                            topLeft = Offset(xOffset, yOffset),
-                            size = Size(barWidth, barHeight),
-                            cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                        )
-                    }
+            if (!hasData) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.BarChart,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "Listen to see your weekly stats",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-            }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    weeklyData.forEach { data ->
+                        val targetBarHeightRatio = (data.minutes.toFloat() / maxMinutes.toFloat()).coerceIn(0f, 1f)
+                        val animatedRatio = targetBarHeightRatio * animationProgress.value
 
-            Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = if (data.minutes > 0) "${data.minutes}m" else "0m",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = if (data.isFriday) tertiaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (data.isFriday) FontWeight.Bold else FontWeight.Normal
+                            )
 
-            // Day Labels Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                weeklyData.forEach { data ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "${data.minutes}m",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            fontWeight = if (data.isFriday) FontWeight.Bold else FontWeight.Normal,
-                            color = if (data.isFriday) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = data.day,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (data.isFriday) FontWeight.Bold else FontWeight.Medium,
-                            color = if (data.isFriday) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface
-                        )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Box(
+                                modifier = Modifier
+                                    .width(18.dp)
+                                    .height(90.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                // Background Track
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawRoundRect(
+                                        color = trackColor,
+                                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
+                                        size = size
+                                    )
+                                }
+
+                                // Active Fill Bar
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val barHeight = (size.height * animatedRatio).coerceAtLeast(if (data.minutes > 0) 4.dp.toPx() else 0f)
+                                    drawRoundRect(
+                                        color = if (data.isFriday) tertiaryColor else primaryColor,
+                                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
+                                        topLeft = Offset(0f, size.height - barHeight),
+                                        size = Size(size.width, barHeight)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = data.dayLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (data.isFriday) FontWeight.Bold else FontWeight.Normal,
+                                color = if (data.isFriday) tertiaryColor else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -196,27 +215,50 @@ fun ReciterBreakdownDonutChart(
     statsSummary: ListeningStatsSummary,
     modifier: Modifier = Modifier,
 ) {
-    val topReciter = if (statsSummary.topReciterName.isNotBlank()) statsSummary.topReciterName else "Mishari Rashid Al-Afasy"
+    val shares = statsSummary.reciterShares
+    val hasData = shares.isNotEmpty() && statsSummary.totalSecondsListened > 0L
 
-    val reciterShares = remember(topReciter) {
-        listOf(
-            ReciterShareData(topReciter, 0.48f, Color(0xFF6CDAA2)),
-            ReciterShareData("AbdulBaset AbdulSamad", 0.26f, Color(0xFFF8BD48)),
-            ReciterShareData("Mahmoud Al-Husary", 0.16f, Color(0xFF89F8BD)),
-            ReciterShareData("Other Reciters", 0.10f, Color(0xFF334B3F)),
-        )
+    val palette = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.outlineVariant
+    )
+
+    val colorShares = remember(shares, palette) {
+        shares.mapIndexed { index, share ->
+            val color = palette[index % palette.size]
+            ReciterColorShare(
+                name = share.reciterName,
+                percentage = share.percentage,
+                seconds = share.seconds,
+                color = color
+            )
+        }
     }
 
     val animationProgress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         animationProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing)
         )
     }
 
+    val donutDescription = remember(colorShares) {
+        if (!hasData) {
+            "Reciter breakdown: No listening data yet."
+        } else {
+            val breakdown = colorShares.joinToString(", ") { "${it.name}: ${(it.percentage * 100).toInt()}%" }
+            "Reciter breakdown: $breakdown"
+        }
+    }
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = donutDescription },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
@@ -226,7 +268,7 @@ fun ReciterBreakdownDonutChart(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Reciter & Surah Breakdown",
+                text = "Reciter Breakdown",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -239,80 +281,106 @@ fun ReciterBreakdownDonutChart(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                // Donut Chart
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(130.dp)
+            if (!hasData) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                        val strokeWidth = 14.dp.toPx()
-                        var currentAngle = -90f
+                    Icon(
+                        imageVector = Icons.Rounded.PieChart,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        text = "Listen to reciters to see breakdown",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // Donut Chart
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(130.dp)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                            val strokeWidth = 14.dp.toPx()
+                            var currentAngle = -90f
 
-                        reciterShares.forEach { share ->
-                            val sweepAngle = share.percentage * 360f * animationProgress.value
-                            drawArc(
-                                color = share.color,
-                                startAngle = currentAngle,
-                                sweepAngle = sweepAngle,
-                                useCenter = false,
-                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            colorShares.forEach { share ->
+                                val sweepAngle = share.percentage * 360f * animationProgress.value
+                                drawArc(
+                                    color = share.color,
+                                    startAngle = currentAngle,
+                                    sweepAngle = sweepAngle,
+                                    useCenter = false,
+                                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                                )
+                                currentAngle += sweepAngle
+                            }
+                        }
+
+                        // Donut Center Stats
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "${statsSummary.totalSurahsCompleted}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
                             )
-                            currentAngle += sweepAngle
+                            Text(
+                                text = "Surahs Done",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 
+                    // Legend & Percentage Breakdown
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "${statsSummary.totalSurahsCompleted}",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Surahs Done",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Legend
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    reciterShares.forEach { share ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .background(share.color, CircleShape)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = share.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
+                        colorShares.forEach { share ->
+                            val pct = (share.percentage * 100).toInt()
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .background(share.color, CircleShape)
                                 )
-                                Text(
-                                    text = "${(share.percentage * 100).toInt()}% of listening time",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = share.name,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "$pct% of listening time (${share.seconds / 60}m)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }

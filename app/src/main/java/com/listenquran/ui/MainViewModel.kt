@@ -33,6 +33,7 @@ class MainViewModel @Inject constructor(
     private val translationRepository: com.listenquran.data.repository.TranslationRepository,
     private val repetitionPresetRepository: com.listenquran.data.repository.RepetitionPresetRepository,
     private val likedRepository: com.listenquran.data.repository.LikedRepository,
+    private val backupManager: com.listenquran.data.backup.BackupManager,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -112,6 +113,20 @@ class MainViewModel @Inject constructor(
 
     val radioStations: StateFlow<List<RadioStation>> = radioRepository.getRadioStations()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CuratedRadioStations)
+
+    val settingsPreferences: StateFlow<com.listenquran.data.local.preferences.SettingsPreferences> =
+        userPreferencesRepository.settingsPreferences
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.listenquran.data.local.preferences.SettingsPreferences())
+
+    private val _snackbarEvent = MutableSharedFlow<String>()
+    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+
+    private val _cacheSizeBytes = MutableStateFlow(0L)
+    val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
+
+    val totalDownloadedBytes: StateFlow<Long> = downloadRepository.getTotalDownloadedBytes()
+        .map { it ?: 0L }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val downloadedSurahs: StateFlow<List<com.listenquran.data.local.entity.DownloadedSurahEntity>> = downloadRepository.getAllDownloadedSurahs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -207,8 +222,13 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             reciterRepository.initializeReciters()
             playlistRepository.ensureLikedPlaylistCreated()
-            if (userPreferencesRepository.notificationsEnabled.first()) {
-                com.listenquran.notification.ReminderScheduler.scheduleReminders(context)
+            refreshCacheSize()
+            val prefs = userPreferencesRepository.settingsPreferences.first()
+            if (prefs.dailyReminderEnabled) {
+                com.listenquran.notification.ReminderScheduler.scheduleDailyReminder(context, prefs.dailyReminderHour, prefs.dailyReminderMinute)
+            }
+            if (prefs.fridayReminderEnabled) {
+                com.listenquran.notification.ReminderScheduler.scheduleFridayReminder(context, prefs.fridayReminderHour, prefs.fridayReminderMinute)
             }
         }
     }
@@ -490,16 +510,60 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.setNotificationsEnabled(enabled)
             if (enabled) {
-                com.listenquran.notification.ReminderScheduler.scheduleReminders(context)
+                val prefs = userPreferencesRepository.settingsPreferences.first()
+                com.listenquran.notification.ReminderScheduler.scheduleDailyReminder(context, prefs.dailyReminderHour, prefs.dailyReminderMinute)
+                com.listenquran.notification.ReminderScheduler.scheduleFridayReminder(context, prefs.fridayReminderHour, prefs.fridayReminderMinute)
             } else {
-                com.listenquran.notification.ReminderScheduler.cancelReminders(context)
+                com.listenquran.notification.ReminderScheduler.cancelDailyReminder(context)
+                com.listenquran.notification.ReminderScheduler.cancelFridayReminder(context)
             }
         }
     }
 
-    fun exportStats() {
+    fun setHifzPreferences(repeatCount: Int, delaySeconds: Int) {
         viewModelScope.launch {
-            statsRepository.exportStatsJson()
+            userPreferencesRepository.setHifzLoop(repeatCount, delaySeconds)
+        }
+    }
+
+    fun setDailyReminder(enabled: Boolean, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setDailyReminder(enabled, hour, minute)
+            if (enabled) {
+                com.listenquran.notification.ReminderScheduler.scheduleDailyReminder(context, hour, minute)
+            } else {
+                com.listenquran.notification.ReminderScheduler.cancelDailyReminder(context)
+            }
+        }
+    }
+
+    fun setFridayReminder(enabled: Boolean, hour: Int, minute: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setFridayReminder(enabled, hour, minute)
+            if (enabled) {
+                com.listenquran.notification.ReminderScheduler.scheduleFridayReminder(context, hour, minute)
+            } else {
+                com.listenquran.notification.ReminderScheduler.cancelFridayReminder(context)
+            }
+        }
+    }
+
+    fun setStatsDetailsExpanded(expanded: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setStatsDetailsExpanded(expanded)
+        }
+    }
+
+    fun clearStats() {
+        viewModelScope.launch {
+            statsRepository.clearStats()
+            _snackbarEvent.emit("Listening statistics cleared")
+        }
+    }
+
+    fun refreshCacheSize() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _cacheSizeBytes.value = downloadRepository.getCacheSizeBytes()
         }
     }
 
@@ -751,116 +815,15 @@ class MainViewModel @Inject constructor(
         playBrowseCategory(mixTitle, surahIds)
     }
 
-    fun exportPlaylists() {
-        viewModelScope.launch {
-            playlistRepository.exportPlaylistsJson()
-        }
-    }
-
-    fun exportPlaylistsToUri(uri: android.net.Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val json = playlistRepository.exportPlaylistsJson()
-                context.contentResolver.openOutputStream(uri)?.use { stream ->
-                    stream.write(json.toByteArray(Charsets.UTF_8))
-                }
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Playlists exported successfully", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MainViewModel", "Error exporting playlists", e)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    fun importPlaylists(json: String) {
-        viewModelScope.launch {
-            playlistRepository.importPlaylistsJson(json)
-        }
-    }
-
-    fun importPlaylistsFromUri(uri: android.net.Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val json = context.contentResolver.openInputStream(uri)?.use { stream ->
-                    stream.bufferedReader(Charsets.UTF_8).readText()
-                } ?: ""
-                val success = playlistRepository.importPlaylistsJson(json)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    if (success) {
-                        android.widget.Toast.makeText(context, "Playlists imported successfully", android.widget.Toast.LENGTH_SHORT).show()
-                    } else {
-                        android.widget.Toast.makeText(context, "Failed to parse playlists JSON", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MainViewModel", "Error importing playlists", e)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Import failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    fun exportStatsToUri(uri: android.net.Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val json = statsRepository.exportStatsJson()
-                context.contentResolver.openOutputStream(uri)?.use { stream ->
-                    stream.write(json.toByteArray(Charsets.UTF_8))
-                }
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Stats exported successfully", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MainViewModel", "Error exporting stats", e)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Export failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    fun importStats(json: String) {
-        viewModelScope.launch {
-            statsRepository.importStatsJson(json)
-        }
-    }
-
-    fun importStatsFromUri(uri: android.net.Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val json = context.contentResolver.openInputStream(uri)?.use { stream ->
-                    stream.bufferedReader(Charsets.UTF_8).readText()
-                } ?: ""
-                val success = statsRepository.importStatsJson(json)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    if (success) {
-                        android.widget.Toast.makeText(context, "Stats imported successfully", android.widget.Toast.LENGTH_SHORT).show()
-                    } else {
-                        android.widget.Toast.makeText(context, "Failed to parse stats JSON", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MainViewModel", "Error importing stats", e)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(context, "Import failed: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
     fun downloadSurah(surah: Surah, reciter: Reciter) {
         viewModelScope.launch {
-            android.widget.Toast.makeText(context, "Downloading ${surah.nameSimple}...", android.widget.Toast.LENGTH_SHORT).show()
+            _snackbarEvent.emit("Downloading ${surah.nameSimple}...")
             val result = downloadRepository.downloadSurah(surah, reciter)
             if (result.isSuccess) {
-                android.widget.Toast.makeText(context, "${surah.nameSimple} downloaded successfully", android.widget.Toast.LENGTH_SHORT).show()
+                refreshCacheSize()
+                _snackbarEvent.emit("${surah.nameSimple} downloaded")
             } else {
-                android.widget.Toast.makeText(context, "Download failed: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_SHORT).show()
+                _snackbarEvent.emit("Download failed: ${result.exceptionOrNull()?.message}")
             }
         }
     }
@@ -868,26 +831,53 @@ class MainViewModel @Inject constructor(
     fun deleteDownloadedSurah(surahNumber: Int, reciterId: Int) {
         viewModelScope.launch {
             downloadRepository.deleteDownload(surahNumber, reciterId)
-            android.widget.Toast.makeText(context, "Download deleted", android.widget.Toast.LENGTH_SHORT).show()
+            refreshCacheSize()
+            _snackbarEvent.emit("Download removed")
         }
     }
 
     fun clearAllDownloads() {
         viewModelScope.launch {
-            downloadRepository.clearAllDownloads()
-            android.widget.Toast.makeText(context, "All downloads deleted", android.widget.Toast.LENGTH_SHORT).show()
+            val count = downloadRepository.clearAllDownloads()
+            refreshCacheSize()
+            _snackbarEvent.emit("Deleted $count downloaded Surahs")
         }
     }
 
     fun clearAudioCache() {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                downloadRepository.clearAllDownloads()
-                context.cacheDir.deleteRecursively()
-            } catch (_: Exception) {}
-            kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, "Audio cache cleared", android.widget.Toast.LENGTH_SHORT).show()
-            }
+            val freedBytes = downloadRepository.clearAudioCache()
+            val freedMb = String.format(java.util.Locale.US, "%.1f", freedBytes / (1024f * 1024f))
+            refreshCacheSize()
+            _snackbarEvent.emit("Cache cleared ($freedMb MB freed)")
+        }
+    }
+
+    fun exportBackupToUri(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val result = backupManager.exportBackupToUri(uri)
+            result.fold(
+                onSuccess = {
+                    _snackbarEvent.emit("Backup created successfully")
+                },
+                onFailure = { error ->
+                    _snackbarEvent.emit("Backup failed: ${error.message}")
+                }
+            )
+        }
+    }
+
+    fun importBackupFromUri(uri: android.net.Uri, replaceExisting: Boolean = false) {
+        viewModelScope.launch {
+            val result = backupManager.importBackupFromUri(uri, replaceExisting)
+            result.fold(
+                onSuccess = { importResult ->
+                    _snackbarEvent.emit(importResult.toSummaryMessage())
+                },
+                onFailure = { error ->
+                    _snackbarEvent.emit("Restore failed: ${error.message}")
+                }
+            )
         }
     }
 }

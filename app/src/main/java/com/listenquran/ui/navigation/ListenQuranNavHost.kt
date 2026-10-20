@@ -145,30 +145,38 @@ fun ListenQuranNavHost(
             composable(TopLevelDestination.SETTINGS.route) {
                 val downloadedSurahs by viewModel.downloadedSurahs.collectAsStateWithLifecycle()
                 val defaultReciter by viewModel.defaultReciter.collectAsStateWithLifecycle()
+                val settingsPreferences by viewModel.settingsPreferences.collectAsStateWithLifecycle()
+                val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsStateWithLifecycle()
+                val totalDownloadedBytes by viewModel.totalDownloadedBytes.collectAsStateWithLifecycle()
+                val allReciters by viewModel.reciters.collectAsStateWithLifecycle()
+
                 SettingsScreen(
                     currentTheme = themeMode,
-                    currentQuality = audioQuality,
                     statsSummary = statsSummary,
-                    notificationsEnabled = notificationsEnabled,
+                    settingsPreferences = settingsPreferences,
+                    allReciters = allReciters,
                     defaultReciter = defaultReciter,
-                    onOpenReciters = { navController.navigateToTab(TopLevelDestination.RECITERS) },
                     downloadedSurahs = downloadedSurahs,
+                    cacheSizeBytes = cacheSizeBytes,
+                    totalDownloadedBytes = totalDownloadedBytes,
                     onSelectTheme = { viewModel.setThemeMode(it) },
-                    onSelectQuality = { viewModel.setAudioQuality(it) },
-                    onToggleNotifications = { viewModel.setNotificationsEnabled(it) },
-                    onExportStats = { viewModel.exportStats() },
-                    onImportStats = { viewModel.importStats(it) },
-                    onExportPlaylists = { viewModel.exportPlaylists() },
-                    onImportPlaylists = { viewModel.importPlaylists(it) },
-                    onExportPlaylistsToUri = { viewModel.exportPlaylistsToUri(it) },
-                    onImportPlaylistsFromUri = { viewModel.importPlaylistsFromUri(it) },
-                    onExportStatsToUri = { viewModel.exportStatsToUri(it) },
-                    onImportStatsFromUri = { viewModel.importStatsFromUri(it) },
+                    onSelectDefaultReciter = { viewModel.setDefaultReciter(it) },
+                    onSelectPlaybackSpeed = { viewModel.setPlaybackSpeed(it) },
+                    onSelectCustomSleepTimerMinutes = { viewModel.saveCustomSleepTimerMinutes(it) },
+                    onToggleWordByWord = { viewModel.toggleWordByWord() },
+                    onToggleTranslation = { viewModel.toggleTranslation() },
+                    onSetHifzLoop = { repeat, delay -> viewModel.setHifzPreferences(repeat, delay) },
+                    onToggleDailyReminder = { enabled, h, m -> viewModel.setDailyReminder(enabled, h, m) },
+                    onToggleFridayReminder = { enabled, h, m -> viewModel.setFridayReminder(enabled, h, m) },
+                    onToggleStatsDetailsExpanded = { viewModel.setStatsDetailsExpanded(it) },
+                    onClearStats = { viewModel.clearStats() },
+                    onClearAudioCache = { viewModel.clearAudioCache() },
+                    onClearAllDownloads = { viewModel.clearAllDownloads() },
                     onDeleteDownloadedSurah = { surahNumber, reciterId ->
                         viewModel.deleteDownloadedSurah(surahNumber, reciterId)
                     },
-                    onClearAllDownloads = { viewModel.clearAllDownloads() },
-                    onClearAudioCache = { viewModel.clearAudioCache() },
+                    onExportBackup = { viewModel.exportBackupToUri(it) },
+                    onImportBackup = { uri, replace -> viewModel.importBackupFromUri(uri, replace) },
                     onBack = { navController.popBackStack() },
                 )
             }

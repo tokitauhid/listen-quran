@@ -25,6 +25,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        com.listenquran.notification.createReminderNotificationChannel(this)
+
         handleIntent(intent)
 
         setContent {

@@ -106,6 +106,12 @@ fun ListenQuranApp(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    LaunchedEffect(Unit) {
+        viewModel.snackbarEvent.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     val hasAnyOverlayOpen = showFullPlayer ||
             selectedPlaylistForDetail != null ||
             selectedReciterForProfile != null ||
