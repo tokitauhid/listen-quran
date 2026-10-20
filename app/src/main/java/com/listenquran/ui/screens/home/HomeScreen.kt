@@ -117,20 +117,14 @@ fun HomeScreen(
     resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
-    var selectedFilter by remember { mutableStateOf("All") }
-    val filterCategories = remember { listOf("All", "Surahs", "Playlists", "Radio", "Categories") }
-
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var searchFilter by rememberSaveable { mutableStateOf("All") }
-    val searchFilters = remember { listOf("All", "Surahs", "Verses", "Reciters") }
     val focusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val homeListState = rememberLazyListState()
 
     LaunchedEffect(resetTrigger) {
         if (resetTrigger > 0) {
-            selectedFilter = "All"
             isSearchOpen = false
             searchQuery = ""
             homeListState.scrollToItem(0)
@@ -152,10 +146,6 @@ fun HomeScreen(
         } else {
             isSearchOpen = false
         }
-    }
-
-    BackHandler(enabled = !isSearchOpen && selectedFilter != "All") {
-        selectedFilter = "All"
     }
 
     val popularShortcuts = remember {
@@ -360,32 +350,13 @@ fun HomeScreen(
                     .padding(paddingValues)
             ) {
                 if (searchQuery.isNotBlank()) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(searchFilters, key = { it }) { filter ->
-                            FilterChip(
-                                selected = searchFilter == filter,
-                                onClick = { searchFilter = filter },
-                                label = { Text(filter) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            )
-                        }
-                    }
-
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // Direct Verse Match
-                        if (parsedVerse != null && parsedVerse.surah != null && searchFilter in listOf("All", "Verses")) {
+                        if (parsedVerse != null && parsedVerse.surah != null) {
                             item(key = "direct_verse_${parsedVerse.surahNumber}_${parsedVerse.ayahNumber}") {
                                 Surface(
                                     modifier = Modifier
@@ -448,7 +419,7 @@ fun HomeScreen(
                         }
 
                         // Surah Results
-                        if (searchFilter in listOf("All", "Surahs") && filteredSurahs.isNotEmpty()) {
+                        if (filteredSurahs.isNotEmpty()) {
                             item(key = "surahs_header") {
                                 Text(
                                     text = "Surahs (${filteredSurahs.size})",
@@ -470,7 +441,7 @@ fun HomeScreen(
                         }
 
                         // Reciter Results
-                        if (searchFilter in listOf("All", "Reciters") && filteredReciters.isNotEmpty()) {
+                        if (filteredReciters.isNotEmpty()) {
                             item(key = "reciters_header") {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -606,39 +577,8 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 0.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // Filter Chips
-                item(key = "filter_chips", contentType = "filter_chips") {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(filterCategories, key = { it }, contentType = { "filter_chip" }) { category ->
-                            FilterChip(
-                                selected = selectedFilter == category,
-                                onClick = {
-                                    if (category == "Surahs" && onNavigateToSurahs != null) {
-                                        onNavigateToSurahs()
-                                    } else {
-                                        selectedFilter = category
-                                        coroutineScope.launch { homeListState.scrollToItem(0) }
-                                    }
-                                },
-                                label = { Text(category) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            )
-                        }
-                    }
-                }
-
                 // 1. Playlists (Liked on Top, Custom Playlists Carousel)
-                if ((selectedFilter == "All" || selectedFilter == "Playlists") && playlists.isNotEmpty()) {
+                if (playlists.isNotEmpty()) {
                     item(key = "playlists_header", contentType = "section_header") {
                         SectionHeader(title = "Your Playlists")
                     }
@@ -706,8 +646,7 @@ fun HomeScreen(
                 }
 
                 // 2. Browse Categories (Granular rows for fast, smooth scrolling)
-                if (selectedFilter == "All" || selectedFilter == "Categories" || selectedFilter == "Playlists") {
-                    item(key = "browse_categories_header", contentType = "section_header") {
+                item(key = "browse_categories_header", contentType = "section_header") {
                         SectionHeader(title = "Browse Categories")
                     }
                     items(
@@ -739,10 +678,8 @@ fun HomeScreen(
                             }
                         }
                     }
-                }
-
                 // 3. Recently Listened (Granular rows)
-                if (selectedFilter == "All" || selectedFilter == "Surahs") {
+                if (displaySurahs.isNotEmpty()) {
                     item(key = "recent_surahs_header", contentType = "section_header") {
                         SectionHeader(title = "Recently Listened")
                     }
@@ -773,119 +710,113 @@ fun HomeScreen(
                 }
 
                 // 4. Khatma Tracking Card
-                if (selectedFilter == "All" || selectedFilter == "Surahs") {
-                    item(key = "khatma_widget", contentType = "khatma_card") {
-                        KhatmaWidget(
-                            progress = khatmaProgress,
-                            onContinue = onContinueKhatma,
-                            onClick = onOpenKhatam ?: onContinueKhatma,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
+                item(key = "khatma_widget", contentType = "khatma_card") {
+                    KhatmaWidget(
+                        progress = khatmaProgress,
+                        onContinue = onContinueKhatma,
+                        onClick = onOpenKhatam ?: onContinueKhatma,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
 
                 // 5. Trending Daily / Weekly Mixes
-                if (selectedFilter == "All" || selectedFilter == "Playlists") {
-                    item(key = "trending_mixes_header", contentType = "section_header") {
-                        SectionHeader(title = "Trending from Quran.com")
-                    }
-                    item(key = "trending_mixes_carousel", contentType = "horizontal_carousel") {
-                        LazyRow(
-                            state = mixesRowState,
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            item(key = "daily_mix", contentType = "mix_card") {
-                                MixCard(
-                                    title = "Daily Mix",
-                                    subtitle = "Al-Kahf • Yasin • Mulk",
-                                    gradient = DailyMixGradient,
-                                    onClick = {
-                                        if (onPlayCategory != null) {
-                                            onPlayCategory("Daily Mix", listOf(18, 36, 67))
-                                        } else {
-                                            surahs.find { it.id == 18 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
-                                        }
+                item(key = "trending_mixes_header", contentType = "section_header") {
+                    SectionHeader(title = "Trending from Quran.com")
+                }
+                item(key = "trending_mixes_carousel", contentType = "horizontal_carousel") {
+                    LazyRow(
+                        state = mixesRowState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item(key = "daily_mix", contentType = "mix_card") {
+                            MixCard(
+                                title = "Daily Mix",
+                                subtitle = "Al-Kahf • Yasin • Mulk",
+                                gradient = DailyMixGradient,
+                                onClick = {
+                                    if (onPlayCategory != null) {
+                                        onPlayCategory("Daily Mix", listOf(18, 36, 67))
+                                    } else {
+                                        surahs.find { it.id == 18 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
                                     }
-                                )
-                            }
-                            item(key = "weekly_mix", contentType = "mix_card") {
-                                MixCard(
-                                    title = "Weekly Mix",
-                                    subtitle = "Ar-Rahman • Al-Waqi'ah",
-                                    gradient = WeeklyMixGradient,
-                                    onClick = {
-                                        if (onPlayCategory != null) {
-                                            onPlayCategory("Weekly Mix", listOf(55, 56, 67))
-                                        } else {
-                                            surahs.find { it.id == 55 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
-                                        }
+                                }
+                            )
+                        }
+                        item(key = "weekly_mix", contentType = "mix_card") {
+                            MixCard(
+                                title = "Weekly Mix",
+                                subtitle = "Ar-Rahman • Al-Waqi'ah",
+                                gradient = WeeklyMixGradient,
+                                onClick = {
+                                    if (onPlayCategory != null) {
+                                        onPlayCategory("Weekly Mix", listOf(55, 56, 67))
+                                    } else {
+                                        surahs.find { it.id == 55 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
                                     }
-                                )
-                            }
-                            item(key = "friday_surahs", contentType = "mix_card") {
-                                MixCard(
-                                    title = "Friday Surahs",
-                                    subtitle = "Surah Al-Kahf recitation",
-                                    gradient = FridayMixGradient,
-                                    onClick = {
-                                        if (onPlayCategory != null) {
-                                            onPlayCategory("Friday Surahs", listOf(18, 32, 76, 62))
-                                        } else {
-                                            surahs.find { it.id == 18 }?.let(onSurahClick)
-                                        }
+                                }
+                            )
+                        }
+                        item(key = "friday_surahs", contentType = "mix_card") {
+                            MixCard(
+                                title = "Friday Surahs",
+                                subtitle = "Surah Al-Kahf recitation",
+                                gradient = FridayMixGradient,
+                                onClick = {
+                                    if (onPlayCategory != null) {
+                                        onPlayCategory("Friday Surahs", listOf(18, 32, 76, 62))
+                                    } else {
+                                        surahs.find { it.id == 18 }?.let(onSurahClick)
                                     }
-                                )
-                            }
-                            item(key = "tahajjud_mix", contentType = "mix_card") {
-                                MixCard(
-                                    title = "Tahajjud Mix",
-                                    subtitle = "Deep contemplation recitations",
-                                    gradient = TahajjudMixGradient,
-                                    onClick = {
-                                        if (onPlayCategory != null) {
-                                            onPlayCategory("Tahajjud Mix", listOf(73, 75, 76, 67))
-                                        } else {
-                                            surahs.find { it.id == 73 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
-                                        }
+                                }
+                            )
+                        }
+                        item(key = "tahajjud_mix", contentType = "mix_card") {
+                            MixCard(
+                                title = "Tahajjud Mix",
+                                subtitle = "Deep contemplation recitations",
+                                gradient = TahajjudMixGradient,
+                                onClick = {
+                                    if (onPlayCategory != null) {
+                                        onPlayCategory("Tahajjud Mix", listOf(73, 75, 76, 67))
+                                    } else {
+                                        surahs.find { it.id == 73 }?.let(onSurahClick) ?: surahs.firstOrNull()?.let(onSurahClick)
                                     }
-                                )
-                            }
+                                }
+                            )
                         }
                     }
                 }
 
                 // 6. Live 24/7 Quran Radio
-                if (selectedFilter == "All" || selectedFilter == "Radio") {
-                    item(key = "quran_radio_header", contentType = "section_header") {
-                        SectionHeader(
-                            title = "Radio from Quran.com",
-                            onSeeAllClick = onNavigateToRadio
-                        )
-                    }
-                    item(key = "quran_radio_carousel", contentType = "horizontal_carousel") {
-                        LazyRow(
-                            state = radioRowState,
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            val displayStations = radioStations.ifEmpty { CuratedRadioStations }
-                            items(displayStations, key = { it.id }, contentType = { "radio_card" }) { station ->
-                                val isStationPlaying = isRadioPlaying && currentRadioStation?.id == station.id
-                                RadioStationCard(
-                                    station = station,
-                                    isPlaying = isStationPlaying,
-                                    onClick = { onRadioStationClick?.invoke(station) }
-                                )
-                            }
+                item(key = "quran_radio_header", contentType = "section_header") {
+                    SectionHeader(
+                        title = "Radio from Quran.com",
+                        onSeeAllClick = onNavigateToRadio
+                    )
+                }
+                item(key = "quran_radio_carousel", contentType = "horizontal_carousel") {
+                    LazyRow(
+                        state = radioRowState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        val displayStations = radioStations.ifEmpty { CuratedRadioStations }
+                        items(displayStations, key = { it.id }, contentType = { "radio_card" }) { station ->
+                            val isStationPlaying = isRadioPlaying && currentRadioStation?.id == station.id
+                            RadioStationCard(
+                                station = station,
+                                isPlaying = isStationPlaying,
+                                onClick = { onRadioStationClick?.invoke(station) }
+                            )
                         }
                     }
                 }
 
                 // 7. Featured Reciters (Discovery Carousel)
-                if ((selectedFilter == "All" || selectedFilter == "Categories") && featuredReciters.isNotEmpty()) {
+                if (featuredReciters.isNotEmpty()) {
                     item(key = "featured_reciters_header", contentType = "section_header") {
                         SectionHeader(title = "Featured Reciters")
                     }
@@ -906,66 +837,47 @@ fun HomeScreen(
                     }
                 }
 
-                // 8. Popular Surahs (Available on All and Surahs for rich continuous scrolling)
-                if (selectedFilter == "All" || selectedFilter == "Surahs") {
-                    item(key = "popular_surahs_header", contentType = "section_header") {
-                        SectionHeader(title = if (selectedFilter == "Surahs") "Popular Surahs" else "Popular Surahs for You")
-                    }
-                    items(featuredSurahs, key = { "featured_surah_${it.id}" }, contentType = { "surah_item" }) { surah ->
-                        SurahListItem(
-                            surah = surah,
-                            onClick = { onSurahClick(surah) },
-                            onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
-                            onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
-                            onAddToPlaylist = onAddToPlaylist?.let { fn -> { fn(surah) } },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                        )
-                    }
+                // 8. Popular Surahs
+                item(key = "popular_surahs_header", contentType = "section_header") {
+                    SectionHeader(
+                        title = "Popular Surahs",
+                        onSeeAllClick = onNavigateToSurahs
+                    )
+                }
+                items(featuredSurahs, key = { "featured_surah_${it.id}" }, contentType = { "surah_item" }) { surah ->
+                    SurahListItem(
+                        surah = surah,
+                        onClick = { onSurahClick(surah) },
+                        onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
+                        onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
+                        onAddToPlaylist = onAddToPlaylist?.let { fn -> { fn(surah) } },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                    )
                 }
 
-                // 9. All 114 Surahs (Full scrollable list when on Surahs tab, or Explore button when on All)
-                if (selectedFilter == "Surahs") {
-                    item(key = "all_surahs_header", contentType = "section_header") {
-                        SectionHeader(title = "All 114 Surahs")
-                    }
-                    items(surahs, key = { "home_all_surah_${it.id}" }, contentType = { "surah_item" }) { surah ->
-                        SurahListItem(
-                            surah = surah,
-                            onClick = { onSurahClick(surah) },
-                            onPlayNext = onPlayNext?.let { fn -> { fn(surah) } },
-                            onAddToQueue = onAddToQueue?.let { fn -> { fn(surah) } },
-                            onAddToPlaylist = onAddToPlaylist?.let { fn -> { fn(surah) } },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-                        )
-                    }
-                } else if (selectedFilter == "All") {
-                    item(key = "browse_all_surahs_button", contentType = "action_button") {
-                        Box(
+                item(key = "browse_all_surahs_button", contentType = "action_button") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                onNavigateToSurahs?.invoke()
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    onNavigateToSurahs?.invoke() ?: run {
-                                        selectedFilter = "Surahs"
-                                        coroutineScope.launch { homeListState.scrollToItem(0) }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.AutoStories,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Browse All 114 Surahs")
-                            }
+                            Icon(
+                                imageVector = Icons.Rounded.AutoStories,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Browse All 114 Surahs")
                         }
                     }
                 }
