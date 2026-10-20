@@ -4,7 +4,7 @@
   <p><em>A modern, native Android Quran audio streaming and study application inspired by Spotify and Quran Audio.</em></p>
 
   <p>
-    <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.0.0-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
+    <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.1.0-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
     <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform" />
     <img src="https://img.shields.io/badge/Kotlin-2.1.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
     <img src="https://img.shields.io/badge/Compose-Material%203-006C4C?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose M3" />
