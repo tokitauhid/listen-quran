@@ -3,4 +3,67 @@
     <string name="app_name">Listen Quran</string>
     <string name="widget_small_desc">Listen Quran Mini Player widget with quick controls</string>
     <string name="widget_medium_desc">Listen Quran Player with Khatma tracking and controls</string>
+
+    <!-- Settings Strings -->
+    <string name="settings_title">Settings &amp; Stats</string>
+    <string name="settings_section_stats">Statistics</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_playback">Audio &amp; Playback</string>
+    <string name="settings_section_reading">Reading &amp; Scripture</string>
+    <string name="settings_section_hifz">Memorization &amp; Hifz</string>
+    <string name="settings_section_storage">Downloads &amp; Storage</string>
+    <string name="settings_section_reminders">Reminders &amp; Alerts</string>
+    <string name="settings_section_backup">Backup &amp; Data</string>
+    <string name="settings_section_about">About</string>
+
+    <string name="stats_total_time">Total Time</string>
+    <string name="stats_current_streak">Current Streak</string>
+    <string name="stats_completed">Completed</string>
+    <string name="stats_detailed_analytics">Detailed Analytics</string>
+    <string name="stats_clear_button">Clear Listening Stats</string>
+    <string name="stats_clear_dialog_title">Clear Listening Statistics?</string>
+    <string name="stats_clear_dialog_msg">This will permanently delete your listening duration, streak, and charts history. Your Khatma progress, playlists, bookmarks, and downloads will NOT be touched.</string>
+
+    <string name="theme_dark">Dark Theme (Default)</string>
+    <string name="theme_light">Light Theme</string>
+    <string name="theme_amoled">AMOLED Pitch Black</string>
+    <string name="theme_system">System Default</string>
+
+    <string name="default_reciter">Default Reciter</string>
+    <string name="default_reciter_subtitle">Used when starting unassigned recitations</string>
+    <string name="default_speed">Playback Speed</string>
+    <string name="custom_sleep_timer">Custom Sleep Timer</string>
+
+    <string name="reading_wbw">Word-by-Word Highlighting</string>
+    <string name="reading_wbw_desc">Highlight each Arabic word synchronously during playback</string>
+    <string name="reading_translation">Show Translation</string>
+    <string name="reading_translation_desc">Display English verse translations in the reader sheet</string>
+
+    <string name="hifz_repeat_count">Ayah Repeat Count</string>
+    <string name="hifz_delay">Delay Between Repetitions</string>
+
+    <string name="storage_card_title">Device Storage &amp; Audio Cache</string>
+    <string name="storage_clear_cache">Clear Audio Cache</string>
+    <string name="storage_clear_cache_dialog_title">Clear Temporary Cache?</string>
+    <string name="storage_clear_cache_dialog_msg">This will evict streamed audio segments and cached reciter artwork to free up disk space. Your downloaded chapters, playlists, and settings will remain safe.</string>
+    <string name="storage_delete_all">Delete All Downloads</string>
+    <string name="storage_delete_all_dialog_title">Delete All Downloaded Chapters?</string>
+    <string name="storage_delete_all_dialog_msg">Are you sure you want to delete all downloaded audio files? You will need an active internet connection to stream these chapters again.</string>
+    <string name="storage_delete_single_dialog_title">Delete Chapter Audio?</string>
+
+    <string name="reminders_daily_title">Daily Quran Reminder</string>
+    <string name="reminders_daily_desc">A gentle reminder to listen and maintain your daily Quran habit</string>
+    <string name="reminders_friday_title">Friday Surah Al-Kahf Reminder</string>
+    <string name="reminders_friday_desc">Reminder on Friday morning to listen to or recite Surah Al-Kahf</string>
+    <string name="reminders_blocked_warning">Notifications are disabled in your system settings. Tap here to enable notifications.</string>
+
+    <string name="backup_export_button">Create Full Backup</string>
+    <string name="backup_import_button">Restore from Backup</string>
+    <string name="backup_replace_dialog_title">Restore Backup</string>
+    <string name="backup_replace_dialog_msg">Choose how you want to restore your data. Merging will combine the backup with your current playlists, bookmarks, and stats without overwriting existing entries.</string>
+    <string name="backup_merge">Merge (Recommended)</string>
+    <string name="backup_replace">Replace All</string>
+
+    <string name="about_attribution">Audio recitations and verse metadata are provided by the open Quran.com API and QuranicAudio open CDN.</string>
+    <string name="about_privacy">Private &amp; local-first data. No user tracking, no accounts, and all your personal data remains private on your device. Audio recitations stream directly over the internet.</string>
 </resources>

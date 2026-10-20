@@ -9,57 +9,70 @@ import java.util.concurrent.TimeUnit
 
 object ReminderScheduler {
     const val FRIDAY_WORK_NAME = "friday_kahf_reminder_work"
-    const val DAILY_STREAK_WORK_NAME = "daily_streak_reminder_work"
+    const val DAILY_REMINDER_WORK_NAME = "daily_quran_reminder_work"
 
-    fun scheduleReminders(context: Context) {
+    fun scheduleDailyReminder(context: Context, hour: Int = 20, minute: Int = 0) {
         val workManager = WorkManager.getInstance(context)
 
-        // 1. Friday Kahf Reminder: runs every 24 hours, worker triggers if Friday morning (08:00 AM)
-        val calendar = Calendar.getInstance()
-        val now = calendar.timeInMillis
-        calendar.set(Calendar.HOUR_OF_DAY, 8)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        if (calendar.timeInMillis <= now) {
-            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
         }
-        val initialDelay = calendar.timeInMillis - now
+        val initialDelay = (calendar.timeInMillis - System.currentTimeMillis()).coerceAtLeast(0L)
 
-        val fridayRequest = PeriodicWorkRequestBuilder<FridayKahfReminderWorker>(24, TimeUnit.HOURS)
+        val request = PeriodicWorkRequestBuilder<DailyStreakReminderWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+            .build()
+
+        workManager.enqueueUniquePeriodicWork(
+            DAILY_REMINDER_WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
+    }
+
+    fun cancelDailyReminder(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(DAILY_REMINDER_WORK_NAME)
+    }
+
+    fun scheduleFridayReminder(context: Context, hour: Int = 8, minute: Int = 0) {
+        val workManager = WorkManager.getInstance(context)
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+
+            // Advance to next Friday
+            while (get(Calendar.DAY_OF_WEEK) != Calendar.FRIDAY || timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+        val initialDelay = (calendar.timeInMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+
+        val request = PeriodicWorkRequestBuilder<FridayKahfReminderWorker>(7, TimeUnit.DAYS)
             .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
             .build()
 
         workManager.enqueueUniquePeriodicWork(
             FRIDAY_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
-            fridayRequest
-        )
-
-        // 2. Daily Streak Reminder: runs once every 24 hours at 20:00 (8:00 PM)
-        val dailyCal = Calendar.getInstance()
-        val dailyNow = dailyCal.timeInMillis
-        dailyCal.set(Calendar.HOUR_OF_DAY, 20)
-        dailyCal.set(Calendar.MINUTE, 0)
-        dailyCal.set(Calendar.SECOND, 0)
-        if (dailyCal.timeInMillis <= dailyNow) {
-            dailyCal.add(Calendar.DAY_OF_YEAR, 1)
-        }
-        val dailyDelay = dailyCal.timeInMillis - dailyNow
-
-        val streakRequest = PeriodicWorkRequestBuilder<DailyStreakReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(dailyDelay, TimeUnit.MILLISECONDS)
-            .build()
-
-        workManager.enqueueUniquePeriodicWork(
-            DAILY_STREAK_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            streakRequest
+            request
         )
     }
 
-    fun cancelReminders(context: Context) {
-        val workManager = WorkManager.getInstance(context)
-        workManager.cancelUniqueWork(FRIDAY_WORK_NAME)
-        workManager.cancelUniqueWork(DAILY_STREAK_WORK_NAME)
+    fun cancelFridayReminder(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(FRIDAY_WORK_NAME)
+    }
+
+    fun cancelAllReminders(context: Context) {
+        cancelDailyReminder(context)
+        cancelFridayReminder(context)
     }
 }

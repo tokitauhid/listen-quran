@@ -193,6 +193,9 @@ class AudioPlayerManager @Inject constructor(
             }
 
             override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_ENDED) {
+                    recordSessionDuration(isCompleted = true)
+                }
                 val isBuffering = state == Player.STATE_BUFFERING
                 val rawDuration = controller.duration
                 val duration = if (rawDuration > 0) {
@@ -261,6 +264,11 @@ class AudioPlayerManager @Inject constructor(
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val isCompleted = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+                recordSessionDuration(isCompleted = isCompleted)
+                if (controller.isPlaying) {
+                    sessionStartTime = System.currentTimeMillis()
+                }
                 mediaItem?.let {
                     if (it.mediaId.startsWith("radio:")) {
                         syncFromRadioMediaItem(it)
@@ -1175,16 +1183,28 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
-    private fun recordSessionDuration() {
+    private fun recordSessionDuration(isCompleted: Boolean = false) {
         val start = sessionStartTime
         if (start > 0) {
-            val elapsedSecs = (System.currentTimeMillis() - start) / 1000
+            val now = System.currentTimeMillis()
+            val elapsedSecs = (now - start) / 1000
+            sessionStartTime = 0L // reset immediately to prevent double counting
+
+            if (_playbackState.value.isRadio) {
+                return
+            }
+
             val surah = _playbackState.value.currentSurah?.id ?: return
             val reciter = _playbackState.value.currentReciter?.id ?: return
-            scope.launch {
-                statsRepository.recordSession(surah, reciter, elapsedSecs)
+
+            if (elapsedSecs >= 5) {
+                val durationMs = _playbackState.value.durationMs
+                val posMs = browser?.currentPosition ?: 0L
+                val completed = isCompleted || (durationMs > 0 && posMs >= (durationMs * 0.90).toLong())
+                scope.launch {
+                    statsRepository.recordSession(surah, reciter, elapsedSecs, completed)
+                }
             }
-            sessionStartTime = 0L
         }
     }
 

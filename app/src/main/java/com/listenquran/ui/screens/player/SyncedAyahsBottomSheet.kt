@@ -617,7 +617,7 @@ fun AyahCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "Translation unavailable offline",
+                                text = "Translation unavailable without internet",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.outline
                             )

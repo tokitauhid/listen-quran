@@ -16,3 +16,8 @@
 # Keep Radio and Domain models
 -keep class com.listenquran.domain.model.** { *; }
 
+# Keep Backup models and Moshi adapters
+-keep class com.listenquran.data.backup.** { *; }
+-keep @com.squareup.moshi.JsonClass class * { *; }
+
+

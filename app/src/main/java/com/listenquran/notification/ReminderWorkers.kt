@@ -7,24 +7,41 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.listenquran.MainActivity
 import com.listenquran.R
-import java.util.Calendar
+import com.listenquran.data.local.dao.StatsDao
+import com.listenquran.data.repository.StatsCalculators
+import com.listenquran.data.repository.StatsRepository
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.flow.first
+import java.time.LocalDate
+import java.time.ZoneId
 
 const val REMINDER_CHANNEL_ID = "listen_quran_reminders"
 const val FRIDAY_KAHF_NOTIFICATION_ID = 1001
 const val DAILY_STREAK_NOTIFICATION_ID = 1002
 
-fun createNotificationChannel(context: Context) {
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface ReminderWorkerEntryPoint {
+    fun statsDao(): StatsDao
+    fun statsRepository(): StatsRepository
+}
+
+fun createReminderNotificationChannel(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val channel = NotificationChannel(
             REMINDER_CHANNEL_ID,
             "Quran Reminders",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "Friday Surah Al-Kahf reminders and daily Quran listening streak notifications"
+            description = "Daily Quran listening reminders and Friday Surah Al-Kahf notifications"
         }
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
@@ -37,36 +54,35 @@ class FridayKahfReminderWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        createNotificationChannel(context)
+        createReminderNotificationChannel(context)
 
-        // Verify that today is Friday (Calendar.FRIDAY)
-        val calendar = Calendar.getInstance()
-        if (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.FRIDAY) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
             return Result.success()
         }
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("target_surah", 18) // Al-Kahf
+            action = Intent.ACTION_VIEW
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("PLAY_SURAH_ID", 18) // Surah Al-Kahf
         }
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            FRIDAY_KAHF_NOTIFICATION_ID,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_app_logo)
-            .setContentTitle("Surah Al-Kahf Reminder 📖")
-            .setContentText("Today is blessed Friday! Don't forget to listen to Surah Al-Kahf for light between the two Fridays.")
+            .setContentTitle("Friday Reminder: Surah Al-Kahf")
+            .setContentText("Recite or listen to Surah Al-Kahf today for light between two Fridays.")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("The Prophet (ﷺ) said: 'Whoever reads Surah Al-Kahf on Friday, a light will shine for him between the two Fridays.' Listen now with your favorite reciter.")
+                    .bigText("Recite or listen to Surah Al-Kahf today. The Prophet ﷺ said: 'Whoever reads Surah Al-Kahf on Friday, a light will shine for him between this Friday and the next.'")
             )
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -82,29 +98,58 @@ class DailyStreakReminderWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        createNotificationChannel(context)
+        createReminderNotificationChannel(context)
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return Result.success()
         }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            1,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
 
-        val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_app_logo)
-            .setContentTitle("Keep Your Quran Connection Alive ✨")
-            .setContentText("Take a moment today to listen to and reflect upon the Holy Quran.")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .build()
+        try {
+            val entryPoint = EntryPointAccessors.fromApplication(context, ReminderWorkerEntryPoint::class.java)
+            val statsDao = entryPoint.statsDao()
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(DAILY_STREAK_NOTIFICATION_ID, notification)
+            // 1. Smart Skip: If user already listened today (>= 60s), skip notification
+            val zoneId = ZoneId.systemDefault()
+            val todayStart = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val listenedToday = statsDao.getListeningSecondsSinceDirect(todayStart)
+            if (listenedToday >= 60) {
+                return Result.success()
+            }
+
+            // 2. Check streak to customize message
+            val timestamps = statsDao.getQualifyingTimestamps().first()
+            val streak = StatsCalculators.calculateStreak(timestamps, zoneId)
+
+            val title = if (streak > 1) "Keep your $streak-day streak alive! 📖" else "Daily Quran Reminder"
+            val text = if (streak > 1) {
+                "You're on a $streak-day Quran listening streak. Take a few minutes today to continue."
+            } else {
+                "Take a peaceful pause in your day to listen to the Holy Quran."
+            }
+
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                DAILY_STREAK_NOTIFICATION_ID,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(context, REMINDER_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_app_logo)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.notify(DAILY_STREAK_NOTIFICATION_ID, notification)
+        } catch (_: Exception) {}
 
         return Result.success()
     }

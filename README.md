@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./assets/logo.png" alt="Listen Quran Logo" width="150" height="150" style="border-radius: 28px;" />
   <h1>Listen Quran — استمع للقرآن</h1>
-  <p><em>A modern, native Android offline-first Quran audio streaming and study application inspired by Spotify and Quran Audio.</em></p>
+  <p><em>A modern, native Android Quran audio streaming and study application inspired by Spotify and Quran Audio.</em></p>
 
   <p>
     <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.0.0-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
@@ -9,14 +9,14 @@
     <img src="https://img.shields.io/badge/Kotlin-2.1.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
     <img src="https://img.shields.io/badge/Compose-Material%203-006C4C?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose M3" />
     <img src="https://img.shields.io/badge/Media3-ExoPlayer-00838F?style=for-the-badge&logo=google&logoColor=white" alt="Media3" />
-    <img src="https://img.shields.io/badge/Room-SQLite%20Offline-2E7D32?style=for-the-badge&logo=sqlite&logoColor=white" alt="Room SQLite" />
+    <img src="https://img.shields.io/badge/Room-SQLite%20Local-2E7D32?style=for-the-badge&logo=sqlite&logoColor=white" alt="Room SQLite" />
     <img src="https://img.shields.io/badge/License-MIT-F8BD48?style=for-the-badge&logo=open-source-initiative&logoColor=black" alt="License" />
   </p>
 </div>
 
 ---
 
-**Listen Quran** is a data-dense, offline-first Quran recitation and memorization companion built with Jetpack Compose, Material Design 3, and Jetpack Media3. Designed with 100% on-device data sovereignty, it combines Spotify-style fluid navigation with authentic Arabic calligraphy, continuous live radio streams, gapless audio playback, and a self-healing Khatam progress tracker.
+**Listen Quran** is a data-dense Quran recitation and memorization companion built with Jetpack Compose, Material Design 3, and Jetpack Media3. Designed with complete on-device personal data privacy, it combines Spotify-style fluid navigation with authentic Arabic calligraphy, continuous live radio streams, online recitation streaming, download capabilities, and a self-healing Khatam progress tracker.
 
 ## 📱 App Screenshots
 
@@ -53,11 +53,11 @@
 
 - 📖 **Durable Khatam Tracker** — Single source of truth across all 6,236 Ayahs. Physically isolated SQLite database (`khatam.db`) with append-only event sourcing (`khatam_events`), self-repairing snapshots (`khatam_snapshots`), 30-Juz visual completion grid, and automated background playback tracking (80% duration rule).
 - 📻 **Continuous Quran.com Radio** — Non-stop recitation broadcasts streamed directly from Quran.com / QuranicAudio open CDN with resilient 10-second watchdog auto-reconnect and state protection for your last-played surah.
-- 🎙️ **255+ Verified CDN Reciters** — High-fidelity audio streams and offline downloads from Quran.com across multiple riwayahs (Hafs, Warsh, Qalun, Mujawwad, Murattal).
+- 🎙️ **255+ Verified CDN Reciters** — High-fidelity audio streams from Quran.com across multiple riwayahs (Hafs, Warsh, Qalun, Mujawwad, Murattal), with local caching and download capabilities.
 - 📜 **Lyrics-Style Synchronized Ayahs** — Karaoke-style real-time verse tracking with English translation, word-by-word highlight mode, tap-to-seek, and Amiri Quran Uthmani calligraphy with generous 2.2 line-height spacing.
 - 🔁 **Hifz Repetition Engine** — Flexible memorization loops with custom ayah ranges ($A \to B$), configurable repetitions ($1\times, 3\times, 5\times, \infty$), and custom inter-verse pause intervals.
 - 🔍 **Instant Search & Dense Catalog** — Instant 1-tap `Surah:Ayah` parser (e.g. `2:255` for *Ayatul Kursi*), pre-packaged Room SQLite with standard SQL `LIKE` filtering, quick-assist chips, and browsable dense Surah grid.
-- 🛡️ **Zero Accounts, 100% Privacy** — Complete on-device data sovereignty. Export and import your playlists, bookmarks, and listening stats as clean JSON via Android Storage Access Framework (SAF).
+- 🛡️ **Zero Accounts, Private & Local-First** — All personal data, playlists, bookmarks, and listening stats stay strictly on your device. Export and import as clean JSON via Android Storage Access Framework (SAF).
 
 
 ---
@@ -164,7 +164,7 @@ The GitHub Actions workflow ([`.github/workflows/release.yml`](.github/workflows
 
 - **[Quran.com / Quran Foundation](https://quran.com)** — Open data APIs, chapter metadata, translations, and high-fidelity recitation audio CDN via QuranicAudio.
 - **[Amiri Font Project](https://github.com/aliftype/amiri)** — Authentic Uthmani Quranic Arabic typography designed by Dr. Khaled Hosny and Dr. Nezar Al-Rawi.
-- **[Quran Audio & Batoul Apps](https://github.com/batoulapps)** — Inspiration for clean, offline-first Islamic software engineering.
+- **[Quran Audio & Batoul Apps](https://github.com/batoulapps)** — Inspiration for clean Islamic software engineering.
 
 ---
 
