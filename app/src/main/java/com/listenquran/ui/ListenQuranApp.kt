@@ -84,6 +84,8 @@ fun ListenQuranApp(
     val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
     val defaultReciterId by viewModel.defaultReciterId.collectAsStateWithLifecycle()
+    val sleepTimerState by viewModel.sleepTimerState.collectAsStateWithLifecycle()
+    val customSleepTimerMinutes by viewModel.customSleepTimerMinutes.collectAsStateWithLifecycle()
 
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVersesSheet by remember { mutableStateOf(false) }
@@ -524,43 +526,20 @@ fun ListenQuranApp(
             )
         }
 
-        // Sleep Timer Selection Dialog
+        // Sleep Timer Bottom Sheet
         if (showSleepTimerDialog) {
-            AlertDialog(
-                onDismissRequest = { showSleepTimerDialog = false },
-                title = { Text("Sleep Timer") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(
-                            0 to "Turn off timer",
-                            15 to "15 minutes",
-                            30 to "30 minutes",
-                            45 to "45 minutes",
-                            60 to "1 hour",
-                            120 to "2 hours",
-                            180 to "3 hours"
-                        ).forEach { (mins, label) ->
-                            TextButton(
-                                onClick = {
-                                    viewModel.setSleepTimer(mins)
-                                    showSleepTimerDialog = false
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
+            SleepTimerBottomSheet(
+                sleepTimerState = sleepTimerState,
+                isRadio = playbackState.isRadio,
+                repeatMode = playbackState.repeatMode,
+                customDefaultMinutes = customSleepTimerMinutes,
+                onSelectMode = { mode ->
+                    viewModel.setSleepTimerMode(mode)
                 },
-                confirmButton = {
-                    TextButton(onClick = { showSleepTimerDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
+                onSaveCustomMinutes = { mins ->
+                    viewModel.saveCustomSleepTimerMinutes(mins)
+                },
+                onDismiss = { showSleepTimerDialog = false }
             )
         }
     }

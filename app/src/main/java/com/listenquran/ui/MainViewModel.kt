@@ -123,6 +123,9 @@ class MainViewModel @Inject constructor(
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
     val syncState: StateFlow<com.listenquran.player.PlaybackSyncState> = playerManager.syncState
+    val sleepTimerState: StateFlow<com.listenquran.player.SleepTimerState> = playerManager.sleepTimerState
+    val customSleepTimerMinutes: StateFlow<Int> = userPreferencesRepository.customSleepTimerMinutes
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 20)
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val isCurrentSurahLiked: StateFlow<Boolean> = combine(
@@ -301,6 +304,20 @@ class MainViewModel @Inject constructor(
         playerManager.setSleepTimer(minutes)
     }
 
+    fun setSleepTimerMode(mode: com.listenquran.player.SleepTimerMode) {
+        playerManager.setSleepTimerMode(mode)
+    }
+
+    fun cancelSleepTimer() {
+        playerManager.cancelSleepTimer()
+    }
+
+    fun saveCustomSleepTimerMinutes(minutes: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setCustomSleepTimerMinutes(minutes)
+        }
+    }
+
     fun startHifzLoop(config: HifzLoopConfig) {
         playerManager.startHifzLoop(config)
     }
@@ -411,10 +428,6 @@ class MainViewModel @Inject constructor(
 
     fun moveQueueItem(fromIndex: Int, toIndex: Int) {
         playerManager.moveQueueItem(fromIndex, toIndex)
-    }
-
-    fun setSleepTimerUntilTime(hour: Int, minute: Int) {
-        playerManager.setSleepTimerUntilTime(hour, minute)
     }
 
     fun addToPlaylist(playlistId: Long, surah: Surah) {

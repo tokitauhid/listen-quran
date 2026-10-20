@@ -222,12 +222,16 @@ fun FullPlayerScreen(
                     )
                 }
 
+                val isTimerActive = playbackState.sleepTimerRemainingSeconds != null ||
+                        playbackState.stopAtEndOfSurah ||
+                        playbackState.sleepTimerMode !is com.listenquran.player.SleepTimerMode.Off
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onOpenSleepTimer) {
                         Icon(
-                            imageVector = if (playbackState.sleepTimerRemainingSeconds != null || playbackState.stopAtEndOfSurah) Icons.Filled.Timer else Icons.Outlined.Timer,
+                            imageVector = if (isTimerActive) Icons.Filled.Timer else Icons.Outlined.Timer,
                             contentDescription = "Sleep Timer",
-                            tint = if (playbackState.sleepTimerRemainingSeconds != null || playbackState.stopAtEndOfSurah) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            tint = if (isTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     IconButton(onClick = onOpenActionsMenu) {
@@ -580,11 +584,21 @@ fun FullPlayerScreen(
                             )
                         }
 
-                        if (playbackState.stopAtEndOfSurah) {
+                        if (playbackState.stopAtEndOfSurah || playbackState.sleepTimerMode is com.listenquran.player.SleepTimerMode.EndOfSurah) {
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
                                 onClick = onOpenSleepTimer,
                                 label = { Text("End of Surah") },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        } else if (playbackState.sleepTimerMode is com.listenquran.player.SleepTimerMode.EndOfPlaylist) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            SuggestionChip(
+                                onClick = onOpenSleepTimer,
+                                label = { Text("End of Playlist") },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer

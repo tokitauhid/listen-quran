@@ -47,8 +47,6 @@ fun LibraryScreen(
     onUpdateBookmarkNote: (Long, String) -> Unit,
     onReciterClick: (Reciter) -> Unit,
     onStartHifzLoop: (HifzLoopConfig) -> Unit,
-    onSetSleepTimer: (Int) -> Unit,
-    onSetSleepTimerUntilTime: (Int, Int) -> Unit = { _, _ -> },
     resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
@@ -68,9 +66,6 @@ fun LibraryScreen(
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var newPlaylistDesc by remember { mutableStateOf("") }
-
-    var showSpecificTimeDialog by remember { mutableStateOf(false) }
-    val timePickerState = rememberTimePickerState(initialHour = 23, initialMinute = 30, is24Hour = false)
 
     // Hifz configuration state
     var hifzSurahId by remember { mutableIntStateOf(1) }
@@ -630,56 +625,6 @@ fun LibraryScreen(
                     }
                 }
             }
-
-            // Timed Listening / Sleep Timer Presets
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text("Timed Listening", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (minutes, label) ->
-                                OutlinedButton(
-                                    onClick = { onSetSleepTimer(minutes) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(label)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        FilledTonalButton(
-                            onClick = { showSpecificTimeDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Rounded.Schedule, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Stop at Specific Time (e.g. 11:30 PM / Fajr)")
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -721,43 +666,6 @@ fun LibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Specific Stop Time Dialog (plan.md §1.3: Time Until - Specific Time)
-    if (showSpecificTimeDialog) {
-        AlertDialog(
-            onDismissRequest = { showSpecificTimeDialog = false },
-            title = { Text("Set Specific Stop Time") },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Playback will fade out and pause when the selected time is reached.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    TimePicker(state = timePickerState)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSetSleepTimerUntilTime(timePickerState.hour, timePickerState.minute)
-                        showSpecificTimeDialog = false
-                    }
-                ) {
-                    Text("Set Stop Time")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSpecificTimeDialog = false }) {
                     Text("Cancel")
                 }
             }

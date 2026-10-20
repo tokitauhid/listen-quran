@@ -217,12 +217,6 @@ fun ListenQuranNavHost(
                     onStartHifzLoop = { config ->
                         viewModel.startHifzLoop(config)
                     },
-                    onSetSleepTimer = { minutes ->
-                        viewModel.setSleepTimer(minutes)
-                    },
-                    onSetSleepTimerUntilTime = { hour, minute ->
-                        viewModel.setSleepTimerUntilTime(hour, minute)
-                    },
                     resetTrigger = libraryResetTrigger,
                 )
             }

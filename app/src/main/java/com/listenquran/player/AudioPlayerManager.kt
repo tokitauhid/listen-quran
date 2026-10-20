@@ -9,6 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaBrowser
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.Calendar
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @androidx.compose.runtime.Immutable
@@ -45,6 +47,7 @@ data class PlaybackState(
     val hifzCurrentLoop: Int = 0,
     val sleepTimerRemainingSeconds: Long? = null,
     val stopAtEndOfSurah: Boolean = false,
+    val sleepTimerMode: SleepTimerMode = SleepTimerMode.Off,
     val queue: List<QueueItem> = emptyList(),
     val isShuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
@@ -65,11 +68,15 @@ class AudioPlayerManager @Inject constructor(
     private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
     val queueManager: PlaybackQueueManager,
     val syncTracker: PlaybackSyncTracker,
+    private val exoPlayerProvider: Provider<ExoPlayer>,
 ) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    private val _sleepTimerState = MutableStateFlow(SleepTimerState())
+    val sleepTimerState: StateFlow<SleepTimerState> = _sleepTimerState.asStateFlow()
 
     val syncState: StateFlow<PlaybackSyncState> = syncTracker.syncState
     val queueState: StateFlow<PlaybackQueueState> = queueManager.queueState
@@ -208,6 +215,15 @@ class AudioPlayerManager @Inject constructor(
                     _playbackState.update { it.copy(radioError = null, isBuffering = false) }
                 }
                 if (state == Player.STATE_ENDED) {
+                    if (_sleepTimerState.value.isRunning) {
+                        val mode = _sleepTimerState.value.mode
+                        if (mode is SleepTimerMode.EndOfSurah || mode is SleepTimerMode.EndOfPlaylist) {
+                            syncTracker.flushKhatamProgress()
+                            controller.pause()
+                            cancelSleepTimer()
+                            return
+                        }
+                    }
                     if (_playbackState.value.stopAtEndOfSurah) {
                         _playbackState.update { it.copy(stopAtEndOfSurah = false) }
                         controller.pause()
@@ -222,6 +238,7 @@ class AudioPlayerManager @Inject constructor(
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 queueManager.rebuildQueueState(controller)
+                rearmSleepTimerForNewQueue()
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -234,6 +251,34 @@ class AudioPlayerManager @Inject constructor(
                     }
                 }
                 queueManager.rebuildQueueState(controller)
+
+                if (_sleepTimerState.value.isRunning) {
+                    when (_sleepTimerState.value.mode) {
+                        is SleepTimerMode.EndOfSurah -> {
+                            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                                syncTracker.flushKhatamProgress()
+                                val prevIndex = (controller.currentMediaItemIndex - 1).coerceAtLeast(0)
+                                controller.pause()
+                                if (controller.mediaItemCount > prevIndex) {
+                                    controller.seekTo(prevIndex, 0L)
+                                }
+                                cancelSleepTimer()
+                            }
+                        }
+                        is SleepTimerMode.EndOfPlaylist -> {
+                            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                                syncTracker.flushKhatamProgress()
+                                controller.pause()
+                                cancelSleepTimer()
+                            } else {
+                                if (queueManager.queueState.value.upcomingItems.isEmpty()) {
+                                    setPauseAtEndOfMediaItemsInternal(true)
+                                }
+                            }
+                        }
+                        else -> { /* duration timers handled by countdown job */ }
+                    }
+                }
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -875,36 +920,144 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
-    fun setStopAtEndOfSurah(enable: Boolean) {
-        _playbackState.update {
-            it.copy(
-                stopAtEndOfSurah = enable,
-                sleepTimerRemainingSeconds = null
-            )
-        }
-    }
-
-    fun setSleepTimer(minutes: Int) {
-        sleepTimerJob?.cancel()
-        _playbackState.update { it.copy(stopAtEndOfSurah = false) }
-
-        if (minutes <= 0) {
-            _playbackState.update { it.copy(sleepTimerRemainingSeconds = null) }
+    fun setSleepTimerMode(mode: SleepTimerMode) {
+        if (mode is SleepTimerMode.Off) {
+            cancelSleepTimer()
             return
         }
 
+        // Tapping active option again turns the timer off
+        if (_sleepTimerState.value.isRunning && isSameSleepTimerMode(_sleepTimerState.value.mode, mode)) {
+            cancelSleepTimer()
+            return
+        }
+
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        setPauseAtEndOfMediaItemsInternal(false)
+
+        when (mode) {
+            is SleepTimerMode.Duration -> startDurationTimer(mode, mode.totalMinutes)
+            is SleepTimerMode.Custom -> startDurationTimer(mode, mode.totalMinutes)
+            is SleepTimerMode.EndOfSurah -> startEndOfSurahTimer()
+            is SleepTimerMode.EndOfPlaylist -> startEndOfPlaylistTimer()
+            is SleepTimerMode.Off -> cancelSleepTimer()
+        }
+    }
+
+    private fun isSameSleepTimerMode(current: SleepTimerMode, requested: SleepTimerMode): Boolean {
+        return when {
+            current is SleepTimerMode.Off && requested is SleepTimerMode.Off -> true
+            current is SleepTimerMode.EndOfSurah && requested is SleepTimerMode.EndOfSurah -> true
+            current is SleepTimerMode.EndOfPlaylist && requested is SleepTimerMode.EndOfPlaylist -> true
+            current is SleepTimerMode.Duration && requested is SleepTimerMode.Duration -> current.totalMinutes == requested.totalMinutes
+            current is SleepTimerMode.Custom && requested is SleepTimerMode.Custom -> true
+            else -> false
+        }
+    }
+
+    private fun startDurationTimer(mode: SleepTimerMode, minutes: Int) {
+        if (minutes <= 0) {
+            cancelSleepTimer()
+            return
+        }
         val totalSeconds = minutes * 60L
-        _playbackState.update { it.copy(sleepTimerRemainingSeconds = totalSeconds) }
+        _sleepTimerState.value = SleepTimerState(
+            mode = mode,
+            remainingSeconds = totalSeconds,
+            isRunning = true
+        )
+        _playbackState.update {
+            it.copy(
+                sleepTimerRemainingSeconds = totalSeconds,
+                stopAtEndOfSurah = false,
+                sleepTimerMode = mode
+            )
+        }
 
         sleepTimerJob = scope.launch {
             var remaining = totalSeconds
             while (remaining > 0) {
                 delay(1000L)
                 remaining--
+                _sleepTimerState.update { it.copy(remainingSeconds = remaining) }
                 _playbackState.update { it.copy(sleepTimerRemainingSeconds = remaining) }
             }
             fadeOutAndPause()
-            _playbackState.update { it.copy(sleepTimerRemainingSeconds = null) }
+            _sleepTimerState.value = SleepTimerState(mode = SleepTimerMode.Off, isRunning = false)
+            _playbackState.update {
+                it.copy(
+                    sleepTimerRemainingSeconds = null,
+                    sleepTimerMode = SleepTimerMode.Off
+                )
+            }
+        }
+    }
+
+    private fun startEndOfSurahTimer() {
+        setPauseAtEndOfMediaItemsInternal(true)
+        _sleepTimerState.value = SleepTimerState(
+            mode = SleepTimerMode.EndOfSurah,
+            remainingSeconds = null,
+            isRunning = true
+        )
+        _playbackState.update {
+            it.copy(
+                stopAtEndOfSurah = true,
+                sleepTimerRemainingSeconds = null,
+                sleepTimerMode = SleepTimerMode.EndOfSurah
+            )
+        }
+    }
+
+    private fun startEndOfPlaylistTimer() {
+        if (queueManager.queueState.value.upcomingItems.isEmpty()) {
+            setPauseAtEndOfMediaItemsInternal(true)
+        } else {
+            setPauseAtEndOfMediaItemsInternal(false)
+        }
+        _sleepTimerState.value = SleepTimerState(
+            mode = SleepTimerMode.EndOfPlaylist,
+            remainingSeconds = null,
+            isRunning = true
+        )
+        _playbackState.update {
+            it.copy(
+                stopAtEndOfSurah = false,
+                sleepTimerRemainingSeconds = null,
+                sleepTimerMode = SleepTimerMode.EndOfPlaylist
+            )
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        setPauseAtEndOfMediaItemsInternal(false)
+        withController { it.volume = 1.0f }
+        _sleepTimerState.value = SleepTimerState(mode = SleepTimerMode.Off, isRunning = false)
+        _playbackState.update {
+            it.copy(
+                stopAtEndOfSurah = false,
+                sleepTimerRemainingSeconds = null,
+                sleepTimerMode = SleepTimerMode.Off
+            )
+        }
+    }
+
+    fun setStopAtEndOfSurah(enable: Boolean) {
+        if (enable) {
+            setSleepTimerMode(SleepTimerMode.EndOfSurah)
+        } else {
+            cancelSleepTimer()
+        }
+    }
+
+    fun setSleepTimer(minutes: Int) {
+        if (minutes <= 0) {
+            cancelSleepTimer()
+        } else {
+            setSleepTimerMode(SleepTimerMode.Duration(minutes))
         }
     }
 
@@ -916,24 +1069,36 @@ class AudioPlayerManager @Inject constructor(
             withController { it.volume = vol }
             delay(stepDelayMs)
         }
+        syncTracker.flushKhatamProgress()
         withController {
             it.pause()
             it.volume = 1.0f
         }
     }
 
-    fun setSleepTimerUntilTime(targetHour: Int, targetMinute: Int) {
-        val now = Calendar.getInstance()
-        val target = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, targetHour)
-            set(Calendar.MINUTE, targetMinute)
-            set(Calendar.SECOND, 0)
-            if (before(now)) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
+    private fun setPauseAtEndOfMediaItemsInternal(pause: Boolean) {
+        try {
+            exoPlayerProvider.get().pauseAtEndOfMediaItems = pause
+        } catch (e: Exception) {
+            android.util.Log.w("AudioPlayerManager", "Failed to set pauseAtEndOfMediaItems", e)
         }
-        val diffMinutes = ((target.timeInMillis - now.timeInMillis) / 60000L).toInt().coerceAtLeast(1)
-        setSleepTimer(diffMinutes)
+    }
+
+    private fun rearmSleepTimerForNewQueue() {
+        if (!_sleepTimerState.value.isRunning) return
+        when (_sleepTimerState.value.mode) {
+            is SleepTimerMode.EndOfSurah -> {
+                setPauseAtEndOfMediaItemsInternal(true)
+            }
+            is SleepTimerMode.EndOfPlaylist -> {
+                if (queueManager.queueState.value.upcomingItems.isEmpty()) {
+                    setPauseAtEndOfMediaItemsInternal(true)
+                } else {
+                    setPauseAtEndOfMediaItemsInternal(false)
+                }
+            }
+            else -> { /* duration timers continue running */ }
+        }
     }
 
     private fun startProgressTracker() {

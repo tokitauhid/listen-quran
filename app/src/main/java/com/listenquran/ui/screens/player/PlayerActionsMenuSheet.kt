@@ -157,13 +157,25 @@ fun PlayerActionsMenuSheet(
                 )
             }
 
-            ActionItem(
-                icon = Icons.Default.Timer,
-                title = "Sleep Timer",
-                subtitle = if (playbackState.sleepTimerRemainingSeconds != null) {
+            val timerSubtitle = when {
+                playbackState.stopAtEndOfSurah -> "Stopping at end of surah"
+                playbackState.sleepTimerMode is com.listenquran.player.SleepTimerMode.EndOfPlaylist -> "Stopping at end of playlist"
+                playbackState.sleepTimerRemainingSeconds != null -> {
                     val m = playbackState.sleepTimerRemainingSeconds / 60
-                    "Stopping in $m minutes"
-                } else "Turn off audio after preset or specific time",
+                    val s = playbackState.sleepTimerRemainingSeconds % 60
+                    "Stopping in ${m}m ${s}s"
+                }
+                else -> "Set a timer to pause playback"
+            }
+
+            val isTimerActive = playbackState.sleepTimerRemainingSeconds != null ||
+                    playbackState.stopAtEndOfSurah ||
+                    playbackState.sleepTimerMode !is com.listenquran.player.SleepTimerMode.Off
+
+            ActionItem(
+                icon = if (isTimerActive) Icons.Filled.Timer else Icons.Default.Timer,
+                title = "Sleep Timer",
+                subtitle = timerSubtitle,
                 onClick = {
                     onDismiss()
                     onOpenSleepTimer()

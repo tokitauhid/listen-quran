@@ -308,6 +308,14 @@ class PlaybackSyncTracker internal constructor(
         trackedAyahRecorded = false
     }
 
+    fun flushKhatamProgress() {
+        val timings = sortedTimings
+        val pos = _currentPositionMs.value
+        if (timings.isNotEmpty() && pos >= 0L) {
+            checkKhatamTracking(pos, timings)
+        }
+    }
+
     fun stopTracking() {
         pollJob?.cancel()
         pollJob = null

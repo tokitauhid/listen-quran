@@ -31,6 +31,7 @@ class UserPreferencesRepository @Inject constructor(
         val HIFZ_DELAY_SECONDS = intPreferencesKey("hifz_delay_seconds")
         val WORD_BY_WORD_ENABLED = booleanPreferencesKey("word_by_word_enabled")
         val TRANSLATION_ENABLED = booleanPreferencesKey("translation_enabled")
+        val CUSTOM_SLEEP_TIMER_MINUTES = intPreferencesKey("custom_sleep_timer_minutes")
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data
@@ -88,6 +89,10 @@ class UserPreferencesRepository @Inject constructor(
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { preferences -> preferences[PreferencesKeys.TRANSLATION_ENABLED] ?: false }
 
+    val customSleepTimerMinutes: Flow<Int> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { preferences -> preferences[PreferencesKeys.CUSTOM_SLEEP_TIMER_MINUTES] ?: 20 }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.THEME_MODE] = mode.name
@@ -140,6 +145,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setTranslationEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.TRANSLATION_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setCustomSleepTimerMinutes(minutes: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CUSTOM_SLEEP_TIMER_MINUTES] = minutes
         }
     }
 }
