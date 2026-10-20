@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,13 +26,22 @@ import androidx.compose.material.icons.automirrored.rounded.CompareArrows
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Spellcheck
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -79,13 +89,46 @@ fun SyncedAyahsBottomSheet(
         (translationState as? TranslationState.Success)?.translations ?: emptyMap()
     }
 
-    // Auto-scroll to active Ayah (only if sync is available and user is not manually scrolling)
+    // Auto-scroll state & geometry
     val activeAyahIndex = remember(playbackState.currentAyahNumber, verses) {
         verses.indexOfFirst { it.ayahNumber == playbackState.currentAyahNumber }
     }
-    LaunchedEffect(playbackState.currentAyahNumber, verses.size, playbackState.isSyncAvailable) {
-        if (playbackState.isSyncAvailable && activeAyahIndex >= 0 && !listState.isScrollInProgress) {
-            listState.animateScrollToItem((activeAyahIndex - 1).coerceAtLeast(0))
+
+    val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
+    var lazyListCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val density = LocalDensity.current
+
+    // Single deterministic auto-scroll controller
+    val scroller = remember(listState) {
+        ReaderAutoScroller(listState, coroutineScope)
+    }
+    DisposableEffect(scroller) {
+        onDispose {
+            scroller.dispose()
+        }
+    }
+    val isAutoFollowPaused by scroller.isAutoFollowPaused.collectAsState()
+
+    // Keep live viewport coordinates and insets updated in scroller
+    scroller.lazyListCoordinates = lazyListCoordinates
+    scroller.viewportHeight = lazyListCoordinates?.size?.height?.toFloat() ?: 0f
+    scroller.bottomPaddingPx = with(density) { (32.dp + bottomInset).toPx() }
+
+    // User drag pauses auto-follow; 3s idle resumes
+    LaunchedEffect(isUserDragging) {
+        scroller.onUserDrag(isUserDragging)
+    }
+
+    // Single playback target stream: submitted whenever active verse or active word changes
+    LaunchedEffect(playbackState.currentAyahNumber, currentWordIndex, playbackState.isSyncAvailable) {
+        if (playbackState.isSyncAvailable && activeAyahIndex >= 0) {
+            scroller.submitTarget(
+                ScrollTarget(
+                    verseIndex = activeAyahIndex,
+                    wordIndex = currentWordIndex,
+                    reason = ScrollReason.PLAYBACK
+                )
+            )
         }
     }
 
@@ -219,48 +262,107 @@ fun SyncedAyahsBottomSheet(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(bottom = 32.dp + bottomInset)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) {
-                    items(
-                        items = verses,
-                        key = { it.id },
-                        contentType = { "ayah_card" }
-                    ) { ayah ->
-                        val isActive = playbackState.isSyncAvailable && ayah.ayahNumber == playbackState.currentAyahNumber
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onGloballyPositioned { lazyListCoordinates = it },
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 32.dp + bottomInset)
+                    ) {
+                        items(
+                            items = verses,
+                            key = { it.id },
+                            contentType = { "ayah_card" }
+                        ) { ayah ->
+                            val isActive = playbackState.isSyncAvailable && ayah.ayahNumber == playbackState.currentAyahNumber
 
-                        AyahCard(
-                            ayah = ayah,
-                            isActive = isActive,
-                            isWordByWord = isWordByWordEnabled,
-                            isTranslationEnabled = isTranslationEnabled,
-                            translationText = translationMap[ayah.ayahNumber],
-                            translationState = translationState,
-                            onRetryTranslation = onRetryTranslation,
-                            currentWordIndex = if (isActive) currentWordIndex else 0,
-                            onCardClick = { onSeekToAyah(ayah.ayahNumber) },
-                            onCompareClick = { comparingAyah = ayah },
-                            onBookmarkClick = {
-                                selectedAyahForNote = ayah
-                                noteText = ""
-                            },
-                            onShareImageClick = { onShareAsImage(ayah) },
-                            onCopyClick = {
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val copyTranslation = if (isTranslationEnabled) (translationMap[ayah.ayahNumber] ?: ayah.translation) else ""
-                                val clipText = if (copyTranslation.isNotBlank()) {
-                                    "${ayah.textUthmani}\n\n\"$copyTranslation\" [Surah ${ayah.verseKey}]"
-                                } else {
-                                    "${ayah.textUthmani} [Surah ${ayah.verseKey}]"
+                            AyahCard(
+                                ayah = ayah,
+                                isActive = isActive,
+                                isWordByWord = isWordByWordEnabled,
+                                isTranslationEnabled = isTranslationEnabled,
+                                translationText = translationMap[ayah.ayahNumber],
+                                translationState = translationState,
+                                onRetryTranslation = onRetryTranslation,
+                                currentWordIndex = if (isActive) currentWordIndex else 0,
+                                onActiveWordPositioned = if (isActive) {
+                                    { wordCoords ->
+                                        scroller.onActiveWordPositioned(activeAyahIndex, currentWordIndex, wordCoords)
+                                    }
+                                } else null,
+                                onCardClick = {
+                                    val targetIndex = verses.indexOfFirst { it.ayahNumber == ayah.ayahNumber }
+                                    if (targetIndex >= 0) {
+                                        scroller.submitTarget(
+                                            ScrollTarget(
+                                                verseIndex = targetIndex,
+                                                wordIndex = 1,
+                                                reason = ScrollReason.TAP
+                                            )
+                                        )
+                                    }
+                                    onSeekToAyah(ayah.ayahNumber)
+                                },
+                                onCompareClick = { comparingAyah = ayah },
+                                onBookmarkClick = {
+                                    selectedAyahForNote = ayah
+                                    noteText = ""
+                                },
+                                onShareImageClick = { onShareAsImage(ayah) },
+                                onCopyClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val copyTranslation = if (isTranslationEnabled) (translationMap[ayah.ayahNumber] ?: ayah.translation) else ""
+                                    val clipText = if (copyTranslation.isNotBlank()) {
+                                        "${ayah.textUthmani}\n\n\"$copyTranslation\" [Surah ${ayah.verseKey}]"
+                                    } else {
+                                        "${ayah.textUthmani} [Surah ${ayah.verseKey}]"
+                                    }
+                                    val clip = ClipData.newPlainText("Ayah ${ayah.verseKey}", clipText)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Copied Ayah ${ayah.verseKey}", Toast.LENGTH_SHORT).show()
                                 }
-                                val clip = ClipData.newPlainText("Ayah ${ayah.verseKey}", clipText)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Copied Ayah ${ayah.verseKey}", Toast.LENGTH_SHORT).show()
+                            )
+                        }
+                    }
+
+                    // Floating Follow Recitation Chip
+                    if (isAutoFollowPaused && playbackState.isSyncAvailable) {
+                        Surface(
+                            onClick = {
+                                scroller.resumeFollow(reason = ScrollReason.JUMP)
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            shadowElevation = 6.dp,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp + bottomInset)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Navigation,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Follow recitation",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -335,6 +437,7 @@ fun AyahCard(
     translationState: TranslationState,
     onRetryTranslation: () -> Unit,
     currentWordIndex: Int,
+    onActiveWordPositioned: ((LayoutCoordinates) -> Unit)? = null,
     onCardClick: () -> Unit,
     onCompareClick: () -> Unit,
     onBookmarkClick: () -> Unit,
@@ -438,9 +541,18 @@ fun AyahCard(
                 ) {
                     ayah.words.forEach { word ->
                         val isSpokenWord = isActive && word.position == currentWordIndex
+                        val wordModifier = if (isSpokenWord && onActiveWordPositioned != null) {
+                            Modifier.onGloballyPositioned { coords ->
+                                onActiveWordPositioned(coords)
+                            }
+                        } else {
+                            Modifier
+                        }
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(wordModifier)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(
                                     if (isSpokenWord) MaterialTheme.colorScheme.primaryContainer

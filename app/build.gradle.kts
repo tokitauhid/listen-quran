@@ -45,6 +45,10 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     sourceSets {
         getByName("androidTest").assets.srcDirs("$projectDir/schemas")
         getByName("test").assets.srcDirs("$projectDir/schemas")
@@ -128,6 +132,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation(libs.androidx.room.testing)
     testImplementation("org.json:json:20240303")
     androidTestImplementation(libs.androidx.junit)
