@@ -10,6 +10,9 @@
 
 # Keep Room entities
 -keep class com.listenquran.data.local.** { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao interface * { *; }
 
 # Keep Radio and Domain models
 -keep class com.listenquran.domain.model.** { *; }
+

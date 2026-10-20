@@ -64,6 +64,7 @@ fun FullPlayerScreen(
     onStopRadio: (() -> Unit)? = null,
     onResumeSurah: (() -> Unit)? = null,
     onRetryRadio: (() -> Unit)? = null,
+    onStopHifz: (() -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -572,11 +573,26 @@ fun FullPlayerScreen(
                             )
                         }
 
-                        if (playbackState.isHifzActive) {
+                        if (playbackState.isHifzActive && playbackState.hifzConfig != null) {
+                            val hifzConfig = playbackState.hifzConfig!!
+                            val repeatTotal = if (hifzConfig.repeatCount == 0) "∞" else "${hifzConfig.repeatCount}"
+                            val rangeStr = if (hifzConfig.startAyah == hifzConfig.endAyah) {
+                                "${hifzConfig.surahNumber}:${hifzConfig.startAyah}"
+                            } else {
+                                "${hifzConfig.surahNumber}:${hifzConfig.startAyah}–${hifzConfig.endAyah}"
+                            }
+                            val hifzText = "Repeating $rangeStr · ${playbackState.hifzCurrentLoop} of $repeatTotal"
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
-                                onClick = {},
-                                label = { Text("Hifz #${playbackState.hifzCurrentLoop}") },
+                                onClick = { onStopHifz?.invoke() },
+                                label = { Text(hifzText) },
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Stop Repetition",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onTertiaryContainer

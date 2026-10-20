@@ -73,6 +73,7 @@ fun ListenQuranApp(
     val reciters by viewModel.reciters.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val bookmarks by viewModel.bookmarks.collectAsStateWithLifecycle()
+    val likedSurahs by viewModel.likedSurahs.collectAsStateWithLifecycle()
     val khatmaProgress by viewModel.khatmaProgress.collectAsStateWithLifecycle()
     val statsSummary by viewModel.statsSummary.collectAsStateWithLifecycle()
     val recentSurahs by viewModel.recentSurahs.collectAsStateWithLifecycle()
@@ -103,6 +104,7 @@ fun ListenQuranApp(
 
     var backPressedOnce by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val hasAnyOverlayOpen = showFullPlayer ||
             selectedPlaylistForDetail != null ||
@@ -172,6 +174,7 @@ fun ListenQuranApp(
     ListenQuranTheme(themeMode = themeMode) {
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
             Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
                 bottomBar = {
                     Column(
                         modifier = Modifier
@@ -194,6 +197,7 @@ fun ListenQuranApp(
                                 onToggleLike = { viewModel.toggleLikeCurrentSurah() },
                                 onOpenFullPlayer = { showFullPlayer = true },
                                 onStopRadio = { viewModel.stopRadio() },
+                                onStopHifz = { viewModel.stopHifzLoop() },
                                 sharedTransitionScope = this@SharedTransitionLayout,
                                 animatedVisibilityScope = this@AnimatedVisibility,
                             )
@@ -234,6 +238,12 @@ fun ListenQuranApp(
                                                 libraryResetTrigger++
                                             }
 
+                                            if (selectedPlaylistForDetail != null) {
+                                                selectedPlaylistForDetail = null
+                                            }
+                                            if (selectedReciterForProfile != null) {
+                                                selectedReciterForProfile = null
+                                            }
                                             navController.navigateToTab(destination) {
                                                 if (destination == TopLevelDestination.HOME) {
                                                     homeResetTrigger++
@@ -289,6 +299,7 @@ fun ListenQuranApp(
                             reciters = reciters,
                             playlists = playlists,
                             bookmarks = bookmarks,
+                            likedSurahs = likedSurahs,
                             khatmaProgress = khatmaProgress,
                             statsSummary = statsSummary,
                             recentSurahs = recentSurahs,
@@ -385,6 +396,7 @@ fun ListenQuranApp(
                     onRetryRadio = {
                         playbackState.currentRadioStation?.let { viewModel.playRadio(it) }
                     },
+                    onStopHifz = { viewModel.stopHifzLoop() },
                     sharedTransitionScope = this@SharedTransitionLayout,
                     animatedVisibilityScope = this@AnimatedVisibility,
                 )
@@ -441,10 +453,48 @@ fun ListenQuranApp(
 
         // Player Actions Menu Bottom Sheet
         if (showActionsMenuSheet) {
+            val currentAyahBookmarked = bookmarks.any {
+                it.surahNumber == playbackState.currentSurah?.id && it.ayahNumber == playbackState.currentAyahNumber
+            }
             PlayerActionsMenuSheet(
                 playbackState = playbackState,
                 isLiked = isCurrentSurahLiked,
                 onToggleLike = { viewModel.toggleLikeCurrentSurah() },
+                isAyahBookmarked = currentAyahBookmarked,
+                onToggleBookmarkAyah = {
+                    val surah = playbackState.currentSurah
+                    val ayahNum = playbackState.currentAyahNumber
+                    if (surah != null) {
+                        val existing = bookmarks.find { it.surahNumber == surah.id && it.ayahNumber == ayahNum }
+                        if (existing != null) {
+                            viewModel.deleteBookmark(existing)
+                            coroutineScope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = "Removed bookmark ${surah.nameSimple} $ayahNum",
+                                    actionLabel = "Undo",
+                                    duration = SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    viewModel.restoreBookmark(existing)
+                                }
+                            }
+                        } else {
+                            coroutineScope.launch {
+                                val saved = viewModel.bookmarkCurrentAyah()
+                                if (saved != null) {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Bookmarked ${surah.nameSimple} $ayahNum",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.deleteBookmark(surah.id, ayahNum)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 onDismiss = { showActionsMenuSheet = false },
                 onPlayNextInQueue = {
                     playbackState.currentSurah?.let { viewModel.playNextInQueue(it) }

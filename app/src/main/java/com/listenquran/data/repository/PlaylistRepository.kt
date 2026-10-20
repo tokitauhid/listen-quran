@@ -57,6 +57,17 @@ class PlaylistRepository @Inject constructor(
         }
     }
 
+    suspend fun getPlaylistById(playlistId: Long): Playlist? {
+        val entity = playlistDao.getPlaylistById(playlistId) ?: return null
+        return Playlist(
+            id = entity.id,
+            name = entity.name,
+            description = entity.description,
+            isLikedCollection = entity.isLikedCollection,
+            createdAt = entity.createdAt,
+        )
+    }
+
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
         return playlistDao.getPlaylistItems(playlistId).map { list ->
             list.map { item ->
@@ -86,6 +97,13 @@ class PlaylistRepository @Inject constructor(
         val entity = playlistDao.getPlaylistById(playlistId)
         if (entity != null && !entity.isLikedCollection) {
             playlistDao.deletePlaylist(entity)
+        }
+    }
+
+    suspend fun renamePlaylist(playlistId: Long, newName: String) {
+        val entity = playlistDao.getPlaylistById(playlistId)
+        if (entity != null && !entity.isLikedCollection && newName.isNotBlank()) {
+            playlistDao.updatePlaylistName(playlistId, newName.trim())
         }
     }
 

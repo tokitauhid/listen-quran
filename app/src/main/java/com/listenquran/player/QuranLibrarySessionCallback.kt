@@ -41,6 +41,7 @@ class QuranLibrarySessionCallback @Inject constructor(
     private val statsRepository: StatsRepository,
     private val playlistRepository: PlaylistRepository,
     private val khatmaRepository: KhatmaRepository,
+    private val likedRepository: com.listenquran.data.repository.LikedRepository,
 ) : MediaLibrarySession.Callback {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -132,18 +133,30 @@ class QuranLibrarySessionCallback @Inject constructor(
                     }
                     parentId == PLAYLISTS_ID -> {
                         val playlists = playlistRepository.getAllPlaylists().first()
+                        val likedCount = likedRepository.getCount()
                         playlists.map { playlist ->
+                            val countStr = if (playlist.isLikedCollection) {
+                                "$likedCount Recitations"
+                            } else {
+                                val count = playlistRepository.getPlaylistItems(playlist.id).first().size
+                                "$count Recitations"
+                            }
                             buildFolderItem(
                                 "root/playlists/${playlist.id}",
                                 playlist.name,
-                                "${playlist.items.size} Recitations",
+                                countStr,
                                 MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS
                             )
                         }
                     }
                     parentId.startsWith("root/playlists/") -> {
                         val playlistId = parentId.removePrefix("root/playlists/").toLongOrNull() ?: 0L
-                        val playlistItems = playlistRepository.getPlaylistItems(playlistId).first()
+                        val isLiked = playlistRepository.getPlaylistById(playlistId)?.isLikedCollection == true
+                        val playlistItems = if (isLiked) {
+                            likedRepository.getAllLiked().first().map { it.toPlaylistItem(playlistId) }
+                        } else {
+                            playlistRepository.getPlaylistItems(playlistId).first()
+                        }
                         playlistItems.map { item -> buildPlaylistItemMediaItem(item) }
                     }
                     parentId == RECENT_ID -> {

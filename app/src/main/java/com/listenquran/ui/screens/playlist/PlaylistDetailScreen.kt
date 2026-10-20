@@ -13,10 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,7 +32,7 @@ import com.listenquran.domain.model.Playlist
 import com.listenquran.domain.model.PlaylistItem
 import com.listenquran.ui.theme.AmiriQuranFont
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyColumnState
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +49,7 @@ fun PlaylistDetailScreen(
 ) {
     var localItems by remember(items) { mutableStateOf(items) }
     val listState = rememberLazyListState()
-    val reorderableLazyColumnState = rememberReorderableLazyColumnState(lazyListState = listState) { from, to ->
+    val reorderableLazyColumnState = rememberReorderableLazyListState(lazyListState = listState) { from, to ->
         val fromIdx = from.index - 1
         val toIdx = to.index - 1
         if (fromIdx in localItems.indices && toIdx in localItems.indices) {
@@ -119,7 +120,7 @@ fun PlaylistDetailScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.QueueMusic,
+                            imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.AutoMirrored.Rounded.QueueMusic,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(54.dp)
@@ -139,8 +140,13 @@ fun PlaylistDetailScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        val trackCountText = if (playlist.isLikedCollection) {
+                            "${localItems.size} ${if (localItems.size == 1) "Recitation" else "Recitations"}"
+                        } else {
+                            "${localItems.size} Tracks"
+                        }
                         Text(
-                            text = "${localItems.size} Tracks",
+                            text = trackCountText,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -168,8 +174,13 @@ fun PlaylistDetailScreen(
                             .padding(top = 32.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        val emptyText = if (playlist.isLikedCollection) {
+                            "No liked recitations yet. Tap the heart icon while listening to save recitations here."
+                        } else {
+                            "This playlist is empty. Add surahs from the player menu or surah list."
+                        }
                         Text(
-                            text = "This playlist is empty. Add surahs from the player menu or surah list.",
+                            text = emptyText,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center

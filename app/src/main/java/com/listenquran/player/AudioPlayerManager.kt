@@ -215,6 +215,25 @@ class AudioPlayerManager @Inject constructor(
                     _playbackState.update { it.copy(radioError = null, isBuffering = false) }
                 }
                 if (state == Player.STATE_ENDED) {
+                    val playback = _playbackState.value
+                    if (playback.isHifzActive && playback.hifzConfig != null) {
+                        val config = playback.hifzConfig
+                        val currentLoop = playback.hifzCurrentLoop
+                        if (config.repeatCount == 0 || currentLoop < config.repeatCount) {
+                            scope.launch {
+                                withController { it.pause() }
+                                if (config.delaySeconds > 0) {
+                                    delay(config.delaySeconds * 1000L)
+                                }
+                                _playbackState.update { it.copy(hifzCurrentLoop = currentLoop + 1) }
+                                seekToAyah(config.startAyah)
+                                withController { it.play() }
+                            }
+                            return
+                        } else {
+                            stopHifzLoop()
+                        }
+                    }
                     if (_sleepTimerState.value.isRunning) {
                         val mode = _sleepTimerState.value.mode
                         if (mode is SleepTimerMode.EndOfSurah || mode is SleepTimerMode.EndOfPlaylist) {

@@ -92,6 +92,7 @@ private val TahajjudMixGradient = Brush.verticalGradient(listOf(Color(0xFF004D40
 fun HomeScreen(
     surahs: List<Surah>,
     playlists: List<Playlist>,
+    likedSurahs: List<LikedSurah> = emptyList(),
     khatmaProgress: KhatmaProgress,
     recentSurahs: List<Surah> = emptyList(),
     reciters: List<Reciter> = emptyList(),
@@ -685,6 +686,16 @@ fun HomeScreen(
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
+                                            )
+                                            val countText = if (playlist.isLikedCollection) {
+                                                "${likedSurahs.size} ${if (likedSurahs.size == 1) "recitation" else "recitations"}"
+                                            } else {
+                                                "${playlist.items.size} tracks"
+                                            }
+                                            Text(
+                                                text = countText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }

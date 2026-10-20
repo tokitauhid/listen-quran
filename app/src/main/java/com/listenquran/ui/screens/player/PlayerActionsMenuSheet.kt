@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
@@ -17,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.listenquran.player.PlaybackState
 
@@ -26,6 +30,8 @@ fun PlayerActionsMenuSheet(
     playbackState: PlaybackState,
     isLiked: Boolean = false,
     onToggleLike: (() -> Unit)? = null,
+    isAyahBookmarked: Boolean = false,
+    onToggleBookmarkAyah: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onShareSurah: () -> Unit,
     onAddToPlaylist: () -> Unit,
@@ -101,6 +107,31 @@ fun PlayerActionsMenuSheet(
                     onClick = {
                         onDismiss()
                         onToggleLike()
+                    }
+                )
+            }
+
+            // Bookmark Ayah action (hidden for Radio; disabled if reciter has no verse sync)
+            if (!playbackState.isRadio && surah != null && onToggleBookmarkAyah != null) {
+                val syncAvailable = playbackState.isSyncAvailable
+                val currentAyah = playbackState.currentAyahNumber
+                ActionItem(
+                    icon = if (isAyahBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                    title = if (isAyahBookmarked) "Remove Bookmark" else "Bookmark Ayah",
+                    subtitle = if (!syncAvailable) {
+                        "Sync unavailable for this reciter"
+                    } else {
+                        "Ayah ${surah.nameSimple} $currentAyah (${surah.id}:$currentAyah)"
+                    },
+                    enabled = syncAvailable,
+                    onClick = {
+                        onDismiss()
+                        onToggleBookmarkAyah()
+                    },
+                    accessibilityText = if (isAyahBookmarked) {
+                        "Remove bookmark for Surah ${surah.nameSimple} Ayah $currentAyah"
+                    } else {
+                        "Bookmark Surah ${surah.nameSimple} Ayah $currentAyah"
                     }
                 )
             }
@@ -190,12 +221,20 @@ private fun ActionItem(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    enabled: Boolean = true,
+    accessibilityText: String? = null,
     onClick: () -> Unit,
 ) {
+    val alpha = if (enabled) 1f else 0.38f
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .then(
+                if (accessibilityText != null) {
+                    Modifier.semantics { contentDescription = accessibilityText }
+                } else Modifier
+            )
+            .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = androidx.compose.ui.graphics.Color.Transparent
     ) {
@@ -209,19 +248,19 @@ private fun ActionItem(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
                 modifier = Modifier.size(24.dp)
             )
             Column {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                 )
             }
         }

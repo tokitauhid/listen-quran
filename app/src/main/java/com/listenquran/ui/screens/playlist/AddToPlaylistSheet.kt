@@ -6,9 +6,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -106,7 +106,7 @@ fun AddToPlaylistSheet(
                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Icon(
-                                imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.Rounded.QueueMusic,
+                                imageVector = if (playlist.isLikedCollection) Icons.Filled.Favorite else Icons.AutoMirrored.Rounded.QueueMusic,
                                 contentDescription = null,
                                 tint = if (playlist.isLikedCollection) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -118,7 +118,7 @@ fun AddToPlaylistSheet(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (playlist.isLikedCollection) "Pinned collection" else "${playlist.items.size} tracks",
+                                    text = if (playlist.isLikedCollection) "Liked collection" else "${playlist.items.size} tracks",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

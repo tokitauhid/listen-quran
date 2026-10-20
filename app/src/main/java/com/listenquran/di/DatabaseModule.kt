@@ -52,6 +52,54 @@ object DatabaseModule {
         }
     }
 
+    val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `repetition_presets` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `surahNumber` INTEGER NOT NULL,
+                    `startAyah` INTEGER NOT NULL,
+                    `endAyah` INTEGER NOT NULL,
+                    `repeatCount` INTEGER NOT NULL,
+                    `delaySeconds` INTEGER NOT NULL,
+                    `label` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_bookmarks_surahNumber_ayahNumber` ON `bookmarks` (`surahNumber`, `ayahNumber`)")
+        }
+    }
+
+    val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `liked_surahs` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `surahNumber` INTEGER NOT NULL,
+                    `surahName` TEXT NOT NULL,
+                    `surahArabic` TEXT NOT NULL,
+                    `reciterId` INTEGER NOT NULL,
+                    `reciterName` TEXT NOT NULL,
+                    `likedAt` INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_liked_surahs_surahNumber_reciterId` ON `liked_surahs` (`surahNumber`, `reciterId`)")
+            // Migrate and merge existing likes from playlist_items
+            db.execSQL("""
+                INSERT OR IGNORE INTO `liked_surahs` (`surahNumber`, `surahName`, `surahArabic`, `reciterId`, `reciterName`, `likedAt`)
+                SELECT pi.`surahNumber`, pi.`surahName`, pi.`surahArabic`, pi.`reciterId`, pi.`reciterName`, p.`createdAt`
+                FROM `playlist_items` pi
+                INNER JOIN `playlists` p ON pi.`playlistId` = p.`id`
+                WHERE p.`isLikedCollection` = 1
+                ORDER BY pi.`id` ASC
+            """.trimIndent())
+            val cursor = db.query("SELECT COUNT(*) FROM `liked_surahs`")
+            val count = if (cursor.moveToFirst()) cursor.getInt(0) else 0
+            cursor.close()
+            android.util.Log.i("DatabaseModule", "MIGRATION_5_6: Successfully merged $count items into liked_surahs table")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ListenQuranDatabase {
@@ -60,7 +108,7 @@ object DatabaseModule {
             ListenQuranDatabase::class.java,
             "listen_quran_db"
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .build()
     }
 
@@ -87,6 +135,12 @@ object DatabaseModule {
 
     @Provides
     fun provideTranslationDao(db: ListenQuranDatabase): TranslationDao = db.translationDao()
+
+    @Provides
+    fun provideRepetitionPresetDao(db: ListenQuranDatabase): RepetitionPresetDao = db.repetitionPresetDao()
+
+    @Provides
+    fun provideLikedDao(db: ListenQuranDatabase): LikedDao = db.likedDao()
 
     @Provides
     @Singleton

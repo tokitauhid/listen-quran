@@ -136,3 +136,30 @@ data class TranslationEntity(
     val text: String,
 )
 
+@Entity(tableName = "repetition_presets")
+data class RepetitionPresetEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val surahNumber: Int,
+    val startAyah: Int,
+    val endAyah: Int,
+    val repeatCount: Int, // 1..100, or 0 for continuous (infinite)
+    val delaySeconds: Int = 3,
+    val label: String = "",
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+@Entity(
+    tableName = "liked_surahs",
+    indices = [Index(value = ["surahNumber", "reciterId"], unique = true)]
+)
+data class LikedSurahEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val surahNumber: Int,
+    val surahName: String,
+    val surahArabic: String,
+    val reciterId: Int,
+    val reciterName: String,
+    val likedAt: Long = System.currentTimeMillis(),
+)
+
+

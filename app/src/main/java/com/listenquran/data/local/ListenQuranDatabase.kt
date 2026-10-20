@@ -16,8 +16,10 @@ import com.listenquran.data.local.entity.*
         ListeningStatEntity::class,
         DownloadedSurahEntity::class,
         TranslationEntity::class,
+        RepetitionPresetEntity::class,
+        LikedSurahEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class ListenQuranDatabase : RoomDatabase() {
@@ -29,4 +31,6 @@ abstract class ListenQuranDatabase : RoomDatabase() {
     abstract fun statsDao(): StatsDao
     abstract fun downloadDao(): DownloadDao
     abstract fun translationDao(): TranslationDao
+    abstract fun repetitionPresetDao(): RepetitionPresetDao
+    abstract fun likedDao(): LikedDao
 }

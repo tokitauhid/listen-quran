@@ -39,6 +39,7 @@ fun MiniPlayer(
     onToggleLike: () -> Unit,
     onOpenFullPlayer: () -> Unit,
     onStopRadio: (() -> Unit)? = null,
+    onStopHifz: (() -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -49,9 +50,21 @@ fun MiniPlayer(
 
     if (!isRadio && surah == null) return
 
+    val isHifz = playbackState.isHifzActive && playbackState.hifzConfig != null
+    val hifzConfig = playbackState.hifzConfig
+    val repeatTotal = if (hifzConfig?.repeatCount == 0) "∞" else "${hifzConfig?.repeatCount ?: 0}"
+    val rangeStr = if (hifzConfig != null && hifzConfig.startAyah == hifzConfig.endAyah) {
+        "${hifzConfig.surahNumber}:${hifzConfig.startAyah}"
+    } else if (hifzConfig != null) {
+        "${hifzConfig.surahNumber}:${hifzConfig.startAyah}–${hifzConfig.endAyah}"
+    } else ""
+    val hifzStatus = "Repeating $rangeStr · ${playbackState.hifzCurrentLoop} of $repeatTotal"
+
     val title = if (isRadio) station?.name ?: surah?.nameSimple ?: "Quran Radio" else surah?.nameSimple ?: ""
     val reciter = playbackState.currentReciter?.englishName ?: ""
-    val subtitle = if (isRadio) {
+    val subtitle = if (isHifz) {
+        hifzStatus
+    } else if (isRadio) {
         "Radio · ${station?.name ?: "Quran.com"}"
     } else if (playbackState.isSyncAvailable) {
         "$reciter • Ayah ${playbackState.currentAyahNumber}"
@@ -186,6 +199,21 @@ fun MiniPlayer(
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
+                        } else if (isHifz) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.padding(end = 6.dp)
+                            ) {
+                                Text(
+                                    text = "REPEAT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiary,
+                                    fontSize = 9.sp,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
                         }
                         Text(
                             text = title,
@@ -206,7 +234,7 @@ fun MiniPlayer(
                     )
                 }
 
-                // Stop Radio Button or Heart / Like button (for Surahs)
+                // Stop Radio Button, Stop Repetition Button, or Heart / Like button (for Surahs)
                 if (isRadio) {
                     IconButton(
                         onClick = { onStopRadio?.invoke() },
@@ -216,6 +244,18 @@ fun MiniPlayer(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "Stop Radio",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                } else if (isHifz && onStopHifz != null) {
+                    IconButton(
+                        onClick = onStopHifz,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Stop Repetition",
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }

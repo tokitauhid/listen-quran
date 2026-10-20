@@ -27,6 +27,7 @@ fun ListenQuranNavHost(
     reciters: List<Reciter>,
     playlists: List<Playlist>,
     bookmarks: List<Bookmark>,
+    likedSurahs: List<LikedSurah> = emptyList(),
     khatmaProgress: KhatmaProgress,
     statsSummary: ListeningStatsSummary,
     recentSurahs: List<Surah>,
@@ -66,6 +67,7 @@ fun ListenQuranNavHost(
                 HomeScreen(
                     surahs = surahs,
                     playlists = playlists,
+                    likedSurahs = likedSurahs,
                     khatmaProgress = khatmaProgress,
                     recentSurahs = recentSurahs,
                     reciters = reciters,
@@ -196,19 +198,42 @@ fun ListenQuranNavHost(
             route = TopLevelDestination.LIBRARY.graphRoute,
         ) {
             composable(TopLevelDestination.LIBRARY.route) {
+                val repetitionPresets by viewModel.repetitionPresets.collectAsStateWithLifecycle()
+                val isTranslationEnabled by viewModel.isTranslationEnabled.collectAsStateWithLifecycle()
+
                 LibraryScreen(
                     playlists = playlists,
                     bookmarks = bookmarks,
+                    likedSurahs = likedSurahs,
                     favoriteReciters = reciters.filter { it.isFavorite }.distinctBy { it.name.replace(" ", "") },
                     surahs = surahs,
+                    repetitionPresets = repetitionPresets,
+                    isTranslationEnabled = isTranslationEnabled,
                     onPlaylistClick = onOpenPlaylistDetail,
                     onCreatePlaylist = { name, desc ->
                         viewModel.createPlaylist(name, desc)
+                    },
+                    onRenamePlaylist = { id, newName ->
+                        viewModel.renamePlaylist(id, newName)
+                    },
+                    onDeletePlaylist = { id ->
+                        viewModel.deletePlaylist(id)
                     },
                     onBookmarkClick = { bookmark ->
                         surahs.find { it.id == bookmark.surahNumber }?.let {
                             viewModel.playSurah(it, startAyah = bookmark.ayahNumber)
                         }
+                    },
+                    onPlayBookmark = { bookmark ->
+                        surahs.find { it.id == bookmark.surahNumber }?.let {
+                            viewModel.playSurah(it, startAyah = bookmark.ayahNumber)
+                        }
+                    },
+                    onDeleteBookmark = { bookmark ->
+                        viewModel.deleteBookmark(bookmark)
+                    },
+                    onRestoreBookmark = { bookmark ->
+                        viewModel.restoreBookmark(bookmark)
                     },
                     onUpdateBookmarkNote = { id, note ->
                         viewModel.updateBookmarkNote(id, note)
@@ -216,6 +241,18 @@ fun ListenQuranNavHost(
                     onReciterClick = onOpenReciterProfile,
                     onStartHifzLoop = { config ->
                         viewModel.startHifzLoop(config)
+                    },
+                    onSaveRepetitionPreset = { preset ->
+                        viewModel.saveRepetitionPreset(preset)
+                    },
+                    onDeleteRepetitionPreset = { id ->
+                        viewModel.deleteRepetitionPreset(id)
+                    },
+                    onNavigateToReciters = {
+                        navController.navigateToTab(TopLevelDestination.RECITERS)
+                    },
+                    onNavigateToSurahs = {
+                        navController.navigateToDetail(TopLevelDestination.SURAHS.route)
                     },
                     resetTrigger = libraryResetTrigger,
                 )

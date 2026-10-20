@@ -2,15 +2,21 @@ package com.listenquran.data.repository
 
 import com.listenquran.data.local.dao.BookmarkDao
 import com.listenquran.data.local.dao.KhatmaDao
+import com.listenquran.data.local.dao.LikedDao
+import com.listenquran.data.local.dao.RepetitionPresetDao
 import com.listenquran.data.local.dao.StatsDao
 import com.listenquran.data.local.entity.BookmarkEntity
 import com.listenquran.data.local.entity.KhatmaEntity
+import com.listenquran.data.local.entity.LikedSurahEntity
 import com.listenquran.data.local.entity.ListeningStatEntity
+import com.listenquran.data.local.entity.RepetitionPresetEntity
 import com.listenquran.domain.model.*
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -64,6 +70,70 @@ class BookmarkRepository @Inject constructor(
 
     suspend fun deleteBookmark(surahNumber: Int, ayahNumber: Int) {
         bookmarkDao.deleteBookmark(surahNumber, ayahNumber)
+    }
+
+    suspend fun deleteBookmarkById(id: Long) {
+        bookmarkDao.deleteBookmarkById(id)
+    }
+
+    suspend fun deleteBookmark(bookmark: Bookmark) {
+        bookmarkDao.deleteBookmark(bookmark.surahNumber, bookmark.ayahNumber)
+    }
+}
+
+@Singleton
+class RepetitionPresetRepository @Inject constructor(
+    private val repetitionPresetDao: RepetitionPresetDao,
+) {
+    fun getAllPresets(): Flow<List<RepetitionPreset>> {
+        return repetitionPresetDao.getAllPresets().map { list ->
+            list.map {
+                RepetitionPreset(
+                    id = it.id,
+                    surahNumber = it.surahNumber,
+                    startAyah = it.startAyah,
+                    endAyah = it.endAyah,
+                    repeatCount = it.repeatCount,
+                    delaySeconds = it.delaySeconds,
+                    label = it.label,
+                    createdAt = it.createdAt,
+                )
+            }
+        }
+    }
+
+    suspend fun savePreset(preset: RepetitionPreset): Long {
+        return repetitionPresetDao.insertPreset(
+            RepetitionPresetEntity(
+                id = preset.id,
+                surahNumber = preset.surahNumber,
+                startAyah = preset.startAyah,
+                endAyah = preset.endAyah,
+                repeatCount = preset.repeatCount,
+                delaySeconds = preset.delaySeconds,
+                label = preset.label,
+                createdAt = preset.createdAt,
+            )
+        )
+    }
+
+    suspend fun updatePreset(preset: RepetitionPreset) {
+        repetitionPresetDao.updatePreset(
+            RepetitionPresetEntity(
+                id = preset.id,
+                surahNumber = preset.surahNumber,
+                startAyah = preset.startAyah,
+                endAyah = preset.endAyah,
+                repeatCount = preset.repeatCount,
+                delaySeconds = preset.delaySeconds,
+                label = preset.label,
+                createdAt = preset.createdAt,
+            )
+        )
+    }
+
+    suspend fun deletePreset(id: Long) {
+        repetitionPresetDao.deletePreset(id)
     }
 }
 
@@ -179,3 +249,92 @@ class StatsRepository @Inject constructor(
         }
     }
 }
+
+@Singleton
+class LikedRepository @Inject constructor(
+    private val likedDao: LikedDao,
+) {
+    private val likedMutex = Mutex()
+
+    fun getAllLiked(): Flow<List<LikedSurah>> {
+        return likedDao.getAllLiked().map { list ->
+            list.map {
+                LikedSurah(
+                    id = it.id,
+                    surahNumber = it.surahNumber,
+                    surahName = it.surahName,
+                    surahArabic = it.surahArabic,
+                    reciterId = it.reciterId,
+                    reciterName = it.reciterName,
+                    likedAt = it.likedAt,
+                )
+            }
+        }
+    }
+
+    fun isLiked(surahNumber: Int, reciterId: Int): Flow<Boolean> {
+        return likedDao.isLiked(surahNumber, reciterId)
+    }
+
+    suspend fun isLikedDirect(surahNumber: Int, reciterId: Int): Boolean {
+        return likedDao.isLikedDirect(surahNumber, reciterId)
+    }
+
+    suspend fun toggleLike(
+        surahNumber: Int,
+        surahName: String,
+        surahArabic: String,
+        reciterId: Int,
+        reciterName: String,
+    ): Boolean = likedMutex.withLock {
+        val currentlyLiked = likedDao.isLikedDirect(surahNumber, reciterId)
+        if (currentlyLiked) {
+            likedDao.removeLiked(surahNumber, reciterId)
+            false
+        } else {
+            likedDao.insertLiked(
+                LikedSurahEntity(
+                    surahNumber = surahNumber,
+                    surahName = surahName,
+                    surahArabic = surahArabic,
+                    reciterId = reciterId,
+                    reciterName = reciterName,
+                    likedAt = System.currentTimeMillis(),
+                )
+            )
+            true
+        }
+    }
+
+    suspend fun addLike(
+        surahNumber: Int,
+        surahName: String,
+        surahArabic: String,
+        reciterId: Int,
+        reciterName: String,
+    ): Long = likedMutex.withLock {
+        likedDao.insertLiked(
+            LikedSurahEntity(
+                surahNumber = surahNumber,
+                surahName = surahName,
+                surahArabic = surahArabic,
+                reciterId = reciterId,
+                reciterName = reciterName,
+                likedAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    suspend fun removeLike(surahNumber: Int, reciterId: Int) = likedMutex.withLock {
+        likedDao.removeLiked(surahNumber, reciterId)
+    }
+
+    suspend fun deleteById(id: Long) = likedMutex.withLock {
+        likedDao.deleteById(id)
+    }
+
+    suspend fun getCount(): Int {
+        return likedDao.getCount()
+    }
+}
+

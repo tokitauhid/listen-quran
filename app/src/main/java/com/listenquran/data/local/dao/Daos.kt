@@ -116,6 +116,9 @@ interface PlaylistDao {
     @Delete
     suspend fun deletePlaylist(playlist: PlaylistEntity)
 
+    @Query("UPDATE playlists SET name = :name WHERE id = :playlistId")
+    suspend fun updatePlaylistName(playlistId: Long, name: String)
+
     @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY orderIndex ASC")
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>>
 
@@ -169,6 +172,9 @@ interface BookmarkDao {
 
     @Query("DELETE FROM bookmarks WHERE surahNumber = :surahNumber AND ayahNumber = :ayahNumber")
     suspend fun deleteBookmark(surahNumber: Int, ayahNumber: Int)
+
+    @Query("DELETE FROM bookmarks WHERE id = :id")
+    suspend fun deleteBookmarkById(id: Long)
 
     @Delete
     suspend fun deleteBookmark(bookmark: BookmarkEntity)
@@ -242,4 +248,47 @@ interface TranslationDao {
     @Query("SELECT COUNT(*) FROM translations WHERE surahNumber = :surahNumber AND translationId = :translationId")
     suspend fun getTranslationCountForSurah(surahNumber: Int, translationId: Int): Int
 }
+
+@Dao
+interface RepetitionPresetDao {
+    @Query("SELECT * FROM repetition_presets ORDER BY createdAt DESC")
+    fun getAllPresets(): Flow<List<RepetitionPresetEntity>>
+
+    @Query("SELECT * FROM repetition_presets WHERE id = :id LIMIT 1")
+    suspend fun getPresetById(id: Long): RepetitionPresetEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPreset(preset: RepetitionPresetEntity): Long
+
+    @Update
+    suspend fun updatePreset(preset: RepetitionPresetEntity)
+
+    @Query("DELETE FROM repetition_presets WHERE id = :id")
+    suspend fun deletePreset(id: Long)
+}
+
+@Dao
+interface LikedDao {
+    @Query("SELECT * FROM liked_surahs ORDER BY likedAt DESC")
+    fun getAllLiked(): Flow<List<LikedSurahEntity>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM liked_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId)")
+    fun isLiked(surahNumber: Int, reciterId: Int): Flow<Boolean>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM liked_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId)")
+    suspend fun isLikedDirect(surahNumber: Int, reciterId: Int): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLiked(liked: LikedSurahEntity): Long
+
+    @Query("DELETE FROM liked_surahs WHERE surahNumber = :surahNumber AND reciterId = :reciterId")
+    suspend fun removeLiked(surahNumber: Int, reciterId: Int)
+
+    @Query("DELETE FROM liked_surahs WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("SELECT COUNT(*) FROM liked_surahs")
+    suspend fun getCount(): Int
+}
+
 

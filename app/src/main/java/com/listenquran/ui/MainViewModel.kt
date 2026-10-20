@@ -31,6 +31,8 @@ class MainViewModel @Inject constructor(
     private val radioRepository: com.listenquran.data.repository.RadioRepository,
     private val khatamTrackerRepository: com.listenquran.data.repository.khatam.KhatamTrackerRepository,
     private val translationRepository: com.listenquran.data.repository.TranslationRepository,
+    private val repetitionPresetRepository: com.listenquran.data.repository.RepetitionPresetRepository,
+    private val likedRepository: com.listenquran.data.repository.LikedRepository,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -55,7 +57,13 @@ class MainViewModel @Inject constructor(
     val playlists: StateFlow<List<Playlist>> = playlistRepository.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val likedSurahs: StateFlow<List<LikedSurah>> = likedRepository.getAllLiked()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val bookmarks: StateFlow<List<Bookmark>> = bookmarkRepository.getAllBookmarks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val repetitionPresets: StateFlow<List<RepetitionPreset>> = repetitionPresetRepository.getAllPresets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val khatmaProgress: StateFlow<KhatmaProgress> = combine(
@@ -142,7 +150,7 @@ class MainViewModel @Inject constructor(
     }
     .flatMapLatest { pair ->
         if (pair != null) {
-            playlistRepository.isLiked(pair.first, pair.second)
+            likedRepository.isLiked(pair.first, pair.second)
         } else {
             flowOf(false)
         }
@@ -319,7 +327,35 @@ class MainViewModel @Inject constructor(
     }
 
     fun startHifzLoop(config: HifzLoopConfig) {
+        val currentSurah = playbackState.value.currentSurah
+        if (currentSurah == null || currentSurah.id != config.surahNumber) {
+            val targetSurah = surahs.value.find { it.id == config.surahNumber }
+            val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull()
+            if (targetSurah != null && reciter != null) {
+                playerManager.playSurah(targetSurah, reciter, startAyah = config.startAyah)
+            }
+        }
         playerManager.startHifzLoop(config)
+    }
+
+    fun stopHifzLoop() {
+        playerManager.stopHifzLoop()
+    }
+
+    fun saveRepetitionPreset(preset: RepetitionPreset) {
+        viewModelScope.launch {
+            if (preset.id == 0L) {
+                repetitionPresetRepository.savePreset(preset)
+            } else {
+                repetitionPresetRepository.updatePreset(preset)
+            }
+        }
+    }
+
+    fun deleteRepetitionPreset(id: Long) {
+        viewModelScope.launch {
+            repetitionPresetRepository.deletePreset(id)
+        }
     }
 
     fun createPlaylist(name: String, desc: String) {
@@ -349,16 +385,93 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun deleteBookmark(surahNumber: Int, ayahNumber: Int) {
+        viewModelScope.launch {
+            bookmarkRepository.deleteBookmark(surahNumber, ayahNumber)
+        }
+    }
+
+    fun deleteBookmarkById(id: Long) {
+        viewModelScope.launch {
+            bookmarkRepository.deleteBookmarkById(id)
+        }
+    }
+
+    fun deleteBookmark(bookmark: Bookmark) {
+        viewModelScope.launch {
+            bookmarkRepository.deleteBookmark(bookmark)
+        }
+    }
+
+    fun restoreBookmark(bookmark: Bookmark) {
+        viewModelScope.launch {
+            bookmarkRepository.saveBookmark(
+                surahNumber = bookmark.surahNumber,
+                surahName = bookmark.surahName,
+                ayahNumber = bookmark.ayahNumber,
+                verseKey = bookmark.verseKey,
+                textUthmani = bookmark.textUthmani,
+                translation = bookmark.translation,
+                note = bookmark.note
+            )
+        }
+    }
+
+    suspend fun bookmarkCurrentAyah(): Pair<Surah, Int>? {
+        val surah = playbackState.value.currentSurah ?: return null
+        val ayahNumber = playbackState.value.currentAyahNumber
+        val verses = if (_currentVerses.value.isNotEmpty() && _currentVerses.value.first().surahNumber == surah.id) {
+            _currentVerses.value
+        } else {
+            val fetched = quranRepository.getVerses(surah.id)
+            _currentVerses.value = fetched
+            fetched
+        }
+        val ayah = verses.find { it.ayahNumber == ayahNumber }
+        val textUthmani = ayah?.textUthmani ?: ""
+        val translation = ayah?.translation ?: ""
+        bookmarkRepository.saveBookmark(
+            surahNumber = surah.id,
+            surahName = surah.nameSimple,
+            ayahNumber = ayahNumber,
+            verseKey = "${surah.id}:$ayahNumber",
+            textUthmani = textUthmani,
+            translation = translation,
+        )
+        return Pair(surah, ayahNumber)
+    }
+
+    fun renamePlaylist(playlistId: Long, newName: String) {
+        viewModelScope.launch {
+            playlistRepository.renamePlaylist(playlistId, newName)
+        }
+    }
+
     fun toggleLikeCurrentSurah() {
         val surah = playbackState.value.currentSurah ?: return
         val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
         viewModelScope.launch {
-            val isNowLiked = playlistRepository.toggleLiked(
+            val isNowLiked = likedRepository.toggleLike(
                 surahNumber = surah.id,
                 surahName = surah.nameSimple,
                 surahArabic = surah.nameArabic,
                 reciterId = reciter.id,
                 reciterName = reciter.englishName
+            )
+            val msg = if (isNowLiked) "Added to Liked Surahs" else "Removed from Liked Surahs"
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun toggleLikeSurah(surah: Surah, reciter: Reciter? = null) {
+        val targetReciter = reciter ?: playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        viewModelScope.launch {
+            val isNowLiked = likedRepository.toggleLike(
+                surahNumber = surah.id,
+                surahName = surah.nameSimple,
+                surahArabic = surah.nameArabic,
+                reciterId = targetReciter.id,
+                reciterName = targetReciter.englishName
             )
             val msg = if (isNowLiked) "Added to Liked Surahs" else "Removed from Liked Surahs"
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
@@ -432,7 +545,19 @@ class MainViewModel @Inject constructor(
 
     fun addToPlaylist(playlistId: Long, surah: Surah) {
         val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
+        val isLikedCollection = playlists.value.find { it.id == playlistId }?.isLikedCollection == true
         viewModelScope.launch {
+            if (isLikedCollection) {
+                likedRepository.addLike(
+                    surahNumber = surah.id,
+                    surahName = surah.nameSimple,
+                    surahArabic = surah.nameArabic,
+                    reciterId = reciter.id,
+                    reciterName = reciter.englishName,
+                )
+                android.widget.Toast.makeText(context, "Added to Liked Surahs", android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
             val added = playlistRepository.addToPlaylist(
                 playlistId = playlistId,
                 surahNumber = surah.id,
@@ -474,6 +599,7 @@ class MainViewModel @Inject constructor(
     fun deletePlaylistItem(itemId: Long) {
         viewModelScope.launch {
             playlistRepository.deletePlaylistItem(itemId)
+            likedRepository.deleteById(itemId)
         }
     }
 
@@ -504,7 +630,53 @@ class MainViewModel @Inject constructor(
     }
 
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
-        return playlistRepository.getPlaylistItems(playlistId)
+        val isLikedCollection = playlists.value.find { it.id == playlistId }?.isLikedCollection == true
+        return if (isLikedCollection) {
+            likedRepository.getAllLiked().map { list ->
+                list.map { it.toPlaylistItem(playlistId) }
+            }
+        } else {
+            playlistRepository.getPlaylistItems(playlistId)
+        }
+    }
+
+    fun playAllLiked() {
+        val items = likedSurahs.value.map { it.toPlaylistItem() }
+        if (items.isEmpty()) return
+        val allSurahs = surahs.value
+        val allReciters = reciters.value
+        playerManager.playPlaylist(
+            items = items,
+            allSurahs = allSurahs,
+            allReciters = allReciters,
+            startIndex = 0,
+            queueTitle = "Liked Surahs"
+        )
+    }
+
+    fun playLikedSurah(liked: LikedSurah) {
+        val items = likedSurahs.value.map { it.toPlaylistItem() }
+        val targetItem = liked.toPlaylistItem()
+        playPlaylistItem(targetItem, items, "Liked Surahs")
+    }
+
+    fun deleteLikedSurah(liked: LikedSurah) {
+        viewModelScope.launch {
+            likedRepository.removeLike(liked.surahNumber, liked.reciterId)
+            android.widget.Toast.makeText(context, "Removed from Liked Surahs", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun restoreLikedSurah(liked: LikedSurah) {
+        viewModelScope.launch {
+            likedRepository.addLike(
+                surahNumber = liked.surahNumber,
+                surahName = liked.surahName,
+                surahArabic = liked.surahArabic,
+                reciterId = liked.reciterId,
+                reciterName = liked.reciterName,
+            )
+        }
     }
 
     fun playPlaylistItem(
