@@ -466,7 +466,44 @@ fun LibraryScreen(
             }
 
             // ==========================================
-            // 4. SECTION: Repetition
+            // 4. SECTION: Favorite Reciters
+            // ==========================================
+            item(key = "section_reciters_header", contentType = "header") {
+                SectionHeader(
+                    title = "Favorite Reciters",
+                    actionText = if (favoriteReciters.size > 5) "Explore" else null,
+                    onActionClick = onNavigateToReciters ?: {}
+                )
+            }
+
+            if (favoriteReciters.isEmpty()) {
+                item(key = "section_reciters_empty", contentType = "empty") {
+                    EmptyStateCard(
+                        icon = Icons.Outlined.Person,
+                        title = "No favorite reciters yet",
+                        hint = "Heart reciters to add them to your favorites for instant access to their recitations.",
+                        actionLabel = "Browse Reciters",
+                        onActionClick = onNavigateToReciters
+                    )
+                }
+            } else {
+                item(key = "section_reciters_row", contentType = "reciters_row") {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(favoriteReciters, key = { it.id }) { reciter ->
+                            FavoriteReciterTile(
+                                reciter = reciter,
+                                onClick = { onReciterClick(reciter) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // 5. SECTION: Repetition
             // ==========================================
             item(key = "section_repetition_header", contentType = "header") {
                 SectionHeader(
@@ -519,43 +556,6 @@ fun LibraryScreen(
                             onDeleteRepetitionPreset?.invoke(preset.id)
                         }
                     )
-                }
-            }
-
-            // ==========================================
-            // 5. SECTION: Favorite Reciters
-            // ==========================================
-            item(key = "section_reciters_header", contentType = "header") {
-                SectionHeader(
-                    title = "Favorite Reciters",
-                    actionText = if (favoriteReciters.size > 5) "Explore" else null,
-                    onActionClick = onNavigateToReciters ?: {}
-                )
-            }
-
-            if (favoriteReciters.isEmpty()) {
-                item(key = "section_reciters_empty", contentType = "empty") {
-                    EmptyStateCard(
-                        icon = Icons.Outlined.Person,
-                        title = "No favorite reciters yet",
-                        hint = "Heart reciters to add them to your favorites for instant access to their recitations.",
-                        actionLabel = "Browse Reciters",
-                        onActionClick = onNavigateToReciters
-                    )
-                }
-            } else {
-                item(key = "section_reciters_row", contentType = "reciters_row") {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(favoriteReciters, key = { it.id }) { reciter ->
-                            FavoriteReciterTile(
-                                reciter = reciter,
-                                onClick = { onReciterClick(reciter) }
-                            )
-                        }
-                    }
                 }
             }
         }
