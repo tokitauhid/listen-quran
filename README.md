@@ -16,7 +16,7 @@
 
 ---
 
-**Listen Quran** is a data-dense Quran recitation and memorization companion built with Jetpack Compose, Material Design 3, and Jetpack Media3. Designed with complete on-device personal data privacy, it combines Spotify-style fluid navigation with authentic Arabic calligraphy, continuous live radio streams, online recitation streaming, download capabilities, and a self-healing Khatam progress tracker.
+**Listen Quran** is a modern Quran recitation and study application for Android inspired by Spotify and Quran Audio. Built with Jetpack Compose and Material Design 3, it combines smooth audio streaming, beautiful Arabic typography, live radio stations, synchronized verse highlighting, memorization tools, and complete personal data privacy.
 
 ## 📱 App Screenshots
 
@@ -51,13 +51,13 @@
 
 ## ✨ Features
 
-- 📖 **Durable Khatam Tracker** — Single source of truth across all 6,236 Ayahs. Physically isolated SQLite database (`khatam.db`) with append-only event sourcing (`khatam_events`), self-repairing snapshots (`khatam_snapshots`), 30-Juz visual completion grid, and automated background playback tracking (80% duration rule).
-- 📻 **Continuous Quran.com Radio** — Non-stop recitation broadcasts streamed directly from Quran.com / QuranicAudio open CDN with resilient 10-second watchdog auto-reconnect and state protection for your last-played surah.
-- 🎙️ **255+ Verified CDN Reciters** — High-fidelity audio streams from Quran.com across multiple riwayahs (Hafs, Warsh, Qalun, Mujawwad, Murattal), with local caching and download capabilities.
-- 📜 **Lyrics-Style Synchronized Ayahs** — Karaoke-style real-time verse tracking with English translation, word-by-word highlight mode, tap-to-seek, and Amiri Quran Uthmani calligraphy with generous 2.2 line-height spacing.
-- 🔁 **Hifz Repetition Engine** — Flexible memorization loops with custom ayah ranges ($A \to B$), configurable repetitions ($1\times, 3\times, 5\times, \infty$), and custom inter-verse pause intervals.
-- 🔍 **Instant Search & Dense Catalog** — Instant 1-tap `Surah:Ayah` parser (e.g. `2:255` for *Ayatul Kursi*), pre-packaged Room SQLite with standard SQL `LIKE` filtering, quick-assist chips, and browsable dense Surah grid.
-- 🛡️ **Zero Accounts, Private & Local-First** — All personal data, playlists, bookmarks, and listening stats stay strictly on your device. Export and import as clean JSON via Android Storage Access Framework (SAF).
+- 📖 **Khatam Progress Tracker** — Track your Quran reading and completion across all 30 Juz. Automatically records completed verses as you listen, with a visual progress grid and reading statistics.
+- 📻 **Live Quran Radio** — Continuous 24/7 recitation broadcasts from Quran.com. Automatically reconnects if your connection drops, and preserves your place so you can resume your personal recitation anytime.
+- 🎙️ **250+ Renowned Reciters** — Stream high-quality audio recitations from over 250 verified reciters across multiple recitation styles (Hafs, Warsh, Qalun, Mujawwad, Murattal), with support for downloading surahs for offline listening.
+- 📜 **Synchronized Verse & Word Highlighting** — Follow along in real-time with verse and word-by-word highlights, English translations, and tap any verse to jump directly to it.
+- 🔁 **Memorization (Hifz) Mode** — Focus on memorization by looping specific verse ranges, choosing repetition counts (1x, 3x, 5x, 10x, or continuous), and setting pause intervals between verses.
+- 🔍 **Quick Search & Verse Jump** — Search instantly by Surah name, reciter, or jump straight to any verse by typing `Surah:Ayah` (such as `2:255` for Ayatul Kursi).
+- 🛡️ **100% Private & Ad-Free** — No account required, no ads, and no tracking. All your playlists, bookmarks, and listening history stay safely on your device, with full backup and restore support.
 
 
 ---
@@ -137,26 +137,6 @@ adb install -r app/build/outputs/apk/release/app-release.apk
 2. Allow Gradle sync to complete and download dependencies.
 3. Select the `app` run configuration and choose your connected physical device or emulator.
 4. Click **Run** (`Shift + F10`) or **Build > Generate Signed Bundle / APK**.
-
----
-
-## 📦 Releasing & Versioning
-
-Listen Quran uses automated GitHub Actions workflows triggered on semantic version tags (`v*`):
-
-```bash
-# 1. Update version in app/build.gradle.kts (versionCode & versionName)
-# 2. Commit and create an annotated git tag:
-git tag -a v1.0.0 -m "Release v1.0.0"
-
-# 3. Push tag to GitHub:
-git push origin v1.0.0
-```
-
-The GitHub Actions workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)) will automatically:
-1. Check out code and set up JDK 17.
-2. Build the minified, production-ready release APK via `./gradlew assembleRelease`.
-3. Publish a GitHub Release attaching `app-release.apk` with auto-generated release notes.
 
 ---
 
