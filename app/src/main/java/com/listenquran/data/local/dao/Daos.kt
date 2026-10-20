@@ -189,6 +189,11 @@ interface KhatmaDao {
     suspend fun updateKhatma(khatma: KhatmaEntity)
 }
 
+data class ReciterDurationShare(
+    val reciterId: Int,
+    val totalSeconds: Long,
+)
+
 @Dao
 interface StatsDao {
     @Query("SELECT * FROM listening_stats ORDER BY timestamp DESC")
@@ -196,6 +201,24 @@ interface StatsDao {
 
     @Query("SELECT SUM(durationSeconds) FROM listening_stats")
     fun getTotalDurationSeconds(): Flow<Long?>
+
+    @Query("SELECT COUNT(DISTINCT surahNumber) FROM listening_stats WHERE isCompleted = 1")
+    fun getCompletedSurahsCount(): Flow<Int>
+
+    @Query("SELECT reciterId FROM listening_stats WHERE durationSeconds >= 5 GROUP BY reciterId ORDER BY SUM(durationSeconds) DESC LIMIT 1")
+    fun getTopReciterId(): Flow<Int?>
+
+    @Query("SELECT reciterId, SUM(durationSeconds) as totalSeconds FROM listening_stats WHERE durationSeconds >= 5 GROUP BY reciterId ORDER BY totalSeconds DESC")
+    fun getReciterDurationShares(): Flow<List<ReciterDurationShare>>
+
+    @Query("SELECT * FROM listening_stats WHERE timestamp >= :sinceTimestamp AND durationSeconds >= 5 ORDER BY timestamp ASC")
+    fun getSessionsSince(sinceTimestamp: Long): Flow<List<ListeningStatEntity>>
+
+    @Query("SELECT timestamp FROM listening_stats WHERE durationSeconds >= 5 ORDER BY timestamp DESC")
+    fun getQualifyingTimestamps(): Flow<List<Long>>
+
+    @Query("SELECT COALESCE(SUM(durationSeconds), 0) FROM listening_stats WHERE timestamp >= :sinceTimestamp")
+    suspend fun getListeningSecondsSinceDirect(sinceTimestamp: Long): Long
 
     @Insert
     suspend fun insertSession(session: ListeningStatEntity)

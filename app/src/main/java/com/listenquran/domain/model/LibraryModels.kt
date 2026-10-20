@@ -88,11 +88,29 @@ data class ListeningSession(
 )
 
 @Immutable
+data class DailyListeningActivity(
+    val dayLabel: String,
+    val minutes: Int,
+    val isFriday: Boolean = false,
+    val dateEpochDays: Long = 0,
+)
+
+@Immutable
+data class ReciterListeningShare(
+    val reciterId: Int,
+    val reciterName: String,
+    val seconds: Long,
+    val percentage: Float,
+)
+
+@Immutable
 data class ListeningStatsSummary(
     val totalSecondsListened: Long = 0,
     val totalSurahsCompleted: Int = 0,
     val currentDayStreak: Int = 0,
     val topReciterName: String = "",
+    val weeklyActivity: List<DailyListeningActivity> = emptyList(),
+    val reciterShares: List<ReciterListeningShare> = emptyList(),
 )
 
 enum class ThemeMode {

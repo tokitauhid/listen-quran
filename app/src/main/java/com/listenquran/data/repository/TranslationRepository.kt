@@ -81,7 +81,7 @@ class TranslationRepository @Inject constructor(
             }
         } catch (e: Exception) {
             val isOffline = e is IOException || e.message?.contains("Unable to resolve host", ignoreCase = true) == true
-            val msg = if (isOffline) "Translation unavailable offline" else (e.message ?: "Failed to load translation")
+            val msg = if (isOffline) "Translation unavailable without internet" else (e.message ?: "Failed to load translation")
             emit(TranslationState.Error(msg, isOffline = isOffline))
         }
     }.flowOn(Dispatchers.IO)

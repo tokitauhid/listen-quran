@@ -19,7 +19,7 @@ import com.listenquran.data.local.entity.*
         RepetitionPresetEntity::class,
         LikedSurahEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class ListenQuranDatabase : RoomDatabase() {

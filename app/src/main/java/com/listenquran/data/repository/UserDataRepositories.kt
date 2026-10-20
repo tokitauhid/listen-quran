@@ -7,16 +7,25 @@ import com.listenquran.data.local.dao.RepetitionPresetDao
 import com.listenquran.data.local.dao.StatsDao
 import com.listenquran.data.local.entity.BookmarkEntity
 import com.listenquran.data.local.entity.KhatmaEntity
+import com.listenquran.data.local.dao.ReciterDao
+import com.listenquran.data.local.dao.ReciterDurationShare
 import com.listenquran.data.local.entity.LikedSurahEntity
 import com.listenquran.data.local.entity.ListeningStatEntity
 import com.listenquran.data.local.entity.RepetitionPresetEntity
 import com.listenquran.domain.model.*
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -181,30 +190,240 @@ class KhatmaRepository @Inject constructor(
     }
 }
 
-@Singleton
-class StatsRepository @Inject constructor(
-    private val statsDao: StatsDao,
-    private val moshi: Moshi,
-) {
-    fun getSummary(): Flow<ListeningStatsSummary> {
-        return statsDao.getTotalDurationSeconds().map { totalSecs ->
-            val total = totalSecs ?: 0L
-            ListeningStatsSummary(
-                totalSecondsListened = total,
-                totalSurahsCompleted = (total / 1800).toInt(),
-                currentDayStreak = if (total > 0) 5 else 0,
-                topReciterName = "Mishary Rashid Al-Afasy",
+/**
+ * METRIC DEFINITIONS & SPECIFICATIONS:
+ * 1. Total Time: Exact sum of durationSeconds from listening_stats table for all qualifying playback sessions (>= 5s).
+ * 2. Current Streak: Consecutive local calendar days (in user's active timezone) with at least one qualifying
+ *    session (>= 5s), ending either today or yesterday. If no sessions exist for today or yesterday, streak is 0.
+ * 3. Surahs Completed: Count of distinct Surahs completed, recorded when playback reaches the end of the
+ *    recitation (Player.STATE_ENDED or auto-transition to next track, or >= 90% of duration was listened).
+ * 4. Weekly Activity: Real minutes per day for the last 7 calendar days ending today in the user's local timezone,
+ *    with localized weekday labels in locale order, and Friday marked as the Sunnah Kahf peak.
+ * 5. Reciter Breakdown: Real listening duration percentage per reciter, displaying the top 4 reciters
+ *    with names resolved from ReciterDao, plus an "Other Reciters" aggregate bucket if more than 4 reciters exist.
+ */
+object StatsCalculators {
+    fun calculateStreak(
+        timestamps: List<Long>,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): Int {
+        if (timestamps.isEmpty()) return 0
+        val days = timestamps.map {
+            Instant.ofEpochMilli(it).atZone(zoneId).toLocalDate()
+        }.distinct().sortedDescending()
+
+        if (days.isEmpty()) return 0
+
+        val today = LocalDate.now(zoneId)
+        val yesterday = today.minusDays(1)
+
+        val mostRecent = days.first()
+        if (mostRecent != today && mostRecent != yesterday) {
+            return 0
+        }
+
+        var streak = 0
+        var expectedDay = mostRecent
+        for (day in days) {
+            if (day == expectedDay) {
+                streak++
+                expectedDay = expectedDay.minusDays(1)
+            } else if (day.isBefore(expectedDay)) {
+                break
+            }
+        }
+        return streak
+    }
+
+    @JvmName("calculateStreakFromSessions")
+    fun calculateStreak(
+        sessions: List<ListeningStatEntity>,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): Int {
+        val qualifying = sessions.filter { it.durationSeconds >= 5 }.map { it.timestamp }
+        return calculateStreak(qualifying, zoneId)
+    }
+
+    fun calculateWeeklyActivity(
+        sessions: List<ListeningStatEntity>,
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): List<DailyListeningActivity> {
+        val today = LocalDate.now(zoneId)
+        val dayBuckets = (6 downTo 0).map { today.minusDays(it.toLong()) }
+
+        val secondsByDate = mutableMapOf<LocalDate, Long>()
+        for (session in sessions) {
+            val date = Instant.ofEpochMilli(session.timestamp).atZone(zoneId).toLocalDate()
+            secondsByDate[date] = (secondsByDate[date] ?: 0L) + session.durationSeconds
+        }
+
+        val dayFormatter = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
+
+        return dayBuckets.map { date ->
+            val totalSecs = secondsByDate[date] ?: 0L
+            DailyListeningActivity(
+                dayLabel = date.format(dayFormatter),
+                minutes = (totalSecs / 60).toInt(),
+                isFriday = date.dayOfWeek == DayOfWeek.FRIDAY,
+                dateEpochDays = date.toEpochDay()
             )
         }
     }
 
-    suspend fun recordSession(surahNumber: Int, reciterId: Int, durationSeconds: Long) {
-        if (durationSeconds > 5) {
+    fun calculateReciterShares(
+        shares: List<ReciterDurationShare>,
+        reciterMap: Map<Int, String>
+    ): List<ReciterListeningShare> {
+        val totalSecs = shares.sumOf { it.totalSeconds }
+        if (totalSecs <= 0 || shares.isEmpty()) return emptyList()
+
+        val topShares = shares.take(5)
+        val otherShares = shares.drop(5)
+
+        val result = mutableListOf<ReciterListeningShare>()
+        for (share in topShares) {
+            val name = reciterMap[share.reciterId] ?: "Reciter #${share.reciterId}"
+            val pct = (share.totalSeconds.toDouble() / totalSecs.toDouble()).toFloat().coerceIn(0f, 1f)
+            result.add(
+                ReciterListeningShare(
+                    reciterId = share.reciterId,
+                    reciterName = name,
+                    seconds = share.totalSeconds,
+                    percentage = pct,
+                )
+            )
+        }
+
+        if (otherShares.isNotEmpty()) {
+            val otherSecs = otherShares.sumOf { it.totalSeconds }
+            val otherPct = (otherSecs.toDouble() / totalSecs.toDouble()).toFloat().coerceIn(0f, 1f)
+            result.add(
+                ReciterListeningShare(
+                    reciterId = -1,
+                    reciterName = "Other",
+                    seconds = otherSecs,
+                    percentage = otherPct,
+                )
+            )
+        }
+
+        return result
+    }
+
+    suspend fun calculateReciterShares(
+        shares: List<ReciterDurationShare>,
+        totalSecs: Long,
+        resolveReciterName: suspend (Int) -> String
+    ): List<ReciterListeningShare> {
+        if (totalSecs <= 0 || shares.isEmpty()) return emptyList()
+
+        val topShares = shares.take(4)
+        val otherShares = shares.drop(4)
+
+        val result = mutableListOf<ReciterListeningShare>()
+        for (share in topShares) {
+            val name = resolveReciterName(share.reciterId)
+            val pct = (share.totalSeconds.toDouble() / totalSecs.toDouble()).toFloat().coerceIn(0f, 1f)
+            result.add(
+                ReciterListeningShare(
+                    reciterId = share.reciterId,
+                    reciterName = name,
+                    seconds = share.totalSeconds,
+                    percentage = pct,
+                )
+            )
+        }
+
+        if (otherShares.isNotEmpty()) {
+            val otherSecs = otherShares.sumOf { it.totalSeconds }
+            val otherPct = (otherSecs.toDouble() / totalSecs.toDouble()).toFloat().coerceIn(0f, 1f)
+            result.add(
+                ReciterListeningShare(
+                    reciterId = -1,
+                    reciterName = "Other Reciters",
+                    seconds = otherSecs,
+                    percentage = otherPct,
+                )
+            )
+        }
+
+        return result
+    }
+}
+
+private data class BasicStatsAggregate(
+    val totalSecs: Long,
+    val completedCount: Int,
+    val qualifyingTimestamps: List<Long>,
+    val topReciterId: Int?
+)
+
+@Singleton
+class StatsRepository @Inject constructor(
+    private val statsDao: StatsDao,
+    private val reciterDao: ReciterDao,
+    private val moshi: Moshi,
+) {
+    fun getSummary(zoneId: ZoneId = ZoneId.systemDefault()): Flow<ListeningStatsSummary> {
+        val sevenDaysAgoMillis = LocalDate.now(zoneId).minusDays(6).atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val basicFlow = combine(
+            statsDao.getTotalDurationSeconds(),
+            statsDao.getCompletedSurahsCount(),
+            statsDao.getQualifyingTimestamps(),
+            statsDao.getTopReciterId()
+        ) { totalSecsRaw, completedCount, qualifyingTimestamps, topReciterId ->
+            BasicStatsAggregate(
+                totalSecs = totalSecsRaw ?: 0L,
+                completedCount = completedCount,
+                qualifyingTimestamps = qualifyingTimestamps,
+                topReciterId = topReciterId
+            )
+        }
+
+        return combine(
+            basicFlow,
+            statsDao.getReciterDurationShares(),
+            statsDao.getSessionsSince(sevenDaysAgoMillis),
+        ) { basic, reciterSharesRaw, recentSessions ->
+            val streak = StatsCalculators.calculateStreak(basic.qualifyingTimestamps, zoneId)
+
+            val topReciterName = if (basic.topReciterId != null && basic.topReciterId > 0) {
+                val entity = reciterDao.getReciterById(basic.topReciterId)
+                entity?.englishName ?: "Reciter #${basic.topReciterId}"
+            } else ""
+
+            val weeklyActivity = StatsCalculators.calculateWeeklyActivity(recentSessions, zoneId)
+
+            val reciterShares = StatsCalculators.calculateReciterShares(
+                shares = reciterSharesRaw,
+                totalSecs = basic.totalSecs,
+                resolveReciterName = { id ->
+                    val entity = reciterDao.getReciterById(id)
+                    entity?.englishName ?: "Reciter #$id"
+                }
+            )
+
+            ListeningStatsSummary(
+                totalSecondsListened = basic.totalSecs,
+                totalSurahsCompleted = basic.completedCount,
+                currentDayStreak = streak,
+                topReciterName = topReciterName,
+                weeklyActivity = weeklyActivity,
+                reciterShares = reciterShares,
+            )
+        }
+    }
+
+    suspend fun recordSession(surahNumber: Int, reciterId: Int, durationSeconds: Long, isCompleted: Boolean = false) {
+        if (durationSeconds >= 5) {
             statsDao.insertSession(
                 ListeningStatEntity(
                     surahNumber = surahNumber,
                     reciterId = reciterId,
                     durationSeconds = durationSeconds,
+                    timestamp = System.currentTimeMillis(),
+                    isCompleted = isCompleted,
                 )
             )
         }
@@ -221,7 +440,7 @@ class StatsRepository @Inject constructor(
     suspend fun exportStatsJson(): String {
         val sessions = statsDao.getAllSessions().first()
         val adapter = moshi.adapter(List::class.java)
-        return adapter.toJson(sessions.map { mapOf("surah" to it.surahNumber, "reciter" to it.reciterId, "duration" to it.durationSeconds, "timestamp" to it.timestamp) })
+        return adapter.toJson(sessions.map { mapOf("surah" to it.surahNumber, "reciter" to it.reciterId, "duration" to it.durationSeconds, "timestamp" to it.timestamp, "completed" to it.isCompleted) })
     }
 
     suspend fun importStatsJson(json: String): Boolean {
@@ -233,11 +452,13 @@ class StatsRepository @Inject constructor(
                 val reciter = (map["reciter"] as? Number)?.toInt() ?: 7
                 val duration = (map["duration"] as? Number)?.toLong() ?: 60L
                 val timestamp = (map["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                val isCompleted = (map["completed"] as? Boolean) ?: false
                 ListeningStatEntity(
                     surahNumber = surah,
                     reciterId = reciter,
                     durationSeconds = duration,
-                    timestamp = timestamp
+                    timestamp = timestamp,
+                    isCompleted = isCompleted,
                 )
             }
             if (entities.isNotEmpty()) {

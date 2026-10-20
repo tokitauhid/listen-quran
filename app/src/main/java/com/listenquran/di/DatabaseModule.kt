@@ -100,6 +100,14 @@ object DatabaseModule {
         }
     }
 
+    val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `listening_stats` ADD COLUMN `isCompleted` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_listening_stats_timestamp` ON `listening_stats` (`timestamp`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_listening_stats_reciterId` ON `listening_stats` (`reciterId`)")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ListenQuranDatabase {
@@ -108,7 +116,7 @@ object DatabaseModule {
             ListenQuranDatabase::class.java,
             "listen_quran_db"
         )
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
             .build()
     }
 

@@ -120,6 +120,6 @@ class TranslationRepositoryTest {
 
         val error = states[1] as TranslationState.Error
         assertTrue(error.isOffline)
-        assertEquals("Translation unavailable offline", error.message)
+        assertEquals("Translation unavailable without internet", error.message)
     }
 }

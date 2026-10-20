@@ -96,13 +96,20 @@ data class KhatmaEntity(
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
-@Entity(tableName = "listening_stats")
+@Entity(
+    tableName = "listening_stats",
+    indices = [
+        Index(value = ["timestamp"]),
+        Index(value = ["reciterId"]),
+    ]
+)
 data class ListeningStatEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val surahNumber: Int,
     val reciterId: Int,
     val durationSeconds: Long,
     val timestamp: Long = System.currentTimeMillis(),
+    val isCompleted: Boolean = false,
 )
 
 @Entity(

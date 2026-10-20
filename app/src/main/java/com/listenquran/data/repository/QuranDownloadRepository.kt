@@ -1,6 +1,8 @@
 package com.listenquran.data.repository
 
 import android.content.Context
+import androidx.media3.datasource.cache.SimpleCache
+import coil.Coil
 import com.listenquran.data.local.dao.DownloadDao
 import com.listenquran.data.local.entity.DownloadedSurahEntity
 import com.listenquran.domain.model.Reciter
@@ -22,11 +24,15 @@ class QuranDownloadRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val downloadDao: DownloadDao,
     private val quranRepository: QuranRepository,
+    private val simpleCache: SimpleCache,
 ) {
     private val downloadsDir: File
         get() = File(context.filesDir, "offline_downloads").apply {
             if (!exists()) mkdirs()
         }
+
+    private val audioCacheDir: File
+        get() = File(context.filesDir, "offline_audio_cache")
 
     fun getAllDownloadedSurahs(): Flow<List<DownloadedSurahEntity>> {
         return downloadDao.getAllDownloadedSurahs()
@@ -38,10 +44,10 @@ class QuranDownloadRepository @Inject constructor(
 
     suspend fun getDownloadedSurah(surahNumber: Int, reciterId: Int): DownloadedSurahEntity? {
         val entity = downloadDao.getDownloadedSurah(surahNumber, reciterId) ?: return null
-        // Verify file still exists on disk
         if (File(entity.localFilePath).exists()) {
             return entity
         } else {
+            // Delete dangling database record if physical file is missing
             downloadDao.deleteDownloadedSurah(surahNumber, reciterId)
             return null
         }
@@ -114,8 +120,18 @@ class QuranDownloadRepository @Inject constructor(
         val existing = downloadDao.getDownloadedSurah(surahNumber, reciterId)
         if (existing != null) {
             try {
-                File(existing.localFilePath).delete()
+                val file = File(existing.localFilePath)
+                if (file.exists()) {
+                    file.delete()
+                }
             } catch (_: Exception) {}
+            downloadDao.deleteDownloadedSurah(surahNumber, reciterId)
+        } else {
+            // Ensure no stray files with expected pattern
+            val targetFile = File(downloadsDir, "surah_${surahNumber}_reciter_${reciterId}.mp3")
+            if (targetFile.exists()) {
+                targetFile.delete()
+            }
             downloadDao.deleteDownloadedSurah(surahNumber, reciterId)
         }
     }
@@ -123,9 +139,56 @@ class QuranDownloadRepository @Inject constructor(
     suspend fun clearAllDownloads() = withContext(Dispatchers.IO) {
         try {
             downloadsDir.listFiles()?.forEach { it.delete() }
-            val cacheDir = File(context.filesDir, "offline_audio_cache")
-            cacheDir.listFiles()?.forEach { it.delete() }
         } catch (_: Exception) {}
         downloadDao.clearAllDownloads()
+    }
+
+    suspend fun getCacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+        var total = 0L
+        fun dirSize(dir: File): Long {
+            var size = 0L
+            dir.listFiles()?.forEach { file ->
+                size += if (file.isDirectory) dirSize(file) else file.length()
+            }
+            return size
+        }
+
+        try {
+            if (audioCacheDir.exists()) total += dirSize(audioCacheDir)
+            if (context.cacheDir.exists()) total += dirSize(context.cacheDir)
+        } catch (_: Exception) {}
+        total
+    }
+
+    @OptIn(coil.annotation.ExperimentalCoilApi::class)
+    suspend fun clearAudioCache(): Long = withContext(Dispatchers.IO) {
+        val before = getCacheSizeBytes()
+
+        // 1. Evict ExoPlayer streaming cache spans safely
+        try {
+            simpleCache.keys.forEach { key ->
+                simpleCache.removeResource(key)
+            }
+        } catch (_: Exception) {}
+
+        // 2. Clear Coil Image Cache
+        try {
+            val imageLoader = Coil.imageLoader(context)
+            imageLoader.diskCache?.clear()
+            imageLoader.memoryCache?.clear()
+        } catch (_: Exception) {}
+
+        // 3. Clean temporary files in context.cacheDir
+        try {
+            context.cacheDir.listFiles()?.forEach { file ->
+                try {
+                    if (file.isDirectory) file.deleteRecursively() else file.delete()
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+
+        val after = getCacheSizeBytes()
+        val freed = (before - after).coerceAtLeast(0L)
+        freed
     }
 }
