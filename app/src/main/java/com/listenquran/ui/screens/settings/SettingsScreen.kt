@@ -22,8 +22,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -1630,6 +1632,8 @@ private fun BackupRestoreSection(
 private fun AboutSection(
     modifier: Modifier = Modifier
 ) {
+    var showWhatsNewDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
@@ -1674,6 +1678,51 @@ private fun AboutSection(
                 )
             }
 
+            Surface(
+                onClick = { showWhatsNewDialog = true },
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                "What's New in v${BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Material You, adaptive layouts, and more",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
             Text(
@@ -1705,6 +1754,103 @@ private fun AboutSection(
                     )
                 }
             }
+        }
+    }
+
+    if (showWhatsNewDialog) {
+        AlertDialog(
+            onDismissRequest = { showWhatsNewDialog = false },
+            icon = {
+                Icon(
+                    Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "What's New in v${BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    WhatsNewItem(
+                        icon = "🎨",
+                        title = "Material You Dynamic Theming",
+                        description = "Harmonizes colors with your Android 12+ system wallpaper palette, alongside authentic Islamic Emerald and Amber Gold themes."
+                    )
+                    WhatsNewItem(
+                        icon = "📱",
+                        title = "Adaptive Navigation Rail",
+                        description = "Seamlessly switches between bottom navigation on phones and an ergonomic side Navigation Rail on tablets and foldables (600dp+)."
+                    )
+                    WhatsNewItem(
+                        icon = "📖",
+                        title = "Enhanced Uthmani Calligraphy",
+                        description = "Amiri Quran typography with generous 2.2 line-height spacing to ensure diacritics and tashkeel never clip."
+                    )
+                    WhatsNewItem(
+                        icon = "🔍",
+                        title = "Modern Search & Filter Chips",
+                        description = "Expressive M3 pill search bar and checkmarked filter chips for Surah revelation type and Juz."
+                    )
+                    WhatsNewItem(
+                        icon = "🎛️",
+                        title = "Segmented Theme Controls",
+                        description = "Single-tap theme switching between System, Light, Dark, and AMOLED Pitch Black with M3 segmented buttons."
+                    )
+                    WhatsNewItem(
+                        icon = "🎵",
+                        title = "Refined Mini-Player",
+                        description = "Tonal surface elevation, subtle container borders, and 48dp accessible touch bounds across all playback controls."
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showWhatsNewDialog = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun WhatsNewItem(
+    icon: String,
+    title: String,
+    description: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = icon,
+            style = MaterialTheme.typography.titleMedium
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
