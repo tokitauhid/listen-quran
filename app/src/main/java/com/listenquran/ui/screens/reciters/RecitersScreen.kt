@@ -409,7 +409,10 @@ fun ReciterGridCard(
                     .clip(RoundedCornerShape(18.dp))
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF005237), Color(0xFF1D211F))
+                            listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
                         )
                     )
                     .border(
@@ -466,7 +469,7 @@ fun ReciterGridCard(
                         .clip(CircleShape)
                         .background(
                             if (reciter.isFavorite) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.95f)
-                            else Color.Black.copy(alpha = 0.4f)
+                            else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.8f)
                         )
                         .clickable(enabled = onToggleFavorite != null) {
                             onToggleFavorite?.invoke()
@@ -476,7 +479,7 @@ fun ReciterGridCard(
                     Icon(
                         imageVector = if (reciter.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (reciter.isFavorite) "Remove from favorites" else "Add to favorites",
-                        tint = if (reciter.isFavorite) Color.Black else Color.White.copy(alpha = 0.85f),
+                        tint = if (reciter.isFavorite) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -503,6 +506,7 @@ fun ReciterGridCard(
                 text = reciter.name,
                 fontFamily = AmiriQuranFont,
                 fontSize = 14.sp,
+                lineHeight = 31.sp, // 2.2x line-height prevents diacritics clipping
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

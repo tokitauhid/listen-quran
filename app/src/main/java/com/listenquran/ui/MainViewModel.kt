@@ -105,6 +105,9 @@ class MainViewModel @Inject constructor(
     val themeMode: StateFlow<ThemeMode> = userPreferencesRepository.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.DARK)
 
+    val dynamicColorEnabled: StateFlow<Boolean> = userPreferencesRepository.dynamicColorEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val audioQuality: StateFlow<AudioQuality> = userPreferencesRepository.audioQuality
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AudioQuality.STANDARD)
 
@@ -500,6 +503,10 @@ class MainViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { userPreferencesRepository.setThemeMode(mode) }
+    }
+
+    fun setDynamicColorEnabled(enabled: Boolean) {
+        viewModelScope.launch { userPreferencesRepository.setDynamicColorEnabled(enabled) }
     }
 
     fun setAudioQuality(quality: AudioQuality) {

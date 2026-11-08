@@ -78,6 +78,7 @@ fun ListenQuranApp(
     val statsSummary by viewModel.statsSummary.collectAsStateWithLifecycle()
     val recentSurahs by viewModel.recentSurahs.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val dynamicColorEnabled by viewModel.dynamicColorEnabled.collectAsStateWithLifecycle()
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
@@ -171,13 +172,43 @@ fun ListenQuranApp(
         }
     } ?: true
     val isDetailOverlayOpen = selectedPlaylistForDetail != null || selectedReciterForProfile != null
-    val showBottomBar = isAtTabRoot && !isDetailOverlayOpen
+    val isWideScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    val showBottomBar = isAtTabRoot && !isDetailOverlayOpen && !isWideScreen
+    val showNavRail = isAtTabRoot && !isDetailOverlayOpen && isWideScreen
+
+    val onTabSelected: (TopLevelDestination) -> Unit = { destination ->
+        selectedPlaylistForDetail = null
+        selectedReciterForProfile = null
+        showFullPlayer = false
+        showVersesSheet = false
+        showQueueSheet = false
+        showActionsMenuSheet = false
+        showAddToPlaylistSheet = false
+        showSleepTimerDialog = false
+        ayahToShare = null
+
+        if (destination == TopLevelDestination.HOME) {
+            homeResetTrigger++
+        }
+        if (destination == TopLevelDestination.LIBRARY) {
+            libraryResetTrigger++
+        }
+
+        navController.navigateToTab(destination) {
+            if (destination == TopLevelDestination.HOME) {
+                homeResetTrigger++
+            }
+            if (destination == TopLevelDestination.LIBRARY) {
+                libraryResetTrigger++
+            }
+        }
+    }
 
     val isImeVisible = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
     val hasActivePlayback = playbackState.currentSurah != null || playbackState.isRadio
     val isMiniPlayerVisible = hasActivePlayback && !showFullPlayer && !isImeVisible
 
-    ListenQuranTheme(themeMode = themeMode) {
+    ListenQuranTheme(themeMode = themeMode, dynamicColor = dynamicColorEnabled) {
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -225,40 +256,7 @@ fun ListenQuranApp(
                                     } == true
                                     NavigationBarItem(
                                         selected = selected,
-                                        onClick = {
-                                            // Dismiss all open modal overlays & sheets so the tapped tab is immediately visible
-                                            selectedPlaylistForDetail = null
-                                            selectedReciterForProfile = null
-                                            showFullPlayer = false
-                                            showVersesSheet = false
-                                            showQueueSheet = false
-                                            showActionsMenuSheet = false
-                                            showAddToPlaylistSheet = false
-                                            showSleepTimerDialog = false
-                                            ayahToShare = null
-
-                                            if (destination == TopLevelDestination.HOME) {
-                                                homeResetTrigger++
-                                            }
-                                            if (destination == TopLevelDestination.LIBRARY) {
-                                                libraryResetTrigger++
-                                            }
-
-                                            if (selectedPlaylistForDetail != null) {
-                                                selectedPlaylistForDetail = null
-                                            }
-                                            if (selectedReciterForProfile != null) {
-                                                selectedReciterForProfile = null
-                                            }
-                                            navController.navigateToTab(destination) {
-                                                if (destination == TopLevelDestination.HOME) {
-                                                    homeResetTrigger++
-                                                }
-                                                if (destination == TopLevelDestination.LIBRARY) {
-                                                    libraryResetTrigger++
-                                                }
-                                            }
-                                        },
+                                        onClick = { onTabSelected(destination) },
                                         icon = {
                                             val icon = when (destination) {
                                                 TopLevelDestination.HOME -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
@@ -297,8 +295,57 @@ fun ListenQuranApp(
                 CompositionLocalProvider(
                     LocalMiniPlayerInset provides measuredBottomInset
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        ListenQuranNavHost(
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        if (showNavRail) {
+                            NavigationRail(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                modifier = Modifier.fillMaxHeight(),
+                            ) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                TopLevelDestination.bottomNavDestinations.forEach { destination ->
+                                    val selected = currentDestination?.hierarchy?.any {
+                                        it.route == destination.graphRoute || it.route == destination.route
+                                    } == true
+                                    NavigationRailItem(
+                                        selected = selected,
+                                        onClick = { onTabSelected(destination) },
+                                        icon = {
+                                            val icon = when (destination) {
+                                                TopLevelDestination.HOME -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
+                                                TopLevelDestination.RECITERS -> if (selected) Icons.Filled.RecordVoiceOver else Icons.Outlined.RecordVoiceOver
+                                                TopLevelDestination.SEARCH -> if (selected) Icons.Filled.Search else Icons.Outlined.Search
+                                                TopLevelDestination.LIBRARY -> if (selected) Icons.Rounded.Bookmarks else Icons.Outlined.Bookmarks
+                                                TopLevelDestination.SETTINGS -> if (selected) Icons.Filled.Settings else Icons.Outlined.Settings
+                                                TopLevelDestination.SURAHS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
+                                                TopLevelDestination.RADIO -> Icons.Rounded.Radio
+                                                TopLevelDestination.KHATAM -> Icons.Filled.Home
+                                            }
+                                            Icon(imageVector = icon, contentDescription = destination.label)
+                                        },
+                                        label = {
+                                            Text(
+                                                text = destination.label,
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        },
+                                        colors = NavigationRailItemDefaults.colors(
+                                            selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        ) {
+                            ListenQuranNavHost(
                             navController = navController,
                             viewModel = viewModel,
                             surahs = surahs,
@@ -362,6 +409,7 @@ fun ListenQuranApp(
                             )
                         }
                     }
+                }
                 }
             }
 

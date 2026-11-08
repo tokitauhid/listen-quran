@@ -128,8 +128,9 @@ fun MiniPlayer(
             .then(containerModifier),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        shadowElevation = 4.dp,
     ) {
         Column {
             Row(

@@ -18,6 +18,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 data class SettingsPreferences(
     val themeMode: ThemeMode = ThemeMode.DARK,
+    val dynamicColorEnabled: Boolean = false,
     val defaultReciterId: Int = 7,
     val playbackSpeed: Float = 1.0f,
     val wordByWordEnabled: Boolean = false,
@@ -41,6 +42,7 @@ class UserPreferencesRepository @Inject constructor(
 ) {
     private object PreferencesKeys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
         val AUDIO_QUALITY = stringPreferencesKey("audio_quality")
         val PLAYBACK_SPEED = floatPreferencesKey("playback_speed")
         val LAST_RECITER_ID = intPreferencesKey("last_reciter_id")
@@ -74,6 +76,10 @@ class UserPreferencesRepository @Inject constructor(
                 else -> ThemeMode.DARK // Dark is project default
             }
         }
+
+    val dynamicColorEnabled: Flow<Boolean> = context.dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { preferences -> preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: false }
 
     val audioQuality: Flow<AudioQuality> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
@@ -164,6 +170,7 @@ class UserPreferencesRepository @Inject constructor(
             }
             SettingsPreferences(
                 themeMode = theme,
+                dynamicColorEnabled = preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: false,
                 defaultReciterId = preferences[PreferencesKeys.DEFAULT_RECITER_ID] ?: preferences[PreferencesKeys.LAST_RECITER_ID] ?: 7,
                 playbackSpeed = preferences[PreferencesKeys.PLAYBACK_SPEED] ?: 1.0f,
                 wordByWordEnabled = preferences[PreferencesKeys.WORD_BY_WORD_ENABLED] ?: false,
@@ -185,6 +192,12 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.THEME_MODE] = mode.name
+        }
+    }
+
+    suspend fun setDynamicColorEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] = enabled
         }
     }
 

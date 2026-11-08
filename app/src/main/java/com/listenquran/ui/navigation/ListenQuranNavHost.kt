@@ -149,6 +149,7 @@ fun ListenQuranNavHost(
                 val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsStateWithLifecycle()
                 val totalDownloadedBytes by viewModel.totalDownloadedBytes.collectAsStateWithLifecycle()
                 val allReciters by viewModel.reciters.collectAsStateWithLifecycle()
+                val dynamicColorEnabled by viewModel.dynamicColorEnabled.collectAsStateWithLifecycle()
 
                 SettingsScreen(
                     currentTheme = themeMode,
@@ -160,6 +161,8 @@ fun ListenQuranNavHost(
                     cacheSizeBytes = cacheSizeBytes,
                     totalDownloadedBytes = totalDownloadedBytes,
                     onSelectTheme = { viewModel.setThemeMode(it) },
+                    dynamicColorEnabled = dynamicColorEnabled,
+                    onToggleDynamicColor = { viewModel.setDynamicColorEnabled(it) },
                     onSelectDefaultReciter = { viewModel.setDefaultReciter(it) },
                     onSelectPlaybackSpeed = { viewModel.setPlaybackSpeed(it) },
                     onSelectCustomSleepTimerMinutes = { viewModel.saveCustomSleepTimerMinutes(it) },

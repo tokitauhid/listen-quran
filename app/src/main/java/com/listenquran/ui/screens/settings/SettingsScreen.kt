@@ -68,6 +68,8 @@ fun SettingsScreen(
     cacheSizeBytes: Long,
     totalDownloadedBytes: Long,
     onSelectTheme: (ThemeMode) -> Unit,
+    dynamicColorEnabled: Boolean = false,
+    onToggleDynamicColor: ((Boolean) -> Unit)? = null,
     onSelectDefaultReciter: (Reciter) -> Unit,
     onSelectPlaybackSpeed: (Float) -> Unit,
     onSelectCustomSleepTimerMinutes: (Int) -> Unit,
@@ -197,7 +199,9 @@ fun SettingsScreen(
             item(key = "section_appearance") {
                 AppearanceSection(
                     currentTheme = currentTheme,
-                    onSelectTheme = onSelectTheme
+                    onSelectTheme = onSelectTheme,
+                    dynamicColorEnabled = dynamicColorEnabled,
+                    onToggleDynamicColor = onToggleDynamicColor
                 )
             }
 
@@ -651,6 +655,8 @@ private fun MetricCard(
 private fun AppearanceSection(
     currentTheme: ThemeMode,
     onSelectTheme: (ThemeMode) -> Unit,
+    dynamicColorEnabled: Boolean = false,
+    onToggleDynamicColor: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -685,35 +691,72 @@ private fun AppearanceSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Segmented options
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // M3 SingleChoiceSegmentedButtonRow
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                ThemeOptionChip(
-                    label = "Dark",
-                    selected = currentTheme == ThemeMode.DARK,
-                    onClick = { onSelectTheme(ThemeMode.DARK) },
-                    modifier = Modifier.weight(1f)
+                val themes = listOf(ThemeMode.DARK, ThemeMode.LIGHT, ThemeMode.AMOLED, ThemeMode.SYSTEM)
+                themes.forEachIndexed { index, theme ->
+                    SegmentedButton(
+                        selected = currentTheme == theme,
+                        onClick = { onSelectTheme(theme) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = themes.size),
+                        label = {
+                            Text(
+                                text = when (theme) {
+                                    ThemeMode.DARK -> "Dark"
+                                    ThemeMode.LIGHT -> "Light"
+                                    ThemeMode.AMOLED -> "AMOLED"
+                                    ThemeMode.SYSTEM -> "System"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                            )
+                        }
+                    )
+                }
+            }
+
+            // M3 Dynamic Color (Monet) switch on Android 12+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && onToggleDynamicColor != null) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
-                ThemeOptionChip(
-                    label = "Light",
-                    selected = currentTheme == ThemeMode.LIGHT,
-                    onClick = { onSelectTheme(ThemeMode.LIGHT) },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionChip(
-                    label = "AMOLED",
-                    selected = currentTheme == ThemeMode.AMOLED,
-                    onClick = { onSelectTheme(ThemeMode.AMOLED) },
-                    modifier = Modifier.weight(1f)
-                )
-                ThemeOptionChip(
-                    label = "System",
-                    selected = currentTheme == ThemeMode.SYSTEM,
-                    onClick = { onSelectTheme(ThemeMode.SYSTEM) },
-                    modifier = Modifier.weight(1f)
-                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Dynamic Color (Material You)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Derive tones from your system wallpaper",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = dynamicColorEnabled,
+                        onCheckedChange = onToggleDynamicColor,
+                        thumbContent = if (dynamicColorEnabled) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize)
+                                )
+                            }
+                        } else null
+                    )
+                }
             }
         }
     }

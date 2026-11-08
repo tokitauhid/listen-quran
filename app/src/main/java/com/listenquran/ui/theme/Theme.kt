@@ -1,13 +1,17 @@
 package com.listenquran.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.listenquran.domain.model.ThemeMode
@@ -32,6 +36,8 @@ val DarkColorScheme = darkColorScheme(
     background = Background,
     onBackground = OnBackground,
     surface = Surface,
+    surfaceDim = SurfaceDim,
+    surfaceBright = SurfaceBright,
     onSurface = OnSurface,
     onSurfaceVariant = OnSurfaceVariant,
     surfaceContainerLowest = SurfaceContainerLowest,
@@ -63,8 +69,11 @@ val LightColorScheme = lightColorScheme(
     background = LightSurface,
     onBackground = LightOnSurface,
     surface = LightSurface,
+    surfaceDim = LightSurfaceDim,
+    surfaceBright = LightSurfaceBright,
     onSurface = LightOnSurface,
     onSurfaceVariant = LightOnSurfaceVariant,
+    surfaceContainerLowest = LightSurfaceContainerLowest,
     surfaceContainerLow = LightSurfaceContainerLow,
     surfaceContainer = LightSurfaceContainer,
     surfaceContainerHigh = LightSurfaceContainerHigh,
@@ -76,21 +85,51 @@ val LightColorScheme = lightColorScheme(
 val AmoledColorScheme = DarkColorScheme.copy(
     background = AmoledBackground,
     surface = AmoledSurface,
+    surfaceDim = AmoledSurfaceDim,
+    surfaceBright = AmoledSurfaceBright,
+    surfaceContainerLowest = AmoledSurfaceContainerLowest,
+    surfaceContainerLow = AmoledSurfaceContainerLow,
     surfaceContainer = AmoledSurfaceContainer,
     surfaceContainerHigh = AmoledSurfaceContainerHigh,
+    surfaceContainerHighest = AmoledSurfaceContainerHighest,
 )
 
 @Composable
 fun ListenQuranTheme(
     themeMode: ThemeMode = ThemeMode.DARK,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val context = LocalContext.current
     val systemDark = isSystemInDarkTheme()
-    val colorScheme = when (themeMode) {
-        ThemeMode.LIGHT -> LightColorScheme
-        ThemeMode.DARK -> DarkColorScheme
-        ThemeMode.AMOLED -> AmoledColorScheme
-        ThemeMode.SYSTEM -> if (systemDark) DarkColorScheme else LightColorScheme
+    val isDark = when (themeMode) {
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+        ThemeMode.AMOLED -> true
+        ThemeMode.SYSTEM -> systemDark
+    }
+
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val dynamicScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (themeMode == ThemeMode.AMOLED) {
+                dynamicScheme.copy(
+                    background = AmoledBackground,
+                    surface = AmoledSurface,
+                    surfaceDim = AmoledSurfaceDim,
+                    surfaceContainerLowest = AmoledSurfaceContainerLowest,
+                    surfaceContainerLow = AmoledSurfaceContainerLow,
+                    surfaceContainer = AmoledSurfaceContainer,
+                    surfaceContainerHigh = AmoledSurfaceContainerHigh,
+                )
+            } else {
+                dynamicScheme
+            }
+        }
+        themeMode == ThemeMode.LIGHT -> LightColorScheme
+        themeMode == ThemeMode.DARK -> DarkColorScheme
+        themeMode == ThemeMode.AMOLED -> AmoledColorScheme
+        else -> if (systemDark) DarkColorScheme else LightColorScheme
     }
 
     val view = LocalView.current
@@ -98,14 +137,17 @@ fun ListenQuranTheme(
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.surface.toArgb()
-            val isLight = colorScheme == LightColorScheme
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = isLight
+            window.navigationBarColor = colorScheme.surfaceContainer.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
+            controller.isAppearanceLightStatusBars = !isDark
+            controller.isAppearanceLightNavigationBars = !isDark
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = QuranTypography,
+        shapes = QuranShapes,
         content = content,
     )
 }

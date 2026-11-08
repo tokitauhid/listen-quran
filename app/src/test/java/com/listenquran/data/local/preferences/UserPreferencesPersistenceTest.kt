@@ -23,6 +23,7 @@ class UserPreferencesPersistenceTest {
 
     private val WBW_KEY = booleanPreferencesKey("word_by_word_enabled")
     private val TRANSLATION_KEY = booleanPreferencesKey("translation_enabled")
+    private val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color_enabled")
 
     private fun createTestDataStore() = PreferenceDataStoreFactory.create(
         scope = testScope,
@@ -35,9 +36,26 @@ class UserPreferencesPersistenceTest {
 
         val wbw = dataStore.data.map { it[WBW_KEY] ?: false }.first()
         val trans = dataStore.data.map { it[TRANSLATION_KEY] ?: false }.first()
+        val dynamicColor = dataStore.data.map { it[DYNAMIC_COLOR_KEY] ?: false }.first()
 
         assertFalse(wbw)
         assertFalse(trans)
+        assertFalse(dynamicColor)
+    }
+
+    @Test
+    fun `persists dynamic color preference independently`() = runBlocking {
+        val dataStore = createTestDataStore()
+
+        dataStore.edit { prefs ->
+            prefs[DYNAMIC_COLOR_KEY] = true
+        }
+        assertTrue(dataStore.data.map { it[DYNAMIC_COLOR_KEY] ?: false }.first())
+
+        dataStore.edit { prefs ->
+            prefs[DYNAMIC_COLOR_KEY] = false
+        }
+        assertFalse(dataStore.data.map { it[DYNAMIC_COLOR_KEY] ?: false }.first())
     }
 
     @Test

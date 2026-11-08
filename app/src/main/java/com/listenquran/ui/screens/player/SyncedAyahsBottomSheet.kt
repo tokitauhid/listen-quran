@@ -578,7 +578,7 @@ fun AyahCard(
                                 text = word.textUthmani,
                                 fontFamily = AmiriQuranFont,
                                 fontSize = 22.sp,
-                                lineHeight = 44.sp,
+                                lineHeight = 49.sp, // 2.2x line-height prevents diacritic clipping
                                 color = if (isSpokenWord) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.End
                             )
@@ -590,7 +590,7 @@ fun AyahCard(
                     text = ayah.textUthmani,
                     fontFamily = AmiriQuranFont,
                     fontSize = 26.sp,
-                    lineHeight = 48.sp,
+                    lineHeight = 58.sp, // 2.2x line-height prevents diacritic clipping
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.End,
                     modifier = Modifier.fillMaxWidth()
