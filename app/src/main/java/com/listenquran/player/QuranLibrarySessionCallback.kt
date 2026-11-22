@@ -327,7 +327,7 @@ class QuranLibrarySessionCallback @Inject constructor(
                 val reciter = reciterRepository.getReciterById(reciterId) ?: defaultReciter
                 val audioData = quranRepository.getChapterAudio(reciter.id, surahId)
                 if (audioData != null && surah != null) {
-                    val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+                    val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
                     val resolvedItem = MediaItem.Builder()
                         .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
                         .setUri(audioData.audioUrl)
@@ -379,7 +379,7 @@ class QuranLibrarySessionCallback @Inject constructor(
                 val audioData = quranRepository.getChapterAudio(defaultReciter.id, 1)
                 val surah = quranRepository.getSurahById(1)
                 if (audioData != null && surah != null) {
-                    val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+                    val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
                     val item = MediaItem.Builder()
                         .setMediaId("surah:1:reciter:${defaultReciter.id}")
                         .setUri(audioData.audioUrl)
@@ -417,7 +417,7 @@ class QuranLibrarySessionCallback @Inject constructor(
     }
 
     private fun buildSurahMediaItem(surah: Surah, reciter: Reciter): MediaItem {
-        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
         return MediaItem.Builder()
             .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
             .setMediaMetadata(
@@ -435,7 +435,7 @@ class QuranLibrarySessionCallback @Inject constructor(
     }
 
     private fun buildPlaylistItemMediaItem(item: PlaylistItem): MediaItem {
-        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
         return MediaItem.Builder()
             .setMediaId("surah:${item.surahNumber}:reciter:${item.reciterId}")
             .setMediaMetadata(

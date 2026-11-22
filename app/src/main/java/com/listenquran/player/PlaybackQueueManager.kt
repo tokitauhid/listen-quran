@@ -117,7 +117,7 @@ class PlaybackQueueManager @Inject constructor(
             }
         }
 
-        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+        val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
             .setArtist(reciter.englishName)
@@ -156,6 +156,14 @@ class PlaybackQueueManager @Inject constructor(
         currentSourceTitle = queueTitle
 
         scope.launch {
+            if (cachedSurahs.isNullOrEmpty()) {
+                if (surahs.size >= 114) {
+                    cachedSurahs = surahs
+                } else {
+                    getAllSurahs()
+                }
+            }
+
             val mediaItems = ArrayList<MediaItem>(surahs.size)
             for (i in surahs.indices) {
                 val s = surahs[i]
@@ -197,30 +205,120 @@ class PlaybackQueueManager @Inject constructor(
     ) {
         if (items.isEmpty()) return
         scope.launch {
+            val resolvedSurahs = if (allSurahs.isNotEmpty()) allSurahs else getAllSurahs()
+            if (resolvedSurahs.isEmpty()) return@launch
+            if (cachedSurahs.isNullOrEmpty()) {
+                cachedSurahs = resolvedSurahs
+            }
+
             val defaultReciter = getDefaultReciter()
             val mediaItems = ArrayList<MediaItem>(items.size)
             val queuedSurahs = ArrayList<Surah>(items.size)
+            val queuedReciters = ArrayList<Reciter>(items.size)
 
             for (item in items) {
-                val surah = allSurahs.find { it.id == item.surahNumber } ?: allSurahs.first()
+                val surah = resolvedSurahs.find { it.id == item.surahNumber } ?: resolvedSurahs.first()
                 val reciter = allReciters.find { it.id == item.reciterId } ?: defaultReciter
                 queuedSurahs.add(surah)
+                queuedReciters.add(reciter)
                 mediaItems.add(buildMediaItem(surah, reciter, item.startAyah))
             }
 
             val clampedIndex = startIndex.coerceIn(0, items.size - 1)
             currentSourceTitle = queueTitle
 
+            val targetItem = items[clampedIndex]
+            var startPosMs = 0L
+            if (targetItem.startAyah > 1 && clampedIndex in queuedSurahs.indices) {
+                val targetSurah = queuedSurahs[clampedIndex]
+                val targetReciter = queuedReciters[clampedIndex]
+                val audioData = quranRepository.getChapterAudio(targetReciter.id, targetSurah.id)
+                val targetTiming = audioData?.timestamps?.find { it.verseKey == "${targetSurah.id}:${targetItem.startAyah}" }
+                if (targetTiming != null) {
+                    startPosMs = targetTiming.timestampFrom
+                }
+            }
+
             withController { controller ->
                 currentShuffleOrder = null
                 controller.shuffleModeEnabled = false
 
-                controller.setMediaItems(mediaItems, clampedIndex, 0L)
+                controller.setMediaItems(mediaItems, clampedIndex, startPosMs)
                 controller.prepare()
                 controller.play()
 
                 rebuildQueueState(controller)
-                persistQueueAsync(queuedSurahs, allReciters.firstOrNull() ?: defaultReciter, clampedIndex, queueTitle, false)
+                persistQueueAsync(queuedSurahs, queuedReciters.getOrNull(clampedIndex) ?: defaultReciter, clampedIndex, queueTitle, false)
+            }
+        }
+    }
+
+    fun switchReciterPreservingQueue(
+        reciter: Reciter,
+        currentAyahNumber: Int = 1,
+        withController: ((MediaBrowser) -> Unit) -> Unit
+    ) {
+        withController { controller ->
+            val itemCount = controller.mediaItemCount
+            if (itemCount == 0) return@withController
+            val currentIndex = controller.currentMediaItemIndex.coerceIn(0, itemCount - 1)
+            val wasPlaying = controller.isPlaying
+            val wasShuffle = controller.shuffleModeEnabled
+            val savedShuffleOrder = currentShuffleOrder
+            val savedSourceTitle = currentSourceTitle
+
+            val surahIds = ArrayList<Int>(itemCount)
+            val uids = ArrayList<String>(itemCount)
+            for (i in 0 until itemCount) {
+                val mi = controller.getMediaItemAt(i)
+                surahIds.add(parseSurahId(mi.mediaId) ?: 1)
+                uids.add(parseQueueUid(mi.mediaId) ?: UUID.randomUUID().toString())
+            }
+
+            scope.launch {
+                val allSurahs = getAllSurahs()
+                val mediaItems = ArrayList<MediaItem>(itemCount)
+                val queuedSurahs = ArrayList<Surah>(itemCount)
+
+                for (i in 0 until itemCount) {
+                    val sId = surahIds[i]
+                    val surah = allSurahs.find { it.id == sId } ?: allSurahs.firstOrNull() ?: continue
+                    val ayah = if (i == currentIndex) currentAyahNumber else 1
+                    queuedSurahs.add(surah)
+                    mediaItems.add(buildMediaItem(surah, reciter, ayah, uids[i]))
+                }
+                if (mediaItems.isEmpty()) return@launch
+
+                var startPosMs = 0L
+                if (currentAyahNumber > 1 && currentIndex in queuedSurahs.indices) {
+                    val targetSurah = queuedSurahs[currentIndex]
+                    val audioData = quranRepository.getChapterAudio(reciter.id, targetSurah.id)
+                    val targetTiming = audioData?.timestamps?.find { it.verseKey == "${targetSurah.id}:$currentAyahNumber" }
+                    if (targetTiming != null) {
+                        startPosMs = targetTiming.timestampFrom
+                    }
+                }
+
+                withController { c ->
+                    currentSourceTitle = savedSourceTitle
+                    c.setMediaItems(mediaItems, currentIndex.coerceIn(0, mediaItems.size - 1), startPosMs)
+                    if (wasShuffle && savedShuffleOrder != null && savedShuffleOrder.shuffledIndices.size == mediaItems.size) {
+                        currentShuffleOrder = savedShuffleOrder
+                        try {
+                            exoPlayerProvider.get().setShuffleOrder(savedShuffleOrder)
+                        } catch (_: Exception) {}
+                        c.shuffleModeEnabled = true
+                    } else {
+                        currentShuffleOrder = null
+                        c.shuffleModeEnabled = false
+                    }
+                    c.prepare()
+                    if (wasPlaying) {
+                        c.play()
+                    }
+                    rebuildQueueState(c)
+                    persistQueueAsync(queuedSurahs, reciter, currentIndex, savedSourceTitle, wasShuffle)
+                }
             }
         }
     }

@@ -369,15 +369,19 @@ fun ListenQuranApp(
 
                         // Playlist Detail Full Screen inside Scaffold content so MiniPlayer in bottomBar stays visible
                         if (selectedPlaylistForDetail != null) {
-                            val pl = selectedPlaylistForDetail!!
-                            val items by viewModel.getPlaylistItems(pl.id).collectAsStateWithLifecycle(emptyList())
+                            val selected = selectedPlaylistForDetail!!
+                            val pl = playlists.find { it.id == selected.id } ?: selected
+                            val playlistItemsFlow = remember(pl.id, pl.isLikedCollection) {
+                                viewModel.getPlaylistItems(pl.id, pl.isLikedCollection)
+                            }
+                            val items by playlistItemsFlow.collectAsStateWithLifecycle(initialValue = pl.items)
                             PlaylistDetailScreen(
                                 playlist = pl,
                                 items = items,
                                 onBack = { selectedPlaylistForDetail = null },
                                 onPlayTrack = { viewModel.playPlaylistItem(it, items, pl.name) },
                                 onPlayAll = { viewModel.playAllPlaylist(items, pl.name) },
-                                onDeleteItem = { viewModel.deletePlaylistItem(it) },
+                                onDeleteItem = { viewModel.deletePlaylistItem(it, pl.isLikedCollection) },
                                 onDeletePlaylist = {
                                     viewModel.deletePlaylist(pl.id)
                                     selectedPlaylistForDetail = null

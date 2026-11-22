@@ -39,6 +39,9 @@ class ListenQuranMediaService : MediaLibraryService() {
             .setChannelName(R.string.app_name)
             .setNotificationId(NOTIFICATION_ID)
             .build()
+            .apply {
+                setSmallIcon(R.drawable.ic_app_logo)
+            }
         setMediaNotificationProvider(notificationProvider)
     }
 
@@ -64,7 +67,7 @@ class ListenQuranMediaService : MediaLibraryService() {
 
     private fun startForegroundNotification() {
         val notification = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_app_logo)
             .setContentTitle("Listen Quran")
             .setContentText("Quran Audio Playback")
             .setOngoing(true)

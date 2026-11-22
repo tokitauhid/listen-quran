@@ -17,6 +17,43 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+internal object PlaylistQueueResolver {
+    data class ResolvedPlaylistPlayback(
+        val items: List<PlaylistItem>,
+        val startIndex: Int,
+        val title: String,
+    )
+
+    fun resolve(
+        clickedItem: PlaylistItem,
+        explicitItems: List<PlaylistItem>?,
+        playlistItemsFromStore: List<PlaylistItem>?,
+        explicitTitle: String?,
+        storeTitle: String?,
+    ): ResolvedPlaylistPlayback {
+        val resolvedItems = when {
+            !explicitItems.isNullOrEmpty() -> explicitItems
+            !playlistItemsFromStore.isNullOrEmpty() -> playlistItemsFromStore
+            else -> listOf(clickedItem)
+        }
+        val resolvedTitle = explicitTitle ?: storeTitle ?: "Playlist"
+        val startIndex = (if (clickedItem.id != 0L) {
+            resolvedItems.indexOfFirst { it.id == clickedItem.id }
+        } else -1).takeIf { it >= 0 }
+            ?: resolvedItems.indexOfFirst {
+                it.surahNumber == clickedItem.surahNumber &&
+                    it.reciterId == clickedItem.reciterId &&
+                    it.startAyah == clickedItem.startAyah
+            }.coerceAtLeast(0)
+
+        return ResolvedPlaylistPlayback(
+            items = resolvedItems,
+            startIndex = startIndex,
+            title = resolvedTitle,
+        )
+    }
+}
+
 @HiltViewModel
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -616,8 +653,9 @@ class MainViewModel @Inject constructor(
 
     fun addToPlaylist(playlistId: Long, surah: Surah) {
         val reciter = playbackState.value.currentReciter ?: reciters.value.firstOrNull() ?: return
-        val isLikedCollection = playlists.value.find { it.id == playlistId }?.isLikedCollection == true
         viewModelScope.launch {
+            val isLikedCollection = playlists.value.find { it.id == playlistId }?.isLikedCollection
+                ?: (playlistRepository.getPlaylistById(playlistId)?.isLikedCollection == true)
             if (isLikedCollection) {
                 likedRepository.addLike(
                     surahNumber = surah.id,
@@ -667,10 +705,16 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun deletePlaylistItem(itemId: Long) {
+    fun deletePlaylistItem(itemId: Long, isLikedCollection: Boolean? = null) {
         viewModelScope.launch {
-            playlistRepository.deletePlaylistItem(itemId)
-            likedRepository.deleteById(itemId)
+            when (isLikedCollection) {
+                true -> likedRepository.deleteById(itemId)
+                false -> playlistRepository.deletePlaylistItem(itemId)
+                null -> {
+                    playlistRepository.deletePlaylistItem(itemId)
+                    likedRepository.deleteById(itemId)
+                }
+            }
         }
     }
 
@@ -685,7 +729,7 @@ class MainViewModel @Inject constructor(
             userPreferencesRepository.setLastReciterId(reciter.id)
             val currentSurah = playbackState.value.currentSurah
             if (currentSurah != null && !playbackState.value.isRadio) {
-                playSurah(currentSurah, reciter, playbackState.value.currentAyahNumber)
+                playerManager.switchReciterPreservingQueue(reciter)
             }
         }
     }
@@ -700,8 +744,8 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
-        val isLikedCollection = playlists.value.find { it.id == playlistId }?.isLikedCollection == true
+    fun getPlaylistItems(playlistId: Long, isLikedOverride: Boolean? = null): Flow<List<PlaylistItem>> {
+        val isLikedCollection = isLikedOverride ?: (playlists.value.find { it.id == playlistId }?.isLikedCollection == true)
         return if (isLikedCollection) {
             likedRepository.getAllLiked().map { list ->
                 list.map { it.toPlaylistItem(playlistId) }
@@ -712,17 +756,19 @@ class MainViewModel @Inject constructor(
     }
 
     fun playAllLiked() {
-        val items = likedSurahs.value.map { it.toPlaylistItem() }
-        if (items.isEmpty()) return
-        val allSurahs = surahs.value
-        val allReciters = reciters.value
-        playerManager.playPlaylist(
-            items = items,
-            allSurahs = allSurahs,
-            allReciters = allReciters,
-            startIndex = 0,
-            queueTitle = "Liked Surahs"
-        )
+        viewModelScope.launch {
+            val items = likedSurahs.value.ifEmpty { likedRepository.getAllLiked().first() }.map { it.toPlaylistItem() }
+            if (items.isEmpty()) return@launch
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            playerManager.playPlaylist(
+                items = items,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = 0,
+                queueTitle = "Liked Surahs"
+            )
+        }
     }
 
     fun playLikedSurah(liked: LikedSurah) {
@@ -755,35 +801,49 @@ class MainViewModel @Inject constructor(
         playlistItems: List<PlaylistItem>? = null,
         playlistTitle: String? = null
     ) {
-        val allSurahs = surahs.value
-        val allReciters = reciters.value
-        if (playlistItems != null && playlistItems.isNotEmpty()) {
-            val startIndex = playlistItems.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+        viewModelScope.launch {
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            val matchingPlaylist = playlists.value.find { it.id == item.playlistId }
+            val fetchedPlaylist = if (
+                playlistItems.isNullOrEmpty() &&
+                (matchingPlaylist == null || matchingPlaylist.items.isEmpty()) &&
+                item.playlistId > 0L
+            ) {
+                playlistRepository.getPlaylistById(item.playlistId)
+            } else null
+
+            val resolved = PlaylistQueueResolver.resolve(
+                clickedItem = item,
+                explicitItems = playlistItems,
+                playlistItemsFromStore = matchingPlaylist?.items?.ifEmpty { null } ?: fetchedPlaylist?.items,
+                explicitTitle = playlistTitle,
+                storeTitle = matchingPlaylist?.name ?: fetchedPlaylist?.name,
+            )
+
             playerManager.playPlaylist(
-                items = playlistItems,
+                items = resolved.items,
                 allSurahs = allSurahs,
                 allReciters = allReciters,
-                startIndex = startIndex,
-                queueTitle = playlistTitle ?: "Playlist"
+                startIndex = resolved.startIndex,
+                queueTitle = resolved.title
             )
-        } else {
-            val surah = allSurahs.find { it.id == item.surahNumber } ?: return
-            val reciter = allReciters.find { it.id == item.reciterId } ?: playbackState.value.currentReciter ?: allReciters.firstOrNull() ?: return
-            playerManager.playSurah(surah, reciter, item.startAyah, queueTitle = playlistTitle)
         }
     }
 
     fun playAllPlaylist(items: List<PlaylistItem>, playlistTitle: String? = null) {
         if (items.isEmpty()) return
-        val allSurahs = surahs.value
-        val allReciters = reciters.value
-        playerManager.playPlaylist(
-            items = items,
-            allSurahs = allSurahs,
-            allReciters = allReciters,
-            startIndex = 0,
-            queueTitle = playlistTitle ?: "Playlist"
-        )
+        viewModelScope.launch {
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            playerManager.playPlaylist(
+                items = items,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = 0,
+                queueTitle = playlistTitle ?: "Playlist"
+            )
+        }
     }
 
     fun toggleFavoriteReciter(reciter: Reciter) {

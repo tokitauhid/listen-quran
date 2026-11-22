@@ -45,6 +45,9 @@ class MainActivity : ComponentActivity() {
         if (surahId > 0) {
             val startAyah = intent?.getIntExtra("PLAY_START_AYAH", 1) ?: 1
             val reciterId = intent?.getIntExtra("PLAY_RECITER_ID", -1) ?: -1
+            intent?.removeExtra("PLAY_SURAH_ID")
+            intent?.removeExtra("PLAY_START_AYAH")
+            intent?.removeExtra("PLAY_RECITER_ID")
             viewModel.playSurahById(surahId, startAyah, if (reciterId > 0) reciterId else null)
         }
     }

@@ -629,6 +629,40 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
+    fun switchReciterPreservingQueue(reciter: Reciter) {
+        val currentSurah = _playbackState.value.currentSurah ?: return
+        if (_playbackState.value.isRadio) return
+        val currentAyah = _playbackState.value.currentAyahNumber.coerceAtLeast(1)
+        syncTracker.onMediaItemChanged(currentSurah.id, reciter.id, currentAyah)
+        ensureServiceRunning()
+
+        scope.launch {
+            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = currentSurah.id)
+            val timings = audioData?.timestamps ?: emptyList()
+            val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
+            val targetPos = if (currentAyah > 1) {
+                timings.find { it.verseKey == "${currentSurah.id}:$currentAyah" }?.timestampFrom ?: 0L
+            } else 0L
+            _currentPositionMs.value = targetPos
+            syncTracker.setTimings(currentSurah.id, reciter.id, timings, targetPos)
+            _playbackState.update {
+                it.copy(
+                    currentReciter = reciter,
+                    isBuffering = true,
+                    durationMs = surahDuration,
+                    verseTimings = timings,
+                    isSyncAvailable = timings.isNotEmpty(),
+                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+                )
+            }
+            queueManager.switchReciterPreservingQueue(
+                reciter = reciter,
+                currentAyahNumber = currentAyah,
+                withController = ::withController
+            )
+        }
+    }
+
     fun togglePlayPause() {
         withController { controller ->
             if (controller.isPlaying) {
@@ -718,7 +752,7 @@ class AudioPlayerManager @Inject constructor(
 
     private fun buildRadioMediaItem(station: RadioStation, track: RadioTrack): MediaItem {
         val artworkUri = station.bannerUrl?.let { Uri.parse(it) }
-            ?: Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+            ?: Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
 
         return MediaItem.Builder()
             .setMediaId("radio:${station.id}:${System.nanoTime()}:${track.surah.id}:${track.reciter.id}")

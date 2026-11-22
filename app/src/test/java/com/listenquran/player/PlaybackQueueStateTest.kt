@@ -1,8 +1,10 @@
 package com.listenquran.player
 
+import com.listenquran.domain.model.PlaylistItem
 import com.listenquran.domain.model.QueueItem
 import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.Surah
+import com.listenquran.ui.PlaylistQueueResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -69,5 +71,65 @@ class PlaybackQueueStateTest {
         assertEquals(0, state.totalCount)
         assertTrue(state.upcomingItems.isEmpty())
         assertTrue(state.historyItems.isEmpty())
+    }
+
+    @Test
+    fun testPlaylistQueueSourceAndItemsPersistAcrossTrackTransitions() {
+        val surah18 = makeSurah(18, "Al-Kahf", 110)
+        val surah36 = makeSurah(36, "Yasin", 83)
+        val surah67 = makeSurah(67, "Al-Mulk", 30)
+
+        val state = PlaybackQueueState(
+            currentItem = QueueItem(id = "p1", surah = surah18, reciter = testReciter, timelineIndex = 0),
+            upcomingItems = listOf(
+                QueueItem(id = "p2", surah = surah36, reciter = testReciter, timelineIndex = 1),
+                QueueItem(id = "p3", surah = surah67, reciter = testReciter, timelineIndex = 2),
+            ),
+            historyItems = emptyList(),
+            sourceTitle = "Friday Favorites",
+            isShuffleEnabled = false,
+            isRadio = false,
+            totalCount = 3
+        )
+
+        assertEquals("Friday Favorites", state.sourceTitle)
+        assertEquals(3, state.totalCount)
+        assertEquals(listOf(18, 36, 67), state.allItems.map { it.surah.id })
+    }
+
+    @Test
+    fun testPlaylistItemResolutionNeverFallsBackToFullCatalog() {
+        val items = listOf(
+            PlaylistItem(id = 10L, playlistId = 4L, surahNumber = 18, surahName = "Al-Kahf", surahArabic = "الكهف", reciterId = 7, reciterName = "Mishari", orderIndex = 0),
+            PlaylistItem(id = 11L, playlistId = 4L, surahNumber = 36, surahName = "Yasin", surahArabic = "يس", reciterId = 7, reciterName = "Mishari", orderIndex = 1),
+            PlaylistItem(id = 12L, playlistId = 4L, surahNumber = 67, surahName = "Al-Mulk", surahArabic = "الملك", reciterId = 7, reciterName = "Mishari", orderIndex = 2),
+        )
+        val clicked = items[1]
+
+        // 1. Even if UI passes an empty list transiently, store items preserve the 3-track playlist queue
+        val resolvedFromStore = PlaylistQueueResolver.resolve(
+            clickedItem = clicked,
+            explicitItems = emptyList(),
+            playlistItemsFromStore = items,
+            explicitTitle = null,
+            storeTitle = "Friday Favorites",
+        )
+        assertEquals(3, resolvedFromStore.items.size)
+        assertEquals(1, resolvedFromStore.startIndex)
+        assertEquals("Friday Favorites", resolvedFromStore.title)
+        assertEquals(listOf(18, 36, 67), resolvedFromStore.items.map { it.surahNumber })
+
+        // 2. Even if both explicit and store lists are empty, falls back to the single clicked item (never 114 surahs)
+        val resolvedSingle = PlaylistQueueResolver.resolve(
+            clickedItem = clicked,
+            explicitItems = null,
+            playlistItemsFromStore = null,
+            explicitTitle = "Friday Favorites",
+            storeTitle = null,
+        )
+        assertEquals(1, resolvedSingle.items.size)
+        assertEquals(0, resolvedSingle.startIndex)
+        assertEquals(36, resolvedSingle.items.first().surahNumber)
+        assertEquals("Friday Favorites", resolvedSingle.title)
     }
 }
