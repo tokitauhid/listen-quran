@@ -158,6 +158,15 @@ class PlaybackSyncTracker internal constructor(
         processPosition(newPositionMs)
     }
 
+    /**
+     * Evaluates position updates pushed from a remote playback device (e.g., DLNA speaker).
+     */
+    fun updateExternalPosition(posMs: Long) {
+        val clamped = posMs.coerceAtLeast(0L)
+        _currentPositionMs.value = clamped
+        processPosition(clamped)
+    }
+
     private fun processPosition(pos: Long) {
         val timings = sortedTimings
         if (timings.isEmpty()) {

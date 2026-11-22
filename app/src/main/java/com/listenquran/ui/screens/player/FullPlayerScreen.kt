@@ -40,6 +40,7 @@ import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.listenquran.domain.model.RadioStationType
 import com.listenquran.player.PlaybackQueueState
+import com.listenquran.player.cast.OutputRouteState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -47,6 +48,7 @@ fun FullPlayerScreen(
     playbackState: PlaybackState,
     isLiked: Boolean,
     queueState: PlaybackQueueState? = null,
+    outputRouteState: OutputRouteState = OutputRouteState(),
     currentPositionMsFlow: StateFlow<Long>? = null,
     onCollapse: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -61,6 +63,7 @@ fun FullPlayerScreen(
     onOpenQueue: () -> Unit,
     onOpenSleepTimer: () -> Unit,
     onOpenActionsMenu: () -> Unit,
+    onOpenOutputPicker: () -> Unit = {},
     onStopRadio: (() -> Unit)? = null,
     onResumeSurah: (() -> Unit)? = null,
     onRetryRadio: (() -> Unit)? = null,
@@ -228,6 +231,13 @@ fun FullPlayerScreen(
                         playbackState.sleepTimerMode !is com.listenquran.player.SleepTimerMode.Off
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onOpenOutputPicker) {
+                        Icon(
+                            imageVector = if (outputRouteState.isCasting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                            contentDescription = "Connect to a device",
+                            tint = if (outputRouteState.isCasting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                     IconButton(onClick = onOpenSleepTimer) {
                         Icon(
                             imageVector = if (isTimerActive) Icons.Filled.Timer else Icons.Outlined.Timer,
@@ -783,6 +793,33 @@ fun FullPlayerScreen(
                             )
                         }
                     }
+                }
+
+                // Active remote output pill
+                if (outputRouteState.isCasting) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    AssistChip(
+                        onClick = onOpenOutputPicker,
+                        label = {
+                            Text(
+                                text = "Playing on ${outputRouteState.activeDevice.name}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.CastConnected,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            leadingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    )
                 }
 
                 // Radio Stop & Resume Surah Actions Row

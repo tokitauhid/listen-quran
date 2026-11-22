@@ -1,11 +1,17 @@
 package com.listenquran.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -82,6 +88,8 @@ fun ListenQuranApp(
     val audioQuality by viewModel.audioQuality.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    val outputRouteState by viewModel.outputRouteState.collectAsStateWithLifecycle()
+    val pendingHifzWhileCasting by viewModel.pendingHifzWhileCasting.collectAsStateWithLifecycle()
     val queueState by viewModel.queueState.collectAsStateWithLifecycle()
     val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
@@ -94,11 +102,27 @@ fun ListenQuranApp(
     var showQueueSheet by remember { mutableStateOf(false) }
     var showActionsMenuSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showOutputPickerSheet by remember { mutableStateOf(false) }
     var surahToAddToPlaylist by remember { mutableStateOf<Surah?>(null) }
     var selectedPlaylistForDetail by remember { mutableStateOf<Playlist?>(null) }
     var selectedReciterForProfile by remember { mutableStateOf<Reciter?>(null) }
     var ayahToShare by remember { mutableStateOf<Ayah?>(null) }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
+
+    var hasNearbyWifiPermission by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val nearbyWifiPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasNearbyWifiPermission = granted
+        if (granted) {
+            viewModel.scanOutputDevices()
+        }
+    }
 
     var homeResetTrigger by remember { mutableIntStateOf(0) }
     var libraryResetTrigger by remember { mutableIntStateOf(0) }
@@ -118,6 +142,7 @@ fun ListenQuranApp(
             selectedReciterForProfile != null ||
             ayahToShare != null ||
             showSleepTimerDialog ||
+            showOutputPickerSheet ||
             showAddToPlaylistSheet ||
             surahToAddToPlaylist != null ||
             showActionsMenuSheet ||
@@ -235,6 +260,7 @@ fun ListenQuranApp(
                                 onOpenFullPlayer = { showFullPlayer = true },
                                 onStopRadio = { viewModel.stopRadio() },
                                 onStopHifz = { viewModel.stopHifzLoop() },
+                                outputRouteState = outputRouteState,
                                 sharedTransitionScope = this@SharedTransitionLayout,
                                 animatedVisibilityScope = this@AnimatedVisibility,
                             )
@@ -437,6 +463,7 @@ fun ListenQuranApp(
                     playbackState = playbackState,
                     isLiked = isCurrentSurahLiked,
                     queueState = queueState,
+                    outputRouteState = outputRouteState,
                     currentPositionMsFlow = viewModel.currentPositionMs,
                     onCollapse = { showFullPlayer = false },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -451,6 +478,10 @@ fun ListenQuranApp(
                     onOpenQueue = { showQueueSheet = true },
                     onOpenSleepTimer = { showSleepTimerDialog = true },
                     onOpenActionsMenu = { showActionsMenuSheet = true },
+                    onOpenOutputPicker = {
+                        showOutputPickerSheet = true
+                        viewModel.scanOutputDevices()
+                    },
                     onStopRadio = { viewModel.stopRadio() },
                     onResumeSurah = { viewModel.resumeSurahAfterRadio() },
                     onRetryRadio = {
@@ -650,6 +681,50 @@ fun ListenQuranApp(
                     viewModel.saveCustomSleepTimerMinutes(mins)
                 },
                 onDismiss = { showSleepTimerDialog = false }
+            )
+        }
+
+        // Output Device Picker Bottom Sheet
+        if (showOutputPickerSheet) {
+            OutputDevicePickerSheet(
+                outputRouteState = outputRouteState,
+                hasNearbyWifiPermission = hasNearbyWifiPermission,
+                onRequestNearbyWifiPermission = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        nearbyWifiPermissionLauncher.launch(Manifest.permission.NEARBY_WIFI_DEVICES)
+                    }
+                },
+                onScanDevices = { viewModel.scanOutputDevices() },
+                onSelectDevice = { device ->
+                    viewModel.connectToOutputDevice(device)
+                },
+                onDisconnect = { viewModel.disconnectOutputDevice() },
+                onSetVolume = { vol -> viewModel.setRemoteVolume(vol) },
+                onToggleMute = { viewModel.toggleRemoteMute() },
+                onDismiss = { showOutputPickerSheet = false }
+            )
+        }
+
+        // Recommend local phone playback for Hifz repetition when casting, while allowing user choice
+        if (pendingHifzWhileCasting != null) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissHifzCastingPrompt() },
+                title = { Text("Switch to Phone for Hifz Mode?") },
+                text = {
+                    Text(
+                        "Network speakers buffer 1–3 seconds of audio, so quick Ayah repetition loops and pause delays are more accurate on your phone. You can still continue on the speaker if you prefer."
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.confirmHifzSwitchToPhone() }) {
+                        Text("Switch to This Phone")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.confirmHifzContinueCasting() }) {
+                        Text("Continue on Speaker")
+                    }
+                }
             )
         }
     }
