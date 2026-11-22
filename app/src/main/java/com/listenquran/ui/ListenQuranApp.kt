@@ -267,6 +267,7 @@ fun ListenQuranApp(
                                                 TopLevelDestination.SURAHS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
                                                 TopLevelDestination.RADIO -> Icons.Rounded.Radio
                                                 TopLevelDestination.KHATAM -> Icons.Filled.Home
+                                                TopLevelDestination.CATEGORIES -> Icons.Filled.Home
                                             }
                                             Icon(imageVector = icon, contentDescription = destination.label)
                                         },
@@ -319,6 +320,7 @@ fun ListenQuranApp(
                                                 TopLevelDestination.SURAHS -> if (selected) Icons.Filled.Home else Icons.Outlined.Home
                                                 TopLevelDestination.RADIO -> Icons.Rounded.Radio
                                                 TopLevelDestination.KHATAM -> Icons.Filled.Home
+                                                TopLevelDestination.CATEGORIES -> Icons.Filled.Home
                                             }
                                             Icon(imageVector = icon, contentDescription = destination.label)
                                         },

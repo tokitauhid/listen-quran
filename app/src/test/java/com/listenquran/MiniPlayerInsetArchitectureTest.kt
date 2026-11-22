@@ -72,6 +72,7 @@ class MiniPlayerInsetArchitectureTest {
             "LibraryScreen.kt",
             "SettingsScreen.kt",
             "SurahsScreen.kt",
+            "CategoriesScreen.kt",
             "RadioScreen.kt",
             "KhatamScreen.kt",
             "PlaylistDetailScreen.kt",

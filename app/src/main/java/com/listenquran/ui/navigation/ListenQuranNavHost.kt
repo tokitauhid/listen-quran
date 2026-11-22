@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.listenquran.domain.model.*
 import com.listenquran.ui.MainViewModel
+import com.listenquran.ui.screens.categories.CategoriesScreen
 import com.listenquran.ui.screens.home.HomeScreen
 import com.listenquran.ui.screens.library.LibraryScreen
 import com.listenquran.ui.screens.reciters.RecitersScreen
@@ -57,6 +58,7 @@ fun ListenQuranNavHost(
                 val onOpenSettings = androidx.compose.runtime.remember(navController) { { navController.navigateToDetail(TopLevelDestination.SETTINGS.route) } }
                 val onNavigateToSearch = androidx.compose.runtime.remember(navController) { { navController.navigateToDetail(TopLevelDestination.SEARCH.route) } }
                 val onNavigateToSurahs = androidx.compose.runtime.remember(navController) { { navController.navigateToDetail(TopLevelDestination.SURAHS.route) } }
+                val onNavigateToCategories = androidx.compose.runtime.remember(navController) { { navController.navigateToDetail(TopLevelDestination.CATEGORIES.route) } }
                 val onPlayNext = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.playNextInQueue(surah) } }
                 val onAddToQueue = androidx.compose.runtime.remember(viewModel) { { surah: Surah -> viewModel.addToQueue(surah) } }
                 val onRadioStationClick = androidx.compose.runtime.remember(viewModel) { { station: RadioStation -> viewModel.playRadio(station) } }
@@ -82,6 +84,7 @@ fun ListenQuranNavHost(
                     onNavigateToSearch = onNavigateToSearch,
                     onNavigateToSurahs = onNavigateToSurahs,
                     onNavigateToRadio = onNavigateToRadio,
+                    onNavigateToCategories = onNavigateToCategories,
                     onReciterClick = onOpenReciterProfile,
                     onVerseClick = { surah, ayah -> viewModel.playSurah(surah, startAyah = ayah) },
                     onPlayNext = onPlayNext,
@@ -89,7 +92,30 @@ fun ListenQuranNavHost(
                     onAddToPlaylist = onAddToPlaylist,
                     onRadioStationClick = onRadioStationClick,
                     onPlayCategory = { title, ids -> viewModel.playBrowseCategory(title, ids) },
+                    onPlayBrowseCategory = { category, entries, startIdx, shuffle, timerMode ->
+                        viewModel.playCategory(category, entries, startIdx, shuffle, timerMode)
+                    },
+                    onPlayJuz = { juz -> viewModel.playJuz(juz) },
+                    onSaveCategoryAsPlaylist = { category, entries ->
+                        viewModel.saveCategoryAsPlaylist(category, entries)
+                    },
                     resetTrigger = homeResetTrigger,
+                )
+            }
+            composable(TopLevelDestination.CATEGORIES.route) {
+                CategoriesScreen(
+                    surahs = surahs,
+                    onBackClick = { navController.popBackStack() },
+                    onPlayCategory = { category, entries, startIdx, shuffle, timerMode ->
+                        viewModel.playCategory(category, entries, startIdx, shuffle, timerMode)
+                    },
+                    onPlayJuz = { juz -> viewModel.playJuz(juz) },
+                    onSaveCategoryAsPlaylist = { category, entries ->
+                        viewModel.saveCategoryAsPlaylist(category, entries)
+                    },
+                    onPlayNext = { viewModel.playNextInQueue(it) },
+                    onAddToQueue = { viewModel.addToQueue(it) },
+                    onAddToPlaylist = onAddToPlaylist,
                 )
             }
             composable(TopLevelDestination.RADIO.route) {

@@ -39,6 +39,7 @@ class NavigationArchitectureTest {
         assertEquals(TopLevelDestination.HOME, TopLevelDestination.fromRoute("settings"))
         assertEquals(TopLevelDestination.HOME, TopLevelDestination.fromRoute("search"))
         assertEquals(TopLevelDestination.HOME, TopLevelDestination.fromRoute("surahs"))
+        assertEquals(TopLevelDestination.HOME, TopLevelDestination.fromRoute("categories"))
         assertEquals(TopLevelDestination.RECITERS, TopLevelDestination.fromRoute("reciters"))
         assertEquals(TopLevelDestination.LIBRARY, TopLevelDestination.fromRoute("library"))
         assertEquals(TopLevelDestination.LIBRARY, TopLevelDestination.fromRoute("playlist_detail"))

@@ -28,12 +28,8 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.AutoStories
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.HealthAndSafety
-import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,41 +39,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.listenquran.domain.model.*
+import com.listenquran.player.SleepTimerMode
 import com.listenquran.ui.components.PlaylistArtworkMosaic
+import com.listenquran.ui.screens.categories.CategoryCard
+import com.listenquran.ui.screens.categories.CategoryDetailSheet
+import com.listenquran.ui.screens.categories.FeaturedCategoryBanner
+import com.listenquran.ui.screens.categories.JuzBrowserSheet
 import com.listenquran.ui.screens.search.ParsedVerseQuery
 import com.listenquran.ui.screens.search.ReciterSearchItem
 import com.listenquran.ui.theme.AmiriQuranFont
 import com.listenquran.util.ReciterImages
-
-data class BrowseCategory(
-    val title: String,
-    val description: String,
-    val icon: ImageVector,
-    val surahTargetId: Int,
-    val surahIds: List<Int> = listOf(surahTargetId),
-)
-
-val BrowseCategories = listOf(
-    BrowseCategory("Juz & Hizb", "Listen section by section", Icons.Rounded.AutoStories, 1, (1..114).toList()),
-    BrowseCategory("Ruqyah & Peace", "Protection & calming verses", Icons.Rounded.HealthAndSafety, 1, listOf(1, 2, 112, 113, 114, 36)),
-    BrowseCategory("Sleep Recitations", "Peaceful recitations before sleep", Icons.Rounded.Bedtime, 67, listOf(67, 32, 56, 76)),
-    BrowseCategory("Taraweeh & Qiyam", "Night prayers & Tahajjud", Icons.Rounded.NightsStay, 55, listOf(55, 56, 67, 73)),
-    BrowseCategory("Quranic Duas", "Supplications from the Quran", Icons.Filled.Favorite, 2, listOf(2, 3, 14)),
-    BrowseCategory("The 3 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112, listOf(112, 113, 114)),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,6 +85,10 @@ fun HomeScreen(
     onAddToPlaylist: ((Surah) -> Unit)? = null,
     onRadioStationClick: ((RadioStation) -> Unit)? = null,
     onPlayCategory: ((String, List<Int>) -> Unit)? = null,
+    onNavigateToCategories: (() -> Unit)? = null,
+    onPlayBrowseCategory: ((BrowseCategory, List<CategoryEntry>?, Int, Boolean, SleepTimerMode?) -> Unit)? = null,
+    onPlayJuz: ((Int) -> Unit)? = null,
+    onSaveCategoryAsPlaylist: ((BrowseCategory, List<CategoryEntry>?) -> Unit)? = null,
     radioStations: List<RadioStation> = CuratedRadioStations,
     currentRadioStation: RadioStation? = null,
     isRadioPlaying: Boolean = false,
@@ -111,6 +99,8 @@ fun HomeScreen(
 ) {
     var isSearchOpen by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedCategoryForSheet by remember { mutableStateOf<BrowseCategory?>(null) }
+    var showJuzSheet by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val homeListState = rememberLazyListState()
@@ -119,6 +109,8 @@ fun HomeScreen(
         if (resetTrigger > 0) {
             isSearchOpen = false
             searchQuery = ""
+            selectedCategoryForSheet = null
+            showJuzSheet = false
             homeListState.scrollToItem(0)
         }
     }
@@ -197,8 +189,36 @@ fun HomeScreen(
     val radioRowState = rememberLazyListState()
     val recitersRowState = rememberLazyListState()
 
-    val categoryPairs = remember {
-        BrowseCategories.chunked(2)
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val categoryColumns = if (screenWidthDp >= 600) 3 else 2
+    val categorySpotlight = remember { BrowseCategoryCatalog.featuredCategoryFor() }
+    val homeCategories = remember(categorySpotlight) {
+        BrowseCategoryCatalog.homeGridCategories(categorySpotlight.category.id)
+    }
+    val categoryRows = remember(homeCategories, categoryColumns) {
+        homeCategories.chunked(categoryColumns)
+    }
+
+    val openCategory: (BrowseCategory) -> Unit = { category ->
+        if (category.kind == CategoryKind.JUZ_BROWSER) {
+            showJuzSheet = true
+        } else {
+            selectedCategoryForSheet = category
+        }
+    }
+
+    val playCategoryAction: (BrowseCategory, List<CategoryEntry>?, Int, Boolean, SleepTimerMode?) -> Unit = { cat, entries, startIdx, shuffle, timerMode ->
+        if (onPlayBrowseCategory != null) {
+            onPlayBrowseCategory(cat, entries, startIdx, shuffle, timerMode)
+        } else {
+            val resolvedEntries = entries ?: cat.entries
+            val ids = resolvedEntries.map { it.surahId }.ifEmpty { listOf(1) }
+            if (onPlayCategory != null) {
+                onPlayCategory(cat.title, ids)
+            } else {
+                surahs.find { it.id == ids.first() }?.let(onSurahClick)
+            }
+        }
     }
 
     // Memoize derived data to eliminate work during layout & recomposition
@@ -658,39 +678,53 @@ fun HomeScreen(
                     }
                 }
 
-                // 2. Browse Categories (Granular rows for fast, smooth scrolling)
+                // 2. Browse Categories (Time-aware spotlight + adaptive grid)
                 item(key = "browse_categories_header", contentType = "section_header") {
-                        SectionHeader(title = "Browse Categories")
-                    }
-                    items(
-                        items = categoryPairs,
-                        key = { pair: List<BrowseCategory> -> "cat_${pair.joinToString("_") { it.title }}" },
-                        contentType = { "category_row" }
-                    ) { pair ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            for (category in pair) {
-                                CategoryCard(
-                                    category = category,
-                                    onClick = {
-                                        if (onPlayCategory != null) {
-                                            onPlayCategory(category.title, category.surahIds)
-                                        } else {
-                                            surahs.find { it.id == category.surahTargetId }?.let(onSurahClick)
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
+                    SectionHeader(
+                        title = "Browse Categories",
+                        onSeeAllClick = onNavigateToCategories,
+                    )
+                }
+                item(key = "browse_category_spotlight", contentType = "category_spotlight") {
+                    FeaturedCategoryBanner(
+                        spotlight = categorySpotlight,
+                        onClick = { openCategory(categorySpotlight.category) },
+                        onQuickPlay = {
+                            if (categorySpotlight.category.kind == CategoryKind.CURATED_COLLECTION) {
+                                playCategoryAction(categorySpotlight.category, null, 0, false, null)
+                            } else {
+                                openCategory(categorySpotlight.category)
                             }
-                            if (pair.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                items(
+                    items = categoryRows,
+                    key = { row: List<BrowseCategory> -> "cat_${row.joinToString("_") { it.id }}" },
+                    contentType = { "category_row" },
+                ) { row ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        for (category in row) {
+                            CategoryCard(
+                                category = category,
+                                onClick = { openCategory(category) },
+                                onQuickPlay = if (category.kind == CategoryKind.CURATED_COLLECTION) {
+                                    { playCategoryAction(category, null, 0, false, null) }
+                                } else null,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        repeat(categoryColumns - row.size) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                }
                 // 3. Recently Listened (Granular rows)
                 if (displaySurahs.isNotEmpty()) {
                     item(key = "recent_surahs_header", contentType = "section_header") {
@@ -896,6 +930,44 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    selectedCategoryForSheet?.let { category ->
+        CategoryDetailSheet(
+            category = category,
+            surahs = surahs,
+            onDismiss = { selectedCategoryForSheet = null },
+            onPlayAll = { entries -> playCategoryAction(category, entries, 0, false, null) },
+            onShuffle = { entries -> playCategoryAction(category, entries, 0, true, null) },
+            onPlayEntry = { index, entries -> playCategoryAction(category, entries, index, false, null) },
+            onSaveAsPlaylist = { entries -> onSaveCategoryAsPlaylist?.invoke(category, entries) },
+            onPlayWithSleepTimer = { entries, mode -> playCategoryAction(category, entries, 0, false, mode) },
+            onPlayNext = onPlayNext,
+            onAddToQueue = onAddToQueue,
+            onAddToPlaylist = onAddToPlaylist,
+        )
+    }
+
+    if (showJuzSheet) {
+        JuzBrowserSheet(
+            surahs = surahs,
+            onDismiss = { showJuzSheet = false },
+            onSelectJuz = { juz ->
+                if (onPlayJuz != null) {
+                    onPlayJuz(juz)
+                } else {
+                    val entries = BrowseCategoryCatalog.juzEntries(juz)
+                    surahs.find { it.id == entries.firstOrNull()?.surahId }?.let { surah ->
+                        val startAyah = entries.firstOrNull()?.startAyah ?: 1
+                        if (startAyah > 1 && onVerseClick != null) {
+                            onVerseClick(surah, startAyah)
+                        } else {
+                            onSurahClick(surah)
+                        }
+                    }
+                }
+            },
+        )
     }
 }
 
@@ -1366,48 +1438,6 @@ fun RadioStationCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun CategoryCard(
-    category: BrowseCategory,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier.height(104.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        onClick = onClick
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Icon(
-                imageVector = category.icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-            Column {
-                Text(
-                    text = category.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = category.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
             }
         }
     }
