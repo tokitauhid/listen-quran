@@ -149,6 +149,7 @@ class PlaybackQueueManager @Inject constructor(
         startIndex: Int = 0,
         startAyah: Int = 1,
         queueTitle: String? = null,
+        autoPlay: Boolean = true,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         if (surahs.isEmpty()) return
@@ -187,7 +188,9 @@ class PlaybackQueueManager @Inject constructor(
 
                 controller.setMediaItems(mediaItems, clampedIndex, startPosMs)
                 controller.prepare()
-                controller.play()
+                if (autoPlay) {
+                    controller.play()
+                }
 
                 rebuildQueueState(controller)
                 persistQueueAsync(surahs, reciter, clampedIndex, queueTitle, false)
@@ -201,6 +204,7 @@ class PlaybackQueueManager @Inject constructor(
         allReciters: List<Reciter>,
         startIndex: Int = 0,
         queueTitle: String? = null,
+        autoPlay: Boolean = true,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         if (items.isEmpty()) return
@@ -245,7 +249,9 @@ class PlaybackQueueManager @Inject constructor(
 
                 controller.setMediaItems(mediaItems, clampedIndex, startPosMs)
                 controller.prepare()
-                controller.play()
+                if (autoPlay) {
+                    controller.play()
+                }
 
                 rebuildQueueState(controller)
                 persistQueueAsync(queuedSurahs, queuedReciters.getOrNull(clampedIndex) ?: defaultReciter, clampedIndex, queueTitle, false)
@@ -256,13 +262,15 @@ class PlaybackQueueManager @Inject constructor(
     fun switchReciterPreservingQueue(
         reciter: Reciter,
         currentAyahNumber: Int = 1,
+        wasPlayingOverride: Boolean? = null,
+        autoPlay: Boolean = true,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         withController { controller ->
             val itemCount = controller.mediaItemCount
             if (itemCount == 0) return@withController
             val currentIndex = controller.currentMediaItemIndex.coerceIn(0, itemCount - 1)
-            val wasPlaying = controller.isPlaying
+            val wasPlaying = wasPlayingOverride ?: controller.isPlaying
             val wasShuffle = controller.shuffleModeEnabled
             val savedShuffleOrder = currentShuffleOrder
             val savedSourceTitle = currentSourceTitle
@@ -313,7 +321,7 @@ class PlaybackQueueManager @Inject constructor(
                         c.shuffleModeEnabled = false
                     }
                     c.prepare()
-                    if (wasPlaying) {
+                    if (wasPlaying && autoPlay) {
                         c.play()
                     }
                     rebuildQueueState(c)
@@ -484,11 +492,15 @@ class PlaybackQueueManager @Inject constructor(
 
     fun seekToTimelineIndex(
         timelineIndex: Int,
+        autoPlay: Boolean = true,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         withController { controller ->
             if (timelineIndex in 0 until controller.mediaItemCount) {
                 controller.seekTo(timelineIndex, 0L)
+                if (autoPlay && !controller.isPlaying) {
+                    controller.play()
+                }
             }
         }
     }

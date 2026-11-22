@@ -10,6 +10,8 @@ import com.listenquran.data.repository.*
 import com.listenquran.domain.model.*
 import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.PlaybackState
+import com.listenquran.player.cast.OutputDevice
+import com.listenquran.player.cast.OutputRouteState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -182,6 +184,7 @@ class MainViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
+    val outputRouteState: StateFlow<OutputRouteState> = playerManager.outputRouteState
     val queueState: StateFlow<com.listenquran.player.PlaybackQueueState> = playerManager.queueState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
@@ -189,6 +192,9 @@ class MainViewModel @Inject constructor(
     val sleepTimerState: StateFlow<com.listenquran.player.SleepTimerState> = playerManager.sleepTimerState
     val customSleepTimerMinutes: StateFlow<Int> = userPreferencesRepository.customSleepTimerMinutes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 20)
+
+    private val _pendingHifzWhileCasting = MutableStateFlow<HifzLoopConfig?>(null)
+    val pendingHifzWhileCasting: StateFlow<HifzLoopConfig?> = _pendingHifzWhileCasting.asStateFlow()
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val isCurrentSurahLiked: StateFlow<Boolean> = combine(
@@ -259,6 +265,11 @@ class MainViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            playerManager.castMessageEvent.collect { msg ->
+                _snackbarEvent.emit(msg)
+            }
+        }
         viewModelScope.launch {
             reciterRepository.initializeReciters()
             playlistRepository.ensureLikedPlaylistCreated()
@@ -386,7 +397,52 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun scanOutputDevices() {
+        playerManager.scanOutputDevices()
+    }
+
+    fun connectToOutputDevice(device: OutputDevice) {
+        playerManager.connectToOutputDevice(device)
+    }
+
+    fun disconnectOutputDevice() {
+        playerManager.disconnectOutputDevice(resumeLocal = true)
+    }
+
+    fun setRemoteVolume(volume: Int) {
+        playerManager.setRemoteVolume(volume)
+    }
+
+    fun toggleRemoteMute() {
+        playerManager.toggleRemoteMute()
+    }
+
     fun startHifzLoop(config: HifzLoopConfig) {
+        if (outputRouteState.value.isCasting) {
+            _pendingHifzWhileCasting.value = config
+            return
+        }
+        startHifzLoopInternal(config)
+    }
+
+    fun confirmHifzSwitchToPhone() {
+        val config = _pendingHifzWhileCasting.value ?: return
+        _pendingHifzWhileCasting.value = null
+        playerManager.disconnectOutputDevice(resumeLocal = true)
+        startHifzLoopInternal(config)
+    }
+
+    fun confirmHifzContinueCasting() {
+        val config = _pendingHifzWhileCasting.value ?: return
+        _pendingHifzWhileCasting.value = null
+        startHifzLoopInternal(config)
+    }
+
+    fun dismissHifzCastingPrompt() {
+        _pendingHifzWhileCasting.value = null
+    }
+
+    private fun startHifzLoopInternal(config: HifzLoopConfig) {
         val currentSurah = playbackState.value.currentSurah
         if (currentSurah == null || currentSurah.id != config.surahNumber) {
             val targetSurah = surahs.value.find { it.id == config.surahNumber }

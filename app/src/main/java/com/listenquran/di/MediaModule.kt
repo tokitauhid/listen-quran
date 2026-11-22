@@ -15,6 +15,10 @@ import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.ListenQuranMediaService
 import com.listenquran.player.QuranForwardingPlayer
 import com.listenquran.player.QuranLibrarySessionCallback
+import com.listenquran.player.cast.DeviceDiscoveryClient
+import com.listenquran.player.cast.DlnaControlClient
+import com.listenquran.player.cast.RemoteControlClient
+import com.listenquran.player.cast.SsdpDiscoveryClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -127,4 +131,12 @@ object MediaModule {
             ComponentName(context, ListenQuranMediaService::class.java)
         )
     }
+
+    @Provides
+    @Singleton
+    fun provideDeviceDiscoveryClient(impl: SsdpDiscoveryClient): DeviceDiscoveryClient = impl
+
+    @Provides
+    @Singleton
+    fun provideRemoteControlClient(impl: DlnaControlClient): RemoteControlClient = impl
 }
