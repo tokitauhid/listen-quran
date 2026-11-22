@@ -1785,34 +1785,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
+                        icon = "📚",
+                        title = "Accurate Playlist & Liked Track Counts",
+                        description = "Playlists and the Liked Surahs collection now reactively display accurate track counts backed by unified Room queries and one-time legacy data migration."
+                    )
+                    WhatsNewItem(
+                        icon = "🎶",
+                        title = "Persistent Playlist Playback Queues",
+                        description = "Playing from a custom playlist or Liked Surahs now stays locked to that playlist across track transitions and reciter changes without reverting to the full catalog."
+                    )
+                    WhatsNewItem(
+                        icon = "🔔",
+                        title = "Branded Media Notifications",
+                        description = "Media playback notifications and lockscreen controls now show the Listen Quran emblem and artwork instead of a generic system icon."
+                    )
+                    WhatsNewItem(
                         icon = "🎨",
-                        title = "Material You Dynamic Theming",
-                        description = "Harmonizes colors with your Android 12+ system wallpaper palette, alongside authentic Islamic Emerald and Amber Gold themes."
-                    )
-                    WhatsNewItem(
-                        icon = "📱",
-                        title = "Adaptive Navigation Rail",
-                        description = "Seamlessly switches between bottom navigation on phones and an ergonomic side Navigation Rail on tablets and foldables (600dp+)."
-                    )
-                    WhatsNewItem(
-                        icon = "📖",
-                        title = "Enhanced Uthmani Calligraphy",
-                        description = "Amiri Quran typography with generous 2.2 line-height spacing to ensure diacritics and tashkeel never clip."
-                    )
-                    WhatsNewItem(
-                        icon = "🔍",
-                        title = "Modern Search & Filter Chips",
-                        description = "Expressive M3 pill search bar and checkmarked filter chips for Surah revelation type and Juz."
-                    )
-                    WhatsNewItem(
-                        icon = "🎛️",
-                        title = "Segmented Theme Controls",
-                        description = "Single-tap theme switching between System, Light, Dark, and AMOLED Pitch Black with M3 segmented buttons."
-                    )
-                    WhatsNewItem(
-                        icon = "🎵",
-                        title = "Refined Mini-Player",
-                        description = "Tonal surface elevation, subtle container borders, and 48dp accessible touch bounds across all playback controls."
+                        title = "Material 3 Theme Consistency",
+                        description = "Replaced hardcoded gradient and accent colors in Liked, Trending, Playlist Detail, Reciter Profile, and Full Player cards with dynamic Material You theme tokens."
                     )
                 }
             },
