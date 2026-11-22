@@ -10,6 +10,7 @@ import com.listenquran.data.repository.*
 import com.listenquran.domain.model.*
 import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.PlaybackState
+import com.listenquran.player.SleepTimerMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -876,6 +877,151 @@ class MainViewModel @Inject constructor(
             startAyah = 1,
             queueTitle = categoryTitle
         )
+    }
+
+    fun playCategory(
+        category: BrowseCategory,
+        entriesOverride: List<CategoryEntry>? = null,
+        startIndex: Int = 0,
+        shuffle: Boolean = false,
+        sleepTimerMode: SleepTimerMode? = null,
+    ) {
+        val entries = entriesOverride ?: category.entries
+        if (entries.isEmpty()) return
+
+        viewModelScope.launch {
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            if (allSurahs.isEmpty()) return@launch
+            val reciter = playbackState.value.currentReciter
+                ?: defaultReciter.value
+                ?: allReciters.firstOrNull()
+                ?: reciterRepository.getDefaultReciter()
+
+            val playlistItems = entries.mapIndexedNotNull { idx, entry ->
+                val surah = allSurahs.find { it.id == entry.surahId } ?: return@mapIndexedNotNull null
+                PlaylistItem(
+                    playlistId = 0L,
+                    surahNumber = surah.id,
+                    surahName = entry.label ?: surah.nameSimple,
+                    surahArabic = surah.nameArabic,
+                    reciterId = reciter.id,
+                    reciterName = reciter.englishName,
+                    startAyah = entry.startAyah,
+                    endAyah = entry.endAyah,
+                    orderIndex = idx,
+                )
+            }
+            if (playlistItems.isEmpty()) return@launch
+
+            val effectiveStartIndex = if (shuffle && playlistItems.size > 1 && startIndex == 0) {
+                playlistItems.indices.random()
+            } else {
+                startIndex.coerceIn(0, playlistItems.size - 1)
+            }
+
+            playerManager.playPlaylist(
+                items = playlistItems,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = effectiveStartIndex,
+                queueTitle = category.title,
+                shuffle = shuffle,
+            )
+
+            if (sleepTimerMode != null) {
+                playerManager.setSleepTimerMode(sleepTimerMode)
+                val timerLabel = when (sleepTimerMode) {
+                    is SleepTimerMode.Duration -> "${sleepTimerMode.totalMinutes}m sleep timer active"
+                    is SleepTimerMode.Custom -> "${sleepTimerMode.totalMinutes}m sleep timer active"
+                    is SleepTimerMode.EndOfSurah -> "Sleep timer set for end of Surah"
+                    is SleepTimerMode.EndOfPlaylist -> "Sleep timer set for end of queue"
+                    SleepTimerMode.Off -> null
+                }
+                timerLabel?.let { _snackbarEvent.emit(it) }
+            }
+        }
+    }
+
+    fun playJuz(juzNumber: Int) {
+        val clampedJuz = juzNumber.coerceIn(1, com.listenquran.domain.model.khatam.QuranAyahMetadata.TOTAL_JUZ)
+        val entries = BrowseCategoryCatalog.juzEntries(clampedJuz)
+        if (entries.isEmpty()) return
+
+        viewModelScope.launch {
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            if (allSurahs.isEmpty()) return@launch
+            val reciter = playbackState.value.currentReciter
+                ?: defaultReciter.value
+                ?: allReciters.firstOrNull()
+                ?: reciterRepository.getDefaultReciter()
+
+            val playlistItems = entries.mapIndexedNotNull { idx, entry ->
+                val surah = allSurahs.find { it.id == entry.surahId } ?: return@mapIndexedNotNull null
+                PlaylistItem(
+                    playlistId = 0L,
+                    surahNumber = surah.id,
+                    surahName = surah.nameSimple,
+                    surahArabic = surah.nameArabic,
+                    reciterId = reciter.id,
+                    reciterName = reciter.englishName,
+                    startAyah = entry.startAyah,
+                    endAyah = entry.endAyah,
+                    orderIndex = idx,
+                )
+            }
+            if (playlistItems.isEmpty()) return@launch
+
+            playerManager.playPlaylist(
+                items = playlistItems,
+                allSurahs = allSurahs,
+                allReciters = allReciters,
+                startIndex = 0,
+                queueTitle = "Juz $clampedJuz",
+                shuffle = false,
+            )
+        }
+    }
+
+    fun saveCategoryAsPlaylist(
+        category: BrowseCategory,
+        entriesOverride: List<CategoryEntry>? = null,
+    ) {
+        val entries = entriesOverride ?: category.entries
+        if (entries.isEmpty()) return
+
+        viewModelScope.launch {
+            val allSurahs = surahs.value.ifEmpty { quranRepository.getSurahs().first() }
+            val allReciters = reciters.value.ifEmpty { reciterRepository.getReciters().first() }
+            val reciter = playbackState.value.currentReciter
+                ?: defaultReciter.value
+                ?: allReciters.firstOrNull()
+                ?: reciterRepository.getDefaultReciter()
+
+            val items = entries.mapIndexedNotNull { idx, entry ->
+                val surah = allSurahs.find { it.id == entry.surahId } ?: return@mapIndexedNotNull null
+                PlaylistItem(
+                    playlistId = 0L,
+                    surahNumber = surah.id,
+                    surahName = entry.label ?: surah.nameSimple,
+                    surahArabic = surah.nameArabic,
+                    reciterId = reciter.id,
+                    reciterName = reciter.englishName,
+                    startAyah = entry.startAyah,
+                    endAyah = entry.endAyah,
+                    orderIndex = idx,
+                )
+            }
+            if (items.isEmpty()) return@launch
+
+            playlistRepository.createPlaylistWithEntries(
+                name = category.title,
+                description = category.description,
+                entries = items,
+            )
+            _snackbarEvent.emit("Saved \"${category.title}\" to Playlists")
+        }
     }
 
     fun playMix(mixTitle: String, surahIds: List<Int>) {

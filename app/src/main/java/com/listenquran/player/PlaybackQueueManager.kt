@@ -132,8 +132,14 @@ class PlaybackQueueManager @Inject constructor(
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .build()
 
+        val encodedMediaId = if (startAyah > 1) {
+            "surah:${surah.id}:reciter:${reciter.id}:ayah:$startAyah:uid:$queueId"
+        } else {
+            "surah:${surah.id}:reciter:${reciter.id}:uid:$queueId"
+        }
+
         val builder = MediaItem.Builder()
-            .setMediaId("surah:${surah.id}:reciter:${reciter.id}:uid:$queueId")
+            .setMediaId(encodedMediaId)
             .setMediaMetadata(mediaMetadata)
 
         if (effectiveUri != null) {
@@ -201,6 +207,7 @@ class PlaybackQueueManager @Inject constructor(
         allReciters: List<Reciter>,
         startIndex: Int = 0,
         queueTitle: String? = null,
+        shuffle: Boolean = false,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         if (items.isEmpty()) return
@@ -240,15 +247,26 @@ class PlaybackQueueManager @Inject constructor(
             }
 
             withController { controller ->
-                currentShuffleOrder = null
-                controller.shuffleModeEnabled = false
+                if (shuffle && mediaItems.size > 1) {
+                    val order = ControllableShuffleOrder.createWithCurrentFirst(mediaItems.size, clampedIndex)
+                    currentShuffleOrder = order
+                    try {
+                        exoPlayerProvider.get().setShuffleOrder(order)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PlaybackQueueManager", "Failed to set custom shuffle order", e)
+                    }
+                    controller.shuffleModeEnabled = true
+                } else {
+                    currentShuffleOrder = null
+                    controller.shuffleModeEnabled = false
+                }
 
                 controller.setMediaItems(mediaItems, clampedIndex, startPosMs)
                 controller.prepare()
                 controller.play()
 
                 rebuildQueueState(controller)
-                persistQueueAsync(queuedSurahs, queuedReciters.getOrNull(clampedIndex) ?: defaultReciter, clampedIndex, queueTitle, false)
+                persistQueueAsync(queuedSurahs, queuedReciters.getOrNull(clampedIndex) ?: defaultReciter, clampedIndex, queueTitle, shuffle)
             }
         }
     }
@@ -268,10 +286,12 @@ class PlaybackQueueManager @Inject constructor(
             val savedSourceTitle = currentSourceTitle
 
             val surahIds = ArrayList<Int>(itemCount)
+            val startAyahs = ArrayList<Int>(itemCount)
             val uids = ArrayList<String>(itemCount)
             for (i in 0 until itemCount) {
                 val mi = controller.getMediaItemAt(i)
                 surahIds.add(parseSurahId(mi.mediaId) ?: 1)
+                startAyahs.add(parseStartAyah(mi.mediaId))
                 uids.add(parseQueueUid(mi.mediaId) ?: UUID.randomUUID().toString())
             }
 
@@ -283,7 +303,7 @@ class PlaybackQueueManager @Inject constructor(
                 for (i in 0 until itemCount) {
                     val sId = surahIds[i]
                     val surah = allSurahs.find { it.id == sId } ?: allSurahs.firstOrNull() ?: continue
-                    val ayah = if (i == currentIndex) currentAyahNumber else 1
+                    val ayah = if (i == currentIndex) currentAyahNumber else startAyahs[i]
                     queuedSurahs.add(surah)
                     mediaItems.add(buildMediaItem(surah, reciter, ayah, uids[i]))
                 }
@@ -581,7 +601,7 @@ class PlaybackQueueManager @Inject constructor(
                     id = queueId,
                     surah = surah,
                     reciter = reciter,
-                    startAyah = 1,
+                    startAyah = parseStartAyah(mediaItem.mediaId),
                     timelineIndex = i
                 )
             )
@@ -679,5 +699,16 @@ class PlaybackQueueManager @Inject constructor(
             return mediaId.substringAfter(":uid:")
         }
         return null
+    }
+
+    companion object {
+        fun parseStartAyah(mediaId: String): Int {
+            if (!mediaId.startsWith("surah:") || !mediaId.contains(":ayah:")) return 1
+            return mediaId.substringAfter(":ayah:")
+                .substringBefore(":")
+                .toIntOrNull()
+                ?.coerceAtLeast(1)
+                ?: 1
+        }
     }
 }

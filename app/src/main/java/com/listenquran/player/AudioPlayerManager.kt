@@ -96,6 +96,7 @@ class AudioPlayerManager @Inject constructor(
     private var sleepTimerJob: Job? = null
     private var radioWatchdogJob: Job? = null
     private var sessionStartTime: Long = 0L
+    private var lastSyncedMediaId: String? = null
     private val history = mutableListOf<QueueItem>()
 
     init {
@@ -274,7 +275,10 @@ class AudioPlayerManager @Inject constructor(
                         syncFromRadioMediaItem(it)
                         extendRadioQueueIfNeeded()
                     } else {
-                        syncFromMediaItem(it)
+                        syncFromMediaItem(
+                            mediaItem = it,
+                            seekToEmbeddedAyah = reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+                        )
                     }
                 }
                 queueManager.rebuildQueueState(controller)
@@ -365,7 +369,7 @@ class AudioPlayerManager @Inject constructor(
         queueManager.rebuildQueueState(controller)
     }
 
-    private fun syncFromMediaItem(mediaItem: MediaItem) {
+    private fun syncFromMediaItem(mediaItem: MediaItem, seekToEmbeddedAyah: Boolean = false) {
         val mediaId = mediaItem.mediaId
         if (mediaId.startsWith("radio:")) {
             syncFromRadioMediaItem(mediaItem)
@@ -373,11 +377,14 @@ class AudioPlayerManager @Inject constructor(
         }
         val surahId = parseSurahId(mediaId) ?: return
         val reciterId = parseReciterId(mediaId)
+        val startAyah = parseStartAyah(mediaId)
 
-        if (_playbackState.value.currentSurah?.id != surahId ||
+        if (lastSyncedMediaId != mediaId ||
+            _playbackState.value.currentSurah?.id != surahId ||
             (reciterId != null && _playbackState.value.currentReciter?.id != reciterId)) {
+            lastSyncedMediaId = mediaId
             val targetReciterId = reciterId ?: _playbackState.value.currentReciter?.id ?: 7
-            syncTracker.onMediaItemChanged(surahId, targetReciterId, 1)
+            syncTracker.onMediaItemChanged(surahId, targetReciterId, startAyah)
 
             scope.launch {
                 val surah = quranRepository.getSurahById(surahId) ?: return@launch
@@ -390,8 +397,27 @@ class AudioPlayerManager @Inject constructor(
                 val timings = audioData?.timestamps ?: emptyList()
                 val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
                 val dur = browser?.duration?.takeIf { it > 0 } ?: surahDuration
-                _currentPositionMs.value = 0L
-                syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
+                var effectivePosMs = browser?.currentPosition?.coerceAtLeast(0L) ?: 0L
+
+                val targetTiming = if (startAyah > 1) {
+                    timings.find { it.verseKey == "${surah.id}:$startAyah" }
+                } else null
+
+                if (seekToEmbeddedAyah && targetTiming != null) {
+                    val controller = browser
+                    if (controller != null &&
+                        controller.currentMediaItem?.mediaId == mediaId &&
+                        controller.currentPosition < targetTiming.timestampFrom - 1500L
+                    ) {
+                        controller.seekTo(targetTiming.timestampFrom)
+                        effectivePosMs = targetTiming.timestampFrom
+                    }
+                } else if (startAyah > 1 && targetTiming != null && effectivePosMs == 0L) {
+                    effectivePosMs = targetTiming.timestampFrom
+                }
+
+                _currentPositionMs.value = effectivePosMs
+                syncTracker.setTimings(surah.id, reciter.id, timings, effectivePosMs)
                 _playbackState.update {
                     it.copy(
                         isRadio = false,
@@ -402,7 +428,7 @@ class AudioPlayerManager @Inject constructor(
                         verseTimings = timings,
                         isSyncAvailable = timings.isNotEmpty(),
                         hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
-                        currentAyahNumber = 1
+                        currentAyahNumber = startAyah
                     )
                 }
             }
@@ -462,6 +488,8 @@ class AudioPlayerManager @Inject constructor(
         }
         return null
     }
+
+    private fun parseStartAyah(mediaId: String): Int = PlaybackQueueManager.parseStartAyah(mediaId)
 
     private fun ensureServiceRunning() {
         try {
@@ -576,7 +604,8 @@ class AudioPlayerManager @Inject constructor(
         allSurahs: List<Surah>,
         allReciters: List<Reciter>,
         startIndex: Int = 0,
-        queueTitle: String? = null
+        queueTitle: String? = null,
+        shuffle: Boolean = false
     ) {
         if (items.isEmpty()) return
         radioWatchdogJob?.cancel()
@@ -600,7 +629,10 @@ class AudioPlayerManager @Inject constructor(
             val timings = audioData?.timestamps ?: emptyList()
 
             if (targetSurah != null && targetReciter != null) {
-                syncTracker.setTimings(targetSurah.id, targetReciter.id, timings, 0L)
+                val startPos = if (targetItem.startAyah > 1) {
+                    timings.find { it.verseKey == "${targetSurah.id}:${targetItem.startAyah}" }?.timestampFrom ?: 0L
+                } else 0L
+                syncTracker.setTimings(targetSurah.id, targetReciter.id, timings, startPos)
             }
 
             _playbackState.update {
@@ -624,6 +656,7 @@ class AudioPlayerManager @Inject constructor(
                 allReciters = allReciters,
                 startIndex = clamped,
                 queueTitle = queueTitle,
+                shuffle = shuffle,
                 withController = ::withController
             )
         }

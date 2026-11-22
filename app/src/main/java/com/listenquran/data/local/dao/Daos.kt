@@ -152,7 +152,7 @@ interface PlaylistDao {
     @Query("SELECT EXISTS(SELECT 1 FROM playlist_items WHERE playlistId = :playlistId AND surahNumber = :surahNumber AND reciterId = :reciterId)")
     suspend fun isItemInPlaylist(playlistId: Long, surahNumber: Int, reciterId: Int): Boolean
 
-    @Query("DELETE FROM playlist_items WHERE id NOT IN (SELECT MIN(id) FROM playlist_items GROUP BY playlistId, surahNumber, reciterId)")
+    @Query("DELETE FROM playlist_items WHERE id NOT IN (SELECT MIN(id) FROM playlist_items GROUP BY playlistId, surahNumber, reciterId, startAyah)")
     suspend fun removeDuplicatePlaylistItems()
 
     @Query("SELECT * FROM playlists WHERE isLikedCollection = 1 LIMIT 1")

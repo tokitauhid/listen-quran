@@ -170,6 +170,41 @@ class PlaylistRepository @Inject constructor(
         )
     }
 
+    suspend fun createPlaylistWithEntries(
+        name: String,
+        description: String = "",
+        entries: List<PlaylistItem>,
+    ): Long {
+        val playlistId = createPlaylist(name, description)
+        if (entries.isEmpty()) return playlistId
+
+        val seen = HashSet<Triple<Int, Int, Int>>(entries.size)
+        val entities = ArrayList<PlaylistItemEntity>(entries.size)
+        var orderIndex = 0
+        for (entry in entries) {
+            val key = Triple(entry.surahNumber, entry.startAyah, entry.reciterId)
+            if (seen.add(key)) {
+                entities.add(
+                    PlaylistItemEntity(
+                        playlistId = playlistId,
+                        surahNumber = entry.surahNumber,
+                        surahName = entry.surahName,
+                        surahArabic = entry.surahArabic,
+                        reciterId = entry.reciterId,
+                        reciterName = entry.reciterName,
+                        startAyah = entry.startAyah,
+                        endAyah = entry.endAyah,
+                        orderIndex = orderIndex++,
+                    )
+                )
+            }
+        }
+        if (entities.isNotEmpty()) {
+            playlistDao.insertPlaylistItems(entities)
+        }
+        return playlistId
+    }
+
     suspend fun deletePlaylist(playlistId: Long) {
         val entity = playlistDao.getPlaylistById(playlistId)
         if (entity != null && !entity.isLikedCollection) {
