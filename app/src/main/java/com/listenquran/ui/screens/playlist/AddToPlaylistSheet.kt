@@ -117,8 +117,14 @@ fun AddToPlaylistSheet(
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                                val count = playlist.items.size
+                                val subtitleText = if (playlist.isLikedCollection) {
+                                    "$count ${if (count == 1) "recitation" else "recitations"} • Liked collection"
+                                } else {
+                                    "$count ${if (count == 1) "track" else "tracks"}"
+                                }
                                 Text(
-                                    text = if (playlist.isLikedCollection) "Liked collection" else "${playlist.items.size} tracks",
+                                    text = subtitleText,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

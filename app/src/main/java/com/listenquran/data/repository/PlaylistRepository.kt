@@ -2,12 +2,14 @@ package com.listenquran.data.repository
 
 import com.listenquran.data.local.dao.BookmarkDao
 import com.listenquran.data.local.dao.KhatmaDao
+import com.listenquran.data.local.dao.LikedDao
 import com.listenquran.data.local.dao.PlaylistDao
 import com.listenquran.data.local.dao.StatsDao
 import com.listenquran.data.local.entity.*
 import com.listenquran.domain.model.*
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -19,9 +21,50 @@ import javax.inject.Singleton
 @Singleton
 class PlaylistRepository @Inject constructor(
     private val playlistDao: PlaylistDao,
+    private val likedDao: LikedDao,
     private val moshi: Moshi,
 ) {
     private val likedMutex = Mutex()
+
+    private fun PlaylistItemEntity.toDomain() = PlaylistItem(
+        id = id,
+        playlistId = playlistId,
+        surahNumber = surahNumber,
+        surahName = surahName,
+        surahArabic = surahArabic,
+        reciterId = reciterId,
+        reciterName = reciterName,
+        startAyah = startAyah,
+        endAyah = endAyah,
+        orderIndex = orderIndex,
+    )
+
+    private fun LikedSurahEntity.toLikedPlaylistItem(playlistId: Long, index: Int) = PlaylistItem(
+        id = id,
+        playlistId = playlistId,
+        surahNumber = surahNumber,
+        surahName = surahName,
+        surahArabic = surahArabic,
+        reciterId = reciterId,
+        reciterName = reciterName,
+        startAyah = 1,
+        endAyah = null,
+        orderIndex = index,
+    )
+
+    private fun mergeLikedDomainItems(
+        playlistId: Long,
+        likedEntities: List<LikedSurahEntity>,
+        legacyItems: List<PlaylistItemEntity>,
+    ): List<PlaylistItem> {
+        val primary = likedEntities.mapIndexed { idx, liked -> liked.toLikedPlaylistItem(playlistId, idx) }
+        if (legacyItems.isEmpty()) return primary
+        val seenKeys = likedEntities.mapTo(HashSet()) { it.surahNumber to it.reciterId }
+        val extras = legacyItems
+            .filter { (it.surahNumber to it.reciterId) !in seenKeys }
+            .map { it.toDomain() }
+        return primary + extras
+    }
 
     suspend fun ensureLikedPlaylistCreated(): Long = likedMutex.withLock {
         ensureLikedPlaylistCreatedInternal()
@@ -29,9 +72,9 @@ class PlaylistRepository @Inject constructor(
 
     private suspend fun ensureLikedPlaylistCreatedInternal(): Long {
         playlistDao.removeDuplicatePlaylistItems()
-        val existing = playlistDao.getLikedCollectionDirect()
-        return if (existing != null) {
-            existing.id
+        val likedCollections = playlistDao.getAllPlaylists().first().filter { it.isLikedCollection }
+        val primaryId = if (likedCollections.isNotEmpty()) {
+            likedCollections.first().id
         } else {
             playlistDao.insertPlaylist(
                 PlaylistEntity(
@@ -41,17 +84,54 @@ class PlaylistRepository @Inject constructor(
                 )
             )
         }
+
+        // Reconcile any legacy liked rows stored in playlist_items into liked_surahs
+        for (col in likedCollections) {
+            val legacyItems = playlistDao.getPlaylistItemsDirect(col.id)
+            for (legacy in legacyItems) {
+                if (!likedDao.isLikedDirect(legacy.surahNumber, legacy.reciterId)) {
+                    likedDao.insertLiked(
+                        LikedSurahEntity(
+                            surahNumber = legacy.surahNumber,
+                            surahName = legacy.surahName,
+                            surahArabic = legacy.surahArabic,
+                            reciterId = legacy.reciterId,
+                            reciterName = legacy.reciterName,
+                            likedAt = col.createdAt,
+                        )
+                    )
+                }
+            }
+            if (legacyItems.isNotEmpty()) {
+                playlistDao.clearPlaylistItems(col.id)
+            }
+            if (col.id != primaryId) {
+                playlistDao.deletePlaylist(col)
+            }
+        }
+        return primaryId
     }
 
     fun getAllPlaylists(): Flow<List<Playlist>> {
-        return playlistDao.getAllPlaylists().map { list ->
-            list.map { entity ->
+        return combine(
+            playlistDao.getAllPlaylists(),
+            playlistDao.getAllPlaylistItems(),
+            likedDao.getAllLiked(),
+        ) { playlists, allItems, likedEntities ->
+            val itemsByPlaylistId = allItems.groupBy { it.playlistId }
+            playlists.map { entity ->
+                val domainItems = if (entity.isLikedCollection) {
+                    mergeLikedDomainItems(entity.id, likedEntities, itemsByPlaylistId[entity.id].orEmpty())
+                } else {
+                    itemsByPlaylistId[entity.id].orEmpty().map { it.toDomain() }
+                }
                 Playlist(
                     id = entity.id,
                     name = entity.name,
                     description = entity.description,
                     isLikedCollection = entity.isLikedCollection,
                     createdAt = entity.createdAt,
+                    items = domainItems,
                 )
             }
         }
@@ -59,31 +139,28 @@ class PlaylistRepository @Inject constructor(
 
     suspend fun getPlaylistById(playlistId: Long): Playlist? {
         val entity = playlistDao.getPlaylistById(playlistId) ?: return null
+        val domainItems = if (entity.isLikedCollection) {
+            mergeLikedDomainItems(
+                playlistId = entity.id,
+                likedEntities = likedDao.getAllLiked().first(),
+                legacyItems = playlistDao.getPlaylistItemsDirect(entity.id),
+            )
+        } else {
+            playlistDao.getPlaylistItemsDirect(entity.id).map { it.toDomain() }
+        }
         return Playlist(
             id = entity.id,
             name = entity.name,
             description = entity.description,
             isLikedCollection = entity.isLikedCollection,
             createdAt = entity.createdAt,
+            items = domainItems,
         )
     }
 
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItem>> {
         return playlistDao.getPlaylistItems(playlistId).map { list ->
-            list.map { item ->
-                PlaylistItem(
-                    id = item.id,
-                    playlistId = item.playlistId,
-                    surahNumber = item.surahNumber,
-                    surahName = item.surahName,
-                    surahArabic = item.surahArabic,
-                    reciterId = item.reciterId,
-                    reciterName = item.reciterName,
-                    startAyah = item.startAyah,
-                    endAyah = item.endAyah,
-                    orderIndex = item.orderIndex,
-                )
-            }
+            list.map { it.toDomain() }
         }
     }
 
@@ -120,6 +197,7 @@ class PlaylistRepository @Inject constructor(
         if (playlistDao.isItemInPlaylist(playlistId, surahNumber, reciterId)) {
             return false
         }
+        val nextOrderIndex = playlistDao.getPlaylistItemsDirect(playlistId).size
         playlistDao.insertPlaylistItem(
             PlaylistItemEntity(
                 playlistId = playlistId,
@@ -130,6 +208,7 @@ class PlaylistRepository @Inject constructor(
                 reciterName = reciterName,
                 startAyah = startAyah,
                 endAyah = endAyah,
+                orderIndex = nextOrderIndex,
             )
         )
         return true
@@ -142,22 +221,20 @@ class PlaylistRepository @Inject constructor(
         reciterId: Int,
         reciterName: String,
     ): Boolean = likedMutex.withLock {
-        val likedId = ensureLikedPlaylistCreatedInternal()
-        val isCurrentlyLiked = playlistDao.isLikedDirect(surahNumber, reciterId)
+        ensureLikedPlaylistCreatedInternal()
+        val isCurrentlyLiked = likedDao.isLikedDirect(surahNumber, reciterId)
         if (isCurrentlyLiked) {
-            playlistDao.removeLiked(surahNumber, reciterId)
+            likedDao.removeLiked(surahNumber, reciterId)
             false
         } else {
-            // Remove any potential duplicate records before inserting fresh item
-            playlistDao.removeLiked(surahNumber, reciterId)
-            playlistDao.insertPlaylistItem(
-                PlaylistItemEntity(
-                    playlistId = likedId,
+            likedDao.insertLiked(
+                LikedSurahEntity(
                     surahNumber = surahNumber,
                     surahName = surahName,
                     surahArabic = surahArabic,
                     reciterId = reciterId,
                     reciterName = reciterName,
+                    likedAt = System.currentTimeMillis(),
                 )
             )
             true
@@ -175,14 +252,18 @@ class PlaylistRepository @Inject constructor(
     }
 
     fun isLiked(surahNumber: Int, reciterId: Int): Flow<Boolean> {
-        return playlistDao.isLiked(surahNumber, reciterId)
+        return likedDao.isLiked(surahNumber, reciterId)
     }
 
     suspend fun exportPlaylistsJson(): String {
         val allPlaylists = playlistDao.getAllPlaylists().first()
         val exportList = mutableListOf<Map<String, Any>>()
         for (pl in allPlaylists) {
-            val items = playlistDao.getPlaylistItems(pl.id).first()
+            val items = if (pl.isLikedCollection) {
+                likedDao.getAllLiked().first().mapIndexed { idx, liked -> liked.toLikedPlaylistItem(pl.id, idx) }
+            } else {
+                playlistDao.getPlaylistItems(pl.id).first().map { it.toDomain() }
+            }
             exportList.add(
                 mapOf(
                     "name" to pl.name,
@@ -213,29 +294,53 @@ class PlaylistRepository @Inject constructor(
                 val name = plMap["name"] as? String ?: continue
                 val desc = plMap["description"] as? String ?: ""
                 val isLiked = plMap["isLiked"] as? Boolean ?: false
-                val newPlId = playlistDao.insertPlaylist(
-                    PlaylistEntity(name = name, description = desc, isLikedCollection = isLiked)
-                )
                 val itemsRaw = plMap["items"] as? List<Map<String, Any>> ?: emptyList()
-                val items = itemsRaw.mapNotNull { itemMap ->
-                    val surahNum = (itemMap["surahNumber"] as? Number)?.toInt() ?: return@mapNotNull null
-                    val surahName = itemMap["surahName"] as? String ?: "Surah"
-                    val surahArabic = itemMap["surahArabic"] as? String ?: ""
-                    val reciterId = (itemMap["reciterId"] as? Number)?.toInt() ?: 7
-                    val reciterName = itemMap["reciterName"] as? String ?: "Mishary Rashid Al-Afasy"
-                    val startAyah = (itemMap["startAyah"] as? Number)?.toInt() ?: 1
-                    PlaylistItemEntity(
-                        playlistId = newPlId,
-                        surahNumber = surahNum,
-                        surahName = surahName,
-                        surahArabic = surahArabic,
-                        reciterId = reciterId,
-                        reciterName = reciterName,
-                        startAyah = startAyah
+
+                if (isLiked) {
+                    ensureLikedPlaylistCreated()
+                    for (itemMap in itemsRaw) {
+                        val surahNum = (itemMap["surahNumber"] as? Number)?.toInt() ?: continue
+                        val surahName = itemMap["surahName"] as? String ?: "Surah"
+                        val surahArabic = itemMap["surahArabic"] as? String ?: ""
+                        val reciterId = (itemMap["reciterId"] as? Number)?.toInt() ?: 7
+                        val reciterName = itemMap["reciterName"] as? String ?: "Mishary Rashid Al-Afasy"
+                        if (!likedDao.isLikedDirect(surahNum, reciterId)) {
+                            likedDao.insertLiked(
+                                LikedSurahEntity(
+                                    surahNumber = surahNum,
+                                    surahName = surahName,
+                                    surahArabic = surahArabic,
+                                    reciterId = reciterId,
+                                    reciterName = reciterName,
+                                )
+                            )
+                        }
+                    }
+                } else {
+                    val newPlId = playlistDao.insertPlaylist(
+                        PlaylistEntity(name = name, description = desc, isLikedCollection = false)
                     )
-                }
-                if (items.isNotEmpty()) {
-                    playlistDao.insertPlaylistItems(items)
+                    val items = itemsRaw.mapIndexedNotNull { idx, itemMap ->
+                        val surahNum = (itemMap["surahNumber"] as? Number)?.toInt() ?: return@mapIndexedNotNull null
+                        val surahName = itemMap["surahName"] as? String ?: "Surah"
+                        val surahArabic = itemMap["surahArabic"] as? String ?: ""
+                        val reciterId = (itemMap["reciterId"] as? Number)?.toInt() ?: 7
+                        val reciterName = itemMap["reciterName"] as? String ?: "Mishary Rashid Al-Afasy"
+                        val startAyah = (itemMap["startAyah"] as? Number)?.toInt() ?: 1
+                        PlaylistItemEntity(
+                            playlistId = newPlId,
+                            surahNumber = surahNum,
+                            surahName = surahName,
+                            surahArabic = surahArabic,
+                            reciterId = reciterId,
+                            reciterName = reciterName,
+                            startAyah = startAyah,
+                            orderIndex = idx,
+                        )
+                    }
+                    if (items.isNotEmpty()) {
+                        playlistDao.insertPlaylistItems(items)
+                    }
                 }
             }
             true

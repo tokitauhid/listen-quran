@@ -119,8 +119,14 @@ interface PlaylistDao {
     @Query("UPDATE playlists SET name = :name WHERE id = :playlistId")
     suspend fun updatePlaylistName(playlistId: Long, name: String)
 
-    @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY orderIndex ASC")
+    @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY orderIndex ASC, id ASC")
     fun getPlaylistItems(playlistId: Long): Flow<List<PlaylistItemEntity>>
+
+    @Query("SELECT * FROM playlist_items ORDER BY playlistId ASC, orderIndex ASC, id ASC")
+    fun getAllPlaylistItems(): Flow<List<PlaylistItemEntity>>
+
+    @Query("SELECT * FROM playlist_items WHERE playlistId = :playlistId ORDER BY orderIndex ASC, id ASC")
+    suspend fun getPlaylistItemsDirect(playlistId: Long): List<PlaylistItemEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistItem(item: PlaylistItemEntity): Long
