@@ -25,9 +25,11 @@ import androidx.compose.ui.unit.sp
 import com.listenquran.player.PlaybackState
 
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.listenquran.player.cast.OutputRouteState
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -40,6 +42,7 @@ fun MiniPlayer(
     onOpenFullPlayer: () -> Unit,
     onStopRadio: (() -> Unit)? = null,
     onStopHifz: (() -> Unit)? = null,
+    outputRouteState: OutputRouteState = OutputRouteState(),
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null,
     modifier: Modifier = Modifier,
@@ -225,14 +228,36 @@ fun MiniPlayer(
                             modifier = titleModifier
                         )
                     }
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = subtitleModifier
-                    )
+                    if (outputRouteState.isCasting) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.CastConnected,
+                                contentDescription = "Casting to ${outputRouteState.activeDevice.name}",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Text(
+                                text = "${outputRouteState.activeDevice.name} · $subtitle",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = subtitleModifier,
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = subtitleModifier
+                        )
+                    }
                 }
 
                 // Stop Radio Button, Stop Repetition Button, or Heart / Like button (for Surahs)
