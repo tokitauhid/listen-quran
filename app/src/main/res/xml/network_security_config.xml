@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- UPnP/DLNA device discovery, SOAP control, and the phone's LAN HTTP bridge use local HTTP only;
+         DlnaXmlParser.isPrivateLanHost() strictly restricts cleartext UPnP requests to LAN addresses. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
