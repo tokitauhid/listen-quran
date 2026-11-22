@@ -79,14 +79,6 @@ val BrowseCategories = listOf(
     BrowseCategory("The 3 Quls", "Surahs Al-Ikhlas to An-Nas", Icons.Rounded.Shield, 112, listOf(112, 113, 114)),
 )
 
-// Cached gradient brushes to avoid shader allocations during scrolling
-private val LikedGradient = Brush.verticalGradient(listOf(Color(0xFF005237), Color(0xFF1D211F)))
-private val DefaultPlaylistGradient = Brush.verticalGradient(listOf(Color(0xFF334B3F), Color(0xFF191C1B)))
-private val DailyMixGradient = Brush.verticalGradient(listOf(Color(0xFF005237), Color(0xFF1D211F)))
-private val WeeklyMixGradient = Brush.verticalGradient(listOf(Color(0xFF334B3F), Color(0xFF191C1B)))
-private val FridayMixGradient = Brush.verticalGradient(listOf(Color(0xFF5F4100), Color(0xFF1D211F)))
-private val TahajjudMixGradient = Brush.verticalGradient(listOf(Color(0xFF004D40), Color(0xFF111413)))
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -234,6 +226,26 @@ fun HomeScreen(
                 }
             )
             .take(12)
+    }
+
+    val colorScheme = MaterialTheme.colorScheme
+    val likedGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.primaryContainer.copy(alpha = 0.7f), colorScheme.surfaceContainer))
+    }
+    val defaultPlaylistGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.secondaryContainer.copy(alpha = 0.55f), colorScheme.surfaceContainer))
+    }
+    val dailyMixGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.primaryContainer.copy(alpha = 0.7f), colorScheme.surfaceContainer))
+    }
+    val weeklyMixGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.secondaryContainer.copy(alpha = 0.65f), colorScheme.surfaceContainer))
+    }
+    val fridayMixGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.tertiaryContainer.copy(alpha = 0.7f), colorScheme.surfaceContainer))
+    }
+    val tahajjudMixGradient = remember(colorScheme) {
+        Brush.verticalGradient(listOf(colorScheme.surfaceContainerHighest, colorScheme.surfaceContainerLow))
     }
 
     Scaffold(
@@ -601,7 +613,7 @@ fun HomeScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(if (playlist.isLikedCollection) LikedGradient else DefaultPlaylistGradient)
+                                            .background(if (playlist.isLikedCollection) likedGradient else defaultPlaylistGradient)
                                             .padding(14.dp),
                                         verticalArrangement = Arrangement.SpaceBetween
                                     ) {
@@ -627,10 +639,11 @@ fun HomeScreen(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
+                                            val likedCount = if (likedSurahs.isNotEmpty()) likedSurahs.size else playlist.items.size
                                             val countText = if (playlist.isLikedCollection) {
-                                                "${likedSurahs.size} ${if (likedSurahs.size == 1) "recitation" else "recitations"}"
+                                                "$likedCount ${if (likedCount == 1) "recitation" else "recitations"}"
                                             } else {
-                                                "${playlist.items.size} tracks"
+                                                "${playlist.items.size} ${if (playlist.items.size == 1) "track" else "tracks"}"
                                             }
                                             Text(
                                                 text = countText,
@@ -734,7 +747,7 @@ fun HomeScreen(
                             MixCard(
                                 title = "Daily Mix",
                                 subtitle = "Al-Kahf • Yasin • Mulk",
-                                gradient = DailyMixGradient,
+                                gradient = dailyMixGradient,
                                 onClick = {
                                     if (onPlayCategory != null) {
                                         onPlayCategory("Daily Mix", listOf(18, 36, 67))
@@ -748,7 +761,7 @@ fun HomeScreen(
                             MixCard(
                                 title = "Weekly Mix",
                                 subtitle = "Ar-Rahman • Al-Waqi'ah",
-                                gradient = WeeklyMixGradient,
+                                gradient = weeklyMixGradient,
                                 onClick = {
                                     if (onPlayCategory != null) {
                                         onPlayCategory("Weekly Mix", listOf(55, 56, 67))
@@ -762,7 +775,7 @@ fun HomeScreen(
                             MixCard(
                                 title = "Friday Surahs",
                                 subtitle = "Surah Al-Kahf recitation",
-                                gradient = FridayMixGradient,
+                                gradient = fridayMixGradient,
                                 onClick = {
                                     if (onPlayCategory != null) {
                                         onPlayCategory("Friday Surahs", listOf(18, 32, 76, 62))
@@ -776,7 +789,7 @@ fun HomeScreen(
                             MixCard(
                                 title = "Tahajjud Mix",
                                 subtitle = "Deep contemplation recitations",
-                                gradient = TahajjudMixGradient,
+                                gradient = tahajjudMixGradient,
                                 onClick = {
                                     if (onPlayCategory != null) {
                                         onPlayCategory("Tahajjud Mix", listOf(73, 75, 76, 67))
@@ -1241,7 +1254,8 @@ fun RadioStationCard(
         onClick = onClick
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (!station.bannerUrl.isNullOrBlank()) {
+            val hasBanner = !station.bannerUrl.isNullOrBlank()
+            if (hasBanner) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(station.bannerUrl)
@@ -1266,7 +1280,10 @@ fun RadioStationCard(
                         .fillMaxSize()
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color(0xFF003824), Color(0xFF191C1B))
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.surfaceContainerHigh
+                                )
                             )
                         )
                 )
@@ -1326,7 +1343,7 @@ fun RadioStationCard(
                         Icon(
                             imageVector = Icons.Rounded.Radio,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.9f),
+                            tint = if (hasBanner) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -1337,14 +1354,14 @@ fun RadioStationCard(
                         text = station.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = if (hasBanner) Color.White else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = station.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.75f),
+                        color = if (hasBanner) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )

@@ -313,7 +313,7 @@ fun FullPlayerScreen(
                                 text = surah.nameArabic,
                                 fontFamily = AmiriQuranFont,
                                 fontSize = 28.sp,
-                                color = if (station?.bannerUrl.isNullOrBlank()) MaterialTheme.colorScheme.primary else Color(0xFFF8BD48),
+                                color = if (station?.bannerUrl.isNullOrBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
                                 textAlign = TextAlign.Center
                             )
                         }

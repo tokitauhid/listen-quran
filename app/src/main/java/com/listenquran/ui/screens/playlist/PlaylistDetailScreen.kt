@@ -113,7 +113,10 @@ fun PlaylistDetailScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFF005237), Color(0xFF1D211F))
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
                                 )
                             )
                             .padding(20.dp),
@@ -143,7 +146,7 @@ fun PlaylistDetailScreen(
                         val trackCountText = if (playlist.isLikedCollection) {
                             "${localItems.size} ${if (localItems.size == 1) "Recitation" else "Recitations"}"
                         } else {
-                            "${localItems.size} Tracks"
+                            "${localItems.size} ${if (localItems.size == 1) "Track" else "Tracks"}"
                         }
                         Text(
                             text = trackCountText,
@@ -265,18 +268,20 @@ fun PlaylistDetailScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    IconButton(
-                                        onClick = {},
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .draggableHandle()
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.DragHandle,
-                                            contentDescription = "Reorder",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                    if (!playlist.isLikedCollection) {
+                                        IconButton(
+                                            onClick = {},
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .draggableHandle()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.DragHandle,
+                                                contentDescription = "Reorder",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

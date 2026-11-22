@@ -136,7 +136,10 @@ fun ReciterProfileScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFF005237), Color(0xFF1D211F))
+                                    listOf(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
                                 )
                             )
                             .padding(24.dp),

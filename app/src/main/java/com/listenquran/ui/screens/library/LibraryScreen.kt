@@ -285,7 +285,7 @@ fun LibraryScreen(
                 val likedPlaylist = remember(playlists) {
                     playlists.find { it.isLikedCollection } ?: Playlist(id = 1L, name = "Liked Surahs", isLikedCollection = true)
                 }
-                val count = likedSurahs.size
+                val count = if (likedSurahs.isNotEmpty()) likedSurahs.size else likedPlaylist.items.size
                 val countText = if (count == 0) {
                     "0 recitations · Tap to view liked recitations"
                 } else {
@@ -315,13 +315,17 @@ fun LibraryScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
+                            val likedBadgeColors = MaterialTheme.colorScheme
                             Box(
                                 modifier = Modifier
                                     .size(44.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(
                                         Brush.linearGradient(
-                                            listOf(Color(0xFF6CDAA2), Color(0xFF005237))
+                                            listOf(
+                                                likedBadgeColors.primaryContainer,
+                                                likedBadgeColors.secondaryContainer
+                                            )
                                         )
                                     ),
                                 contentAlignment = Alignment.Center
@@ -329,7 +333,7 @@ fun LibraryScreen(
                                 Icon(
                                     imageVector = Icons.Filled.Favorite,
                                     contentDescription = null,
-                                    tint = Color.White,
+                                    tint = likedBadgeColors.onPrimaryContainer,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -1245,7 +1249,10 @@ private fun FavoriteReciterTile(
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xFF005237), Color(0xFF1D211F))
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
                     )
                 )
                 .border(
