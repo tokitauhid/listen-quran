@@ -4,7 +4,7 @@
   <p><em>A modern, native Android Quran audio streaming and study application inspired by Spotify and Quran Audio.</em></p>
 
   <p>
-    <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.2.1-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
+    <a href="https://github.com/tokitauhid/listen-quran/releases/latest"><img src="https://img.shields.io/badge/Release-v1.3.0-006C4C?style=for-the-badge&logo=github&logoColor=white" alt="Version" /></a>
     <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Platform" />
     <img src="https://img.shields.io/badge/Kotlin-2.1.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin" />
     <img src="https://img.shields.io/badge/Compose-Material%203-006C4C?style=for-the-badge&logo=jetpackcompose&logoColor=white" alt="Compose M3" />
@@ -52,6 +52,8 @@
 ## ✨ Features
 
 - 📖 **Khatam Progress Tracker** — Track your Quran reading and completion across all 30 Juz. Automatically records completed verses as you listen, with a visual progress grid and reading statistics.
+- 🗂️ **Curated Browse Categories & 30-Juz Picker** — Discover 14 categories across 4 pillars with a time-of-day and Friday-aware spotlight, a 30-Juz Arabic boundary picker, exact-Ayah Duas/Ruqyah playback, and 1-tap Save as Playlist.
+- 🔊 **LAN Audio Casting (DLNA / UPnP)** — Stream recitations directly to compatible network speakers and TVs over local Wi-Fi with remote seek, volume control, live verse sync, and smart Hifz mode prompts.
 - 📻 **Live Quran Radio** — Continuous 24/7 recitation broadcasts from Quran.com. Automatically reconnects if your connection drops, and preserves your place so you can resume your personal recitation anytime.
 - 🎙️ **250+ Renowned Reciters** — Stream high-quality audio recitations from over 250 verified reciters across multiple recitation styles (Hafs, Warsh, Qalun, Mujawwad, Murattal), with support for downloading surahs for offline listening.
 - 📜 **Synchronized Verse & Word Highlighting** — Follow along in real-time with verse and word-by-word highlights, English translations, and tap any verse to jump directly to it.

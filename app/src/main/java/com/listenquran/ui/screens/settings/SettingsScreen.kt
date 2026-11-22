@@ -1785,24 +1785,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
-                        icon = "📚",
-                        title = "Accurate Playlist & Liked Track Counts",
-                        description = "Playlists and the Liked Surahs collection now reactively display accurate track counts backed by unified Room queries and one-time legacy data migration."
+                        icon = "🗂️",
+                        title = "Redesigned Browse Categories",
+                        description = "Explore 14 curated Quranic categories across 4 pillars with a time-of-day & Friday spotlight, adaptive tablet grid, and a dedicated All Categories browser."
+                    )
+                    WhatsNewItem(
+                        icon = "📖",
+                        title = "30-Juz Picker & Exact-Ayah Collections",
+                        description = "Browse all 30 Juz with Arabic names and jump directly to exact opening verses, Rabbana Duas, and Ruqyah passages, or save any category as a playlist."
+                    )
+                    WhatsNewItem(
+                        icon = "🔊",
+                        title = "LAN Audio Casting (DLNA / UPnP)",
+                        description = "Cast Quran recitations to DLNA/UPnP speakers and TVs on your Wi-Fi network with remote volume, seek, live verse sync, and smart Hifz mode prompts."
                     )
                     WhatsNewItem(
                         icon = "🎶",
-                        title = "Persistent Playlist Playback Queues",
-                        description = "Playing from a custom playlist or Liked Surahs now stays locked to that playlist across track transitions and reciter changes without reverting to the full catalog."
-                    )
-                    WhatsNewItem(
-                        icon = "🔔",
-                        title = "Branded Media Notifications",
-                        description = "Media playback notifications and lockscreen controls now show the Listen Quran emblem and artwork instead of a generic system icon."
-                    )
-                    WhatsNewItem(
-                        icon = "🎨",
-                        title = "Material 3 Theme Consistency",
-                        description = "Replaced hardcoded gradient and accent colors in Liked, Trending, Playlist Detail, Reciter Profile, and Full Player cards with dynamic Material You theme tokens."
+                        title = "Multi-Verse Queues & Bedtime Shortcuts",
+                        description = "Auto-seek to exact Ayahs on track transitions, shuffle curated collections, preserve multi-verse entries in playlists, and pair Sleep Timers with one tap."
                     )
                 }
             },
