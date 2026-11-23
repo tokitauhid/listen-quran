@@ -30,9 +30,9 @@ class DlnaControlClient @Inject constructor(
 ) : RemoteControlClient {
 
     private val client: OkHttpClient = okHttpClient.newBuilder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
+        .connectTimeout(3, TimeUnit.SECONDS)
+        .readTimeout(3, TimeUnit.SECONDS)
+        .writeTimeout(3, TimeUnit.SECONDS)
         .build()
 
     override suspend fun setTransportUri(

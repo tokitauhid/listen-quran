@@ -350,7 +350,9 @@ fun OutputDevicePickerSheet(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -363,7 +365,13 @@ fun OutputDevicePickerSheet(
                             text = "Connecting to ${outputRouteState.activeDevice.name}...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
+                        TextButton(onClick = onDisconnect) {
+                            Text("Cancel")
+                        }
                     }
                 }
             } else {
@@ -441,13 +449,21 @@ fun OutputDevicePickerSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "No DLNA speakers found yet",
+                                text = if (outputRouteState.isCasting) {
+                                    "No other DLNA speakers found"
+                                } else {
+                                    "No DLNA speakers found yet"
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                text = "Make sure your phone and speaker or TV are on the same Wi-Fi network.",
+                                text = if (outputRouteState.isCasting) {
+                                    "Tap Scan to search for additional speakers on your Wi-Fi network."
+                                } else {
+                                    "Make sure your phone and speaker or TV are on the same Wi-Fi network."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

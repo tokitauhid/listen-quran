@@ -193,7 +193,7 @@ class QuranRepository @Inject constructor(
             ?: ReciterRepository.defaultReciters.find { it.id == reciterId }
         if (reciter?.audioServer != null) {
             val server = reciter.audioServer.trimEnd('/') + "/"
-            val audioUrl = if (server.contains("mp3quran.net")) {
+            val audioUrl = if (server.contains("mp3quran.net") || server.contains("/quran/")) {
                 server + String.format("%03d.mp3", chapterId)
             } else {
                 server + "$chapterId.mp3"

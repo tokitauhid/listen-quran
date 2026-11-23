@@ -20,6 +20,7 @@ import java.net.Socket
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +44,11 @@ class LocalMediaHttpServer @Inject constructor(
 ) {
     private val lock = Any()
     private val registry = ConcurrentHashMap<String, CastMediaSource>()
+    private val streamClient: OkHttpClient = okHttpClient.newBuilder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .writeTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
 
     @Volatile
     private var serverSocket: ServerSocket? = null
@@ -59,11 +65,11 @@ class LocalMediaHttpServer @Inject constructor(
     val isRunning: Boolean
         get() = serverSocket?.let { !it.isClosed } == true
 
-    fun start(bindAddress: InetAddress, port: Int = 0): String {
+    fun start(bindAddress: InetAddress, port: Int = 0, forceRestart: Boolean = false): String {
         synchronized(lock) {
             val currentSocket = serverSocket
             val currentBase = baseUrl
-            if (currentSocket != null && !currentSocket.isClosed && currentBase != null &&
+            if (!forceRestart && currentSocket != null && !currentSocket.isClosed && currentBase != null &&
                 currentSocket.inetAddress == bindAddress
             ) {
                 return currentBase
@@ -99,11 +105,18 @@ class LocalMediaHttpServer @Inject constructor(
         }
     }
 
+    fun sanitizeKey(mediaKey: String): String = mediaKey.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+
     fun registerMedia(mediaKey: String, source: CastMediaSource): String {
         val currentBase = baseUrl ?: throw IllegalStateException("LocalMediaHttpServer is not started")
-        val sanitizedKey = mediaKey.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+        val sanitizedKey = sanitizeKey(mediaKey)
         registry[sanitizedKey] = source
         return "$currentBase/stream/$sessionToken/$sanitizedKey.mp3"
+    }
+
+    fun retainOnly(mediaKeys: Set<String>) {
+        val allowed = mediaKeys.mapTo(HashSet()) { sanitizeKey(it) }
+        registry.keys.retainAll(allowed)
     }
 
     fun clearMedia() {
@@ -127,7 +140,7 @@ class LocalMediaHttpServer @Inject constructor(
 
     private fun handleClient(client: Socket, expectedToken: String) {
         client.use { socket ->
-            socket.soTimeout = 30_000
+            socket.soTimeout = 15_000
             val input = BufferedInputStream(socket.getInputStream())
             val output = BufferedOutputStream(socket.getOutputStream())
 
@@ -177,6 +190,7 @@ class LocalMediaHttpServer @Inject constructor(
                 return
             }
 
+            socket.soTimeout = 0
             val rangeHeader = headers["range"]
             when (source) {
                 is CastMediaSource.LocalFile -> serveLocalFile(source, method, rangeHeader, output)
@@ -254,6 +268,7 @@ class LocalMediaHttpServer @Inject constructor(
                     val read = raf.read(buffer, 0, toRead)
                     if (read <= 0) break
                     output.write(buffer, 0, read)
+                    output.flush()
                     remaining -= read
                 }
                 output.flush()
@@ -280,7 +295,7 @@ class LocalMediaHttpServer @Inject constructor(
         }
 
         try {
-            okHttpClient.newCall(reqBuilder.build()).execute().use { response ->
+            streamClient.newCall(reqBuilder.build()).execute().use { response ->
                 val contentType = response.header("Content-Type") ?: source.contentType
                 val contentRange = response.header("Content-Range")
                 val acceptRanges = response.header("Accept-Ranges") ?: "bytes"
@@ -319,6 +334,7 @@ class LocalMediaHttpServer @Inject constructor(
                     val read = bodyStream.read(buffer)
                     if (read <= 0) break
                     output.write(buffer, 0, read)
+                    output.flush()
                 }
                 output.flush()
             }

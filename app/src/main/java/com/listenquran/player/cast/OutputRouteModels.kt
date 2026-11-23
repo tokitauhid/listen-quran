@@ -58,6 +58,10 @@ data class OutputRouteState(
     val isCasting: Boolean
         get() = activeDevice.protocol != CastProtocol.LOCAL &&
             connectionState == CastConnectionState.CONNECTED
+
+    val isConnecting: Boolean
+        get() = activeDevice.protocol != CastProtocol.LOCAL &&
+            connectionState == CastConnectionState.CONNECTING
 }
 
 data class RemoteTrackDescriptor(

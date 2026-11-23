@@ -1,6 +1,8 @@
 package com.listenquran.player.cast
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -50,7 +52,7 @@ class OutputDeviceManagerTest {
     }
 
     @Test
-    fun `connectToDevice hands off current and next track, seeks, controls volume, and returns position on disconnect`() = runTest {
+    fun `connectToDevice sends Seek exactly once, sets next URI, controls volume, and returns position`() = runTest {
         val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
         val fakeControl = FakeRemoteControlClient().apply {
             transportState = RemoteTransportState.PLAYING
@@ -87,7 +89,8 @@ class OutputDeviceManagerTest {
         assertEquals(68, manager.routeState.value.remoteVolume)
         assertTrue(fakeControl.actions.any { it.startsWith("SetAVTransportURI:") })
         assertTrue(fakeControl.actions.any { it == "Play" })
-        assertTrue(fakeControl.actions.any { it == "Seek:42000" })
+        // Guard against repeat(6) return@repeat seek-storm bug
+        assertEquals(1, fakeControl.actions.count { it == "Seek:42000" })
         assertTrue(fakeControl.actions.any { it.startsWith("SetNextAVTransportURI:") })
 
         manager.setRemoteVolume(80)
@@ -100,12 +103,75 @@ class OutputDeviceManagerTest {
         assertEquals(45_000L, resumePos)
         assertFalse(manager.isCasting)
         assertEquals(OutputDevice.LOCAL_PHONE, manager.routeState.value.activeDevice)
+        Thread.sleep(30)
         assertTrue(fakeControl.actions.contains("Stop"))
         assertFalse(server.isRunning)
     }
 
     @Test
-    fun `polling detects end of track and 3-strike disconnect recovers cleanly`() = runTest {
+    fun `disconnect cancels a stalled connectToDevice immediately without deadlocking`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            setUriDelayMs = 5_000L
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 20L, seekDelayMs = 0L, connectTimeoutMs = 8_000L, ioDispatcher = Dispatchers.IO)
+
+        val track = RemoteTrackDescriptor(
+            mediaKey = "s1_r7",
+            title = "1. Al-Fatihah",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            startPositionMs = 12_000L,
+        )
+
+        val connectJob = launch(Dispatchers.IO) {
+            runCatching { manager.connectToDevice(testSpeaker, track, autoPlay = true) }
+        }
+        Thread.sleep(60)
+        assertTrue(manager.routeState.value.isConnecting)
+
+        val t0 = System.currentTimeMillis()
+        val pos = manager.disconnect()
+        val elapsedMs = System.currentTimeMillis() - t0
+
+        assertEquals(12_000L, pos)
+        assertTrue("disconnect() must not block on stalled connectToDevice (took ${elapsedMs}ms)", elapsedMs < 1_000L)
+        assertEquals(OutputDevice.LOCAL_PHONE, manager.routeState.value.activeDevice)
+        assertEquals(CastConnectionState.DISCONNECTED, manager.routeState.value.connectionState)
+        assertFalse(server.isRunning)
+        connectJob.join()
+    }
+
+    @Test
+    fun `timed out or failed connect resets cleanly to LOCAL_PHONE`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            setUriDelayMs = 500L
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 20L, seekDelayMs = 0L, connectTimeoutMs = 80L, ioDispatcher = Dispatchers.IO)
+
+        val track = RemoteTrackDescriptor(
+            mediaKey = "s1_r7",
+            title = "1. Al-Fatihah",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+        )
+
+        val res = manager.connectToDevice(testSpeaker, track, autoPlay = true)
+        assertTrue(res.isFailure)
+        assertEquals(OutputDevice.LOCAL_PHONE, manager.routeState.value.activeDevice)
+        assertEquals(CastConnectionState.ERROR, manager.routeState.value.connectionState)
+        assertFalse(server.isRunning)
+    }
+
+    @Test
+    fun `polling detects end of track and skips position call on failed transport`() = runTest {
         val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
         val fakeControl = FakeRemoteControlClient().apply {
             transportState = RemoteTransportState.PLAYING
@@ -116,7 +182,7 @@ class OutputDeviceManagerTest {
 
         val endedCalled = AtomicBoolean(false)
         val lostCalled = AtomicBoolean(false)
-        manager.onRemoteTrackEnded = { endedCalled.set(true) }
+        manager.onRemoteTrackEnded = { _ -> endedCalled.set(true) }
         manager.onRemoteConnectionLost = { _, _ -> lostCalled.set(true) }
 
         val currentTrack = RemoteTrackDescriptor(
@@ -135,11 +201,143 @@ class OutputDeviceManagerTest {
         Thread.sleep(60)
         assertTrue("Expected natural end-of-track callback", endedCalled.get())
 
+        val posCallsBeforeDrop = fakeControl.positionCalls.get()
         fakeControl.failAllPolls.set(true)
         Thread.sleep(100)
         assertTrue("Expected connection lost callback after 3 failed polls", lostCalled.get())
+        assertEquals("Should skip GetPositionInfo when GetTransportInfo fails", posCallsBeforeDrop, fakeControl.positionCalls.get())
         assertFalse(manager.isCasting)
         assertEquals(OutputDevice.LOCAL_PHONE, manager.routeState.value.activeDevice)
+    }
+
+    @Test
+    fun `connectToDevice waits until renderer reports non-zero trackDuration or relTime before sending Seek`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            transportState = RemoteTransportState.PLAYING
+            positionResponses.addAll(
+                listOf(
+                    RemotePositionInfo(relTimeMs = 0L, trackDurationMs = 0L, trackUri = null),
+                    RemotePositionInfo(relTimeMs = 0L, trackDurationMs = 0L, trackUri = null),
+                    RemotePositionInfo(relTimeMs = 1_000L, trackDurationMs = 120_000L, trackUri = null),
+                )
+            )
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 500L, seekDelayMs = 5L, ioDispatcher = Dispatchers.IO)
+
+        val currentTrack = RemoteTrackDescriptor(
+            mediaKey = "s2_r2",
+            title = "2. Al-Baqarah",
+            artist = "AbdulBaset",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 120_000L,
+            startPositionMs = 27_000L,
+        )
+
+        val res = manager.connectToDevice(testSpeaker, currentTrack, autoPlay = true)
+        assertTrue(res.isSuccess)
+        assertEquals(1, fakeControl.actions.count { it == "Seek:27000" })
+        assertTrue("Expected at least 3 GetPositionInfo checks before preroll-ready Seek", fakeControl.positionCalls.get() >= 3)
+        manager.disconnect()
+    }
+
+    @Test
+    fun `gapless transition to nextUri invokes onRemoteTrackEnded with true and updateNextTrackOnActiveDevice updates NextURI only`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            transportState = RemoteTransportState.PLAYING
+            positionInfo = RemotePositionInfo(relTimeMs = 5_000L, trackDurationMs = 60_000L, trackUri = null)
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 15L, seekDelayMs = 0L, ioDispatcher = Dispatchers.IO)
+
+        val endedEvents = CopyOnWriteArrayList<Boolean>()
+        manager.onRemoteTrackEnded = { advancedToNextUri -> endedEvents.add(advancedToNextUri) }
+
+        val track1 = RemoteTrackDescriptor(
+            mediaKey = "s1_r7",
+            title = "1. Al-Fatihah",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 45_000L,
+        )
+        val track2 = RemoteTrackDescriptor(
+            mediaKey = "s2_r7",
+            title = "2. Al-Baqarah",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 120_000L,
+        )
+        val track3 = RemoteTrackDescriptor(
+            mediaKey = "s3_r7",
+            title = "3. Ali 'Imran",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 120_000L,
+        )
+
+        assertTrue(manager.connectToDevice(testSpeaker, track1, track2, autoPlay = true).isSuccess)
+        val nextUri = fakeControl.actions.last { it.startsWith("SetNextAVTransportURI:") }.substringAfter("SetNextAVTransportURI:")
+        val setUriCountBefore = fakeControl.actions.count { it.startsWith("SetAVTransportURI:") }
+
+        fakeControl.positionInfo = RemotePositionInfo(relTimeMs = 1_000L, trackDurationMs = 120_000L, trackUri = nextUri)
+        Thread.sleep(60)
+
+        assertTrue("Expected gapless transition callback with advancedToNextUri=true", endedEvents.contains(true))
+
+        val updateRes = manager.updateNextTrackOnActiveDevice(track3)
+        assertTrue(updateRes.isSuccess)
+        assertEquals(setUriCountBefore, fakeControl.actions.count { it.startsWith("SetAVTransportURI:") })
+        assertTrue(fakeControl.actions.last { it.startsWith("SetNextAVTransportURI:") }.contains("s3_r7"))
+        manager.disconnect()
+    }
+
+    @Test
+    fun `connectToDevice sends Stop before SetAVTransportURI, tolerates UPnP 701 on Stop, and waits past stale pre-play position`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            failStop.set(true)
+            transportState = RemoteTransportState.PLAYING
+            positionResponses.addAll(
+                listOf(
+                    RemotePositionInfo(relTimeMs = 27_000L, trackDurationMs = 1_627_000L, trackUri = null),
+                    RemotePositionInfo(relTimeMs = 27_000L, trackDurationMs = 1_627_000L, trackUri = null),
+                    RemotePositionInfo(relTimeMs = 1_000L, trackDurationMs = 120_000L, trackUri = null),
+                )
+            )
+            positionInfo = RemotePositionInfo(relTimeMs = 1_000L, trackDurationMs = 120_000L, trackUri = null)
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 500L, seekDelayMs = 5L, ioDispatcher = Dispatchers.IO)
+
+        val currentTrack = RemoteTrackDescriptor(
+            mediaKey = "s3_r2",
+            title = "3. Ali 'Imran",
+            artist = "AbdulBaset",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 120_000L,
+            startPositionMs = 30_000L,
+        )
+
+        val res = manager.connectToDevice(testSpeaker, currentTrack, autoPlay = true)
+        assertTrue("connectToDevice should succeed even if Stop returns UPnP 701", res.isSuccess)
+        val stopIdx = fakeControl.actions.indexOf("Stop")
+        val setUriIdx = fakeControl.actions.indexOfFirst { it.startsWith("SetAVTransportURI:") }
+        assertTrue("Stop must be called before SetAVTransportURI", stopIdx in 0 until setUriIdx)
+        assertEquals(1, fakeControl.actions.count { it == "Seek:30000" })
+        assertEquals("Expected prePlay + 1 stale check + 1 ready check before Seek", 3, fakeControl.positionCalls.get())
+        manager.disconnect()
     }
 
     private class FakeDiscoveryClient(
@@ -152,11 +350,16 @@ class OutputDeviceManagerTest {
     private class FakeRemoteControlClient : RemoteControlClient {
         val actions = CopyOnWriteArrayList<String>()
         val failAllPolls = AtomicBoolean(false)
+        val failStop = AtomicBoolean(false)
+        val positionCalls = AtomicInteger(0)
+        val positionResponses = ArrayDeque<RemotePositionInfo>()
+        @Volatile var setUriDelayMs: Long = 0L
         @Volatile var transportState = RemoteTransportState.STOPPED
         @Volatile var positionInfo = RemotePositionInfo(0L, 100_000L, null)
         @Volatile var volume = 50
 
         override suspend fun setTransportUri(device: OutputDevice, mediaUrl: String, metadataXml: String): Result<Unit> {
+            if (setUriDelayMs > 0L) delay(setUriDelayMs)
             actions.add("SetAVTransportURI:$mediaUrl")
             return Result.success(Unit)
         }
@@ -178,6 +381,7 @@ class OutputDeviceManagerTest {
 
         override suspend fun stop(device: OutputDevice): Result<Unit> {
             actions.add("Stop")
+            if (failStop.get()) return Result.failure(IllegalStateException("DLNA Stop failed (Transition not available)"))
             return Result.success(Unit)
         }
 
@@ -187,8 +391,12 @@ class OutputDeviceManagerTest {
         }
 
         override suspend fun getPositionInfo(device: OutputDevice): Result<RemotePositionInfo> {
+            positionCalls.incrementAndGet()
             if (failAllPolls.get()) return Result.failure(RuntimeException("Offline"))
-            return Result.success(positionInfo)
+            val nextQueued = synchronized(positionResponses) {
+                if (positionResponses.isNotEmpty()) positionResponses.removeFirst() else null
+            }
+            return Result.success(nextQueued ?: positionInfo)
         }
 
         override suspend fun getTransportInfo(device: OutputDevice): Result<RemoteTransportState> {

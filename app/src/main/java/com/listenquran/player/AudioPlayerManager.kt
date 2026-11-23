@@ -121,6 +121,11 @@ class AudioPlayerManager @Inject constructor(
     @Volatile
     private var isRestartingHifzLoop: Boolean = false
 
+    private var castConnectJob: Job? = null
+
+    private val isCastingOrConnecting: Boolean
+        get() = outputDeviceManager.isCasting || outputDeviceManager.routeState.value.isConnecting
+
     init {
         connectBrowser()
         wireCastCallbacks()
@@ -143,7 +148,7 @@ class AudioPlayerManager @Inject constructor(
                 scope.launch {
                     if (!outputDeviceManager.isCasting) return@launch
                     _currentPositionMs.value = posMs
-                    if (durationMs > 0L && _playbackState.value.durationMs != durationMs) {
+                    if (durationMs > 0L && (_playbackState.value.durationMs <= 0L || _playbackState.value.verseTimings.isEmpty())) {
                         _playbackState.update { it.copy(durationMs = durationMs) }
                     }
                     syncTracker.updateExternalPosition(posMs)
@@ -172,10 +177,10 @@ class AudioPlayerManager @Inject constructor(
                 }
             }
         }
-        outputDeviceManager.onRemoteTrackEnded = {
+        outputDeviceManager.onRemoteTrackEnded = { advancedToNextUri ->
             scope.launch {
                 if (outputDeviceManager.isCasting) {
-                    handleRemoteTrackEnded()
+                    handleRemoteTrackEnded(advancedToNextUri)
                 }
             }
         }
@@ -214,13 +219,25 @@ class AudioPlayerManager @Inject constructor(
 
     internal fun withController(action: (MediaBrowser) -> Unit) {
         val b = browser
-        if (b != null) {
+        if (b != null && b.isConnected) {
             action(b)
         } else {
+            if (b != null && !b.isConnected) {
+                browser = null
+                browserFuture = null
+            }
             ensureServiceRunning()
             browserFuture?.addListener({
                 try {
-                    browserFuture?.get()?.let(action)
+                    val controller = browserFuture?.get()
+                    if (controller != null && controller.isConnected) {
+                        action(controller)
+                    } else {
+                        android.util.Log.w("AudioPlayerManager", "MediaBrowser not connected; reconnecting")
+                        browser = null
+                        browserFuture = null
+                        connectBrowser()
+                    }
                 } catch (e: Exception) {
                     android.util.Log.e("AudioPlayerManager", "Failed to obtain MediaBrowser", e)
                 }
@@ -231,7 +248,7 @@ class AudioPlayerManager @Inject constructor(
     private fun setupControllerListener(controller: MediaBrowser) {
         controller.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (outputDeviceManager.isCasting) {
+                if (outputDeviceManager.isCasting || outputDeviceManager.routeState.value.isConnecting) {
                     if (isPlaying) {
                         controller.pause()
                     }
@@ -274,7 +291,7 @@ class AudioPlayerManager @Inject constructor(
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                if (outputDeviceManager.isCasting) {
+                if (outputDeviceManager.isCasting || outputDeviceManager.routeState.value.isConnecting) {
                     return
                 }
                 if (state == Player.STATE_ENDED) {
@@ -369,9 +386,23 @@ class AudioPlayerManager @Inject constructor(
                 if (outputDeviceManager.isCasting) {
                     if (skipNextRemotePush) {
                         skipNextRemotePush = false
+                        val upcomingNext = getNextMediaItemInTimeline(controller)
+                        if (upcomingNext != null && parseStartAyah(upcomingNext.mediaId) <= 1) {
+                            scope.launch {
+                                val nextDesc = buildRemoteDescriptorForMediaItem(upcomingNext, 0L, 0L)
+                                outputDeviceManager.updateNextTrackOnActiveDevice(nextDesc)
+                            }
+                        } else {
+                            scope.launch { outputDeviceManager.updateNextTrackOnActiveDevice(null) }
+                        }
                     } else if (mediaItem != null) {
-                        val initialStartPos = pendingRemoteSeekMs ?: controller.currentPosition.coerceAtLeast(0L)
+                        val explicitSeek = pendingRemoteSeekMs
                         pendingRemoteSeekMs = null
+                        val initialStartPos = explicitSeek ?: if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                            controller.currentPosition.coerceAtLeast(0L)
+                        } else {
+                            0L
+                        }
                         val nextItem = getNextMediaItemInTimeline(controller)
                         scope.launch {
                             var resolvedStartPos = initialStartPos
@@ -659,7 +690,7 @@ class AudioPlayerManager @Inject constructor(
                 startIndex = startIndex,
                 startAyah = startAyah,
                 queueTitle = queueTitle ?: "The Holy Quran",
-                autoPlay = !outputDeviceManager.isCasting,
+                autoPlay = !isCastingOrConnecting,
                 withController = ::withController
             )
         }
@@ -708,7 +739,7 @@ class AudioPlayerManager @Inject constructor(
                 startIndex = startIndex,
                 startAyah = startAyah,
                 queueTitle = queueTitle,
-                autoPlay = !outputDeviceManager.isCasting,
+                autoPlay = !isCastingOrConnecting,
                 withController = ::withController
             )
         }
@@ -775,7 +806,7 @@ class AudioPlayerManager @Inject constructor(
                 startIndex = clamped,
                 queueTitle = queueTitle,
                 shuffle = shuffle,
-                autoPlay = !outputDeviceManager.isCasting,
+                autoPlay = !isCastingOrConnecting,
                 withController = ::withController
             )
         }
@@ -813,7 +844,7 @@ class AudioPlayerManager @Inject constructor(
                 reciter = reciter,
                 currentAyahNumber = currentAyah,
                 wasPlayingOverride = wasPlaying,
-                autoPlay = !outputDeviceManager.isCasting,
+                autoPlay = !isCastingOrConnecting,
                 withController = ::withController
             )
         }
@@ -882,7 +913,7 @@ class AudioPlayerManager @Inject constructor(
     fun playQueueItem(timelineIndex: Int) {
         queueManager.seekToTimelineIndex(
             timelineIndex = timelineIndex,
-            autoPlay = !outputDeviceManager.isCasting,
+            autoPlay = !isCastingOrConnecting,
             withController = ::withController
         )
     }
@@ -1035,7 +1066,7 @@ class AudioPlayerManager @Inject constructor(
             withController { controller ->
                 controller.setMediaItems(mediaItems, 0, 0L)
                 controller.prepare()
-                if (!outputDeviceManager.isCasting) {
+                if (!isCastingOrConnecting) {
                     controller.play()
                 }
             }
@@ -1486,38 +1517,57 @@ class AudioPlayerManager @Inject constructor(
             disconnectOutputDevice(resumeLocal = true)
             return
         }
+        ensureServiceRunning()
+        castConnectJob?.cancel()
         val state = _playbackState.value
         val wasPlaying = state.isPlaying
         val localPosMs = if (!outputDeviceManager.isCasting) {
-            (browser?.currentPosition?.takeIf { it > 0L } ?: _currentPositionMs.value).coerceAtLeast(0L)
+            (browser?.takeIf { it.isConnected }?.currentPosition?.takeIf { it > 0L } ?: _currentPositionMs.value).coerceAtLeast(0L)
         } else {
             _currentPositionMs.value.coerceAtLeast(0L)
         }
 
-        // Pause local audio output without mutating queue state
-        browser?.pause()
+        // Pause local audio output immediately so phone and remote speaker never overlap
+        browser?.takeIf { it.isConnected }?.pause()
+        _playbackState.update {
+            it.copy(
+                isPlaying = false,
+                isBuffering = wasPlaying || state.currentSurah != null,
+            )
+        }
 
         withController { controller ->
             val currentItem = controller.currentMediaItem
             val nextItem = getNextMediaItemInTimeline(controller)
-            scope.launch {
-                val currentDesc = if (currentItem != null) {
-                    buildRemoteDescriptorForMediaItem(currentItem, localPosMs, state.durationMs)
-                } else if (state.currentSurah != null && state.currentReciter != null) {
-                    buildRemoteDescriptorForSurah(state.currentSurah, state.currentReciter, localPosMs, state.durationMs)
-                } else null
+            castConnectJob = scope.launch {
+                try {
+                    val currentDesc = if (currentItem != null) {
+                        buildRemoteDescriptorForMediaItem(currentItem, localPosMs, state.durationMs)
+                    } else if (state.currentSurah != null && state.currentReciter != null) {
+                        buildRemoteDescriptorForSurah(state.currentSurah, state.currentReciter, localPosMs, state.durationMs)
+                    } else null
 
-                val nextDesc = nextItem?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
-                val res = outputDeviceManager.connectToDevice(
-                    device = device,
-                    currentTrack = currentDesc,
-                    nextTrack = nextDesc,
-                    autoPlay = wasPlaying || currentDesc != null,
-                )
-                if (res.isFailure) {
-                    _castMessageEvent.emit(res.exceptionOrNull()?.message ?: "Could not connect to ${device.name}")
-                } else if (currentDesc != null) {
-                    _playbackState.update { it.copy(isPlaying = true, isBuffering = false) }
+                    val nextDesc = nextItem
+                        ?.takeIf { parseStartAyah(it.mediaId) <= 1 }
+                        ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+                    val autoPlay = wasPlaying || currentDesc != null
+                    val res = outputDeviceManager.connectToDevice(
+                        device = device,
+                        currentTrack = currentDesc,
+                        nextTrack = nextDesc,
+                        autoPlay = autoPlay,
+                    )
+                    if (res.isFailure) {
+                        _playbackState.update { it.copy(isPlaying = false, isBuffering = false) }
+                        _castMessageEvent.emit(res.exceptionOrNull()?.message ?: "Could not connect to ${device.name}")
+                    } else if (currentDesc != null) {
+                        _playbackState.update { it.copy(isPlaying = autoPlay, isBuffering = false) }
+                    } else {
+                        _playbackState.update { it.copy(isBuffering = false) }
+                    }
+                } catch (ce: CancellationException) {
+                    _playbackState.update { it.copy(isBuffering = false) }
+                    throw ce
                 }
             }
         }
@@ -1525,10 +1575,13 @@ class AudioPlayerManager @Inject constructor(
 
     fun disconnectOutputDevice(resumeLocal: Boolean = true) {
         val wasPlaying = _playbackState.value.isPlaying
+        castConnectJob?.cancel()
+        castConnectJob = null
         scope.launch {
             val resumePosMs = outputDeviceManager.disconnect()
             _currentPositionMs.value = resumePosMs
             syncTracker.onSeek(resumePosMs)
+            _playbackState.update { it.copy(isBuffering = false) }
             if (resumeLocal) {
                 withController { controller ->
                     if (resumePosMs > 0L) {
@@ -1556,7 +1609,7 @@ class AudioPlayerManager @Inject constructor(
         }
     }
 
-    private suspend fun handleRemoteTrackEnded() {
+    private suspend fun handleRemoteTrackEnded(advancedToNextUri: Boolean = false) {
         recordSessionDuration(isCompleted = true)
         val playback = _playbackState.value
         if (playback.isHifzActive && playback.hifzConfig != null) {
@@ -1593,6 +1646,9 @@ class AudioPlayerManager @Inject constructor(
             outputDeviceManager.seekRemote(0L)
             outputDeviceManager.playRemote()
         } else {
+            if (advancedToNextUri) {
+                skipNextRemotePush = true
+            }
             playNext()
         }
     }
@@ -1605,7 +1661,9 @@ class AudioPlayerManager @Inject constructor(
     ) {
         if (!outputDeviceManager.isCasting) return
         val currentDesc = buildRemoteDescriptorForMediaItem(currentItem, startPosMs, durationHintMs) ?: return
-        val nextDesc = nextItem?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+        val nextDesc = nextItem
+            ?.takeIf { parseStartAyah(it.mediaId) <= 1 }
+            ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
         val res = outputDeviceManager.loadTrackOnActiveDevice(currentDesc, nextDesc, autoPlay = true)
         if (res.isFailure) {
             _castMessageEvent.emit(res.exceptionOrNull()?.message ?: "Failed to cast track")
@@ -1640,6 +1698,14 @@ class AudioPlayerManager @Inject constructor(
                 durationMs = durationHintMs,
                 startPositionMs = startPosMs,
             )
+        }
+        if (item.mediaId.startsWith("radio:")) {
+            val parts = item.mediaId.split(":")
+            val radioSurahId = parts.getOrNull(3)?.toIntOrNull() ?: return null
+            val radioReciterId = parts.getOrNull(4)?.toIntOrNull() ?: _playbackState.value.currentReciter?.id ?: 7
+            val surah = quranRepository.getSurahById(radioSurahId) ?: return null
+            val reciter = reciterRepository.getReciterById(radioReciterId) ?: return null
+            return buildRemoteDescriptorForSurah(surah, reciter, startPosMs, durationHintMs)
         }
         val surahId = parseSurahId(item.mediaId) ?: return null
         val reciterId = parseReciterId(item.mediaId) ?: _playbackState.value.currentReciter?.id ?: 7
