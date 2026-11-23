@@ -1785,24 +1785,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
-                        icon = "🗂️",
-                        title = "Redesigned Browse Categories",
-                        description = "Explore 14 curated Quranic categories across 4 pillars with a time-of-day & Friday spotlight, adaptive tablet grid, and a dedicated All Categories browser."
-                    )
-                    WhatsNewItem(
-                        icon = "📖",
-                        title = "30-Juz Picker & Exact-Ayah Collections",
-                        description = "Browse all 30 Juz with Arabic names and jump directly to exact opening verses, Rabbana Duas, and Ruqyah passages, or save any category as a playlist."
-                    )
-                    WhatsNewItem(
                         icon = "🔊",
-                        title = "LAN Audio Casting (DLNA / UPnP)",
-                        description = "Cast Quran recitations to DLNA/UPnP speakers and TVs on your Wi-Fi network with remote volume, seek, live verse sync, and smart Hifz mode prompts."
+                        title = "Reliable DLNA Speaker Casting",
+                        description = "Fixed speaker stalls, duplicate seek storms, and renderer state locks by resetting transport before loading and waiting for stream preroll."
                     )
                     WhatsNewItem(
-                        icon = "🎶",
-                        title = "Multi-Verse Queues & Bedtime Shortcuts",
-                        description = "Auto-seek to exact Ayahs on track transitions, shuffle curated collections, preserve multi-verse entries in playlists, and pair Sleep Timers with one tap."
+                        icon = "🔒",
+                        title = "Screen-Off Casting Keep-Alive",
+                        description = "Keeps casting active with foreground service protection, wake/Wi-Fi locks, and un-timed HTTP streaming when the screen turns off or you switch apps."
+                    )
+                    WhatsNewItem(
+                        icon = "⚡",
+                        title = "Non-Blocking Connect & Cancel",
+                        description = "Eliminated connect/disconnect freezes so canceling or switching back to your phone restores local playback immediately without force-closing."
+                    )
+                    WhatsNewItem(
+                        icon = "🎵",
+                        title = "Accurate Sync & Gapless Queues",
+                        description = "Fixed gapless next-track handoffs, prevented VBR estimates from overwriting verse-timing duration, and fixed /quran/ reciter URL formatting."
                     )
                 }
             },
