@@ -1785,24 +1785,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
-                        icon = "🔊",
-                        title = "Reliable DLNA Speaker Casting",
-                        description = "Fixed speaker stalls, duplicate seek storms, and renderer state locks by resetting transport before loading and waiting for stream preroll."
+                        icon = "🎯",
+                        title = "Exact-Ayah Browse Playback",
+                        description = "Individual ayah and verse-range entries in Browse categories and saved playlists now play only the selected verses instead of the entire surah."
                     )
                     WhatsNewItem(
-                        icon = "🔒",
-                        title = "Screen-Off Casting Keep-Alive",
-                        description = "Keeps casting active with foreground service protection, wake/Wi-Fi locks, and un-timed HTTP streaming when the screen turns off or you switch apps."
+                        icon = "⏭️",
+                        title = "Gapless Playlist Transitions",
+                        description = "After an ayah entry finishes, playback automatically advances to the next entry in playlist or shuffle order while full-surah entries play completely."
                     )
                     WhatsNewItem(
-                        icon = "⚡",
-                        title = "Non-Blocking Connect & Cancel",
-                        description = "Eliminated connect/disconnect freezes so canceling or switching back to your phone restores local playback immediately without force-closing."
+                        icon = "✨",
+                        title = "Clip-Aware Sync, Scrubber & Casting",
+                        description = "Accurate clip duration, verse/word highlighting, ayah seeking, reciter switching, and DLNA casting boundaries for single-ayah and range entries."
                     )
                     WhatsNewItem(
-                        icon = "🎵",
-                        title = "Accurate Sync & Gapless Queues",
-                        description = "Fixed gapless next-track handoffs, prevented VBR estimates from overwriting verse-timing duration, and fixed /quran/ reciter URL formatting."
+                        icon = "🎙️",
+                        title = "Smart Reciter Fallback",
+                        description = "Automatically falls back to a synced reciter when playing bounded ayah entries with a reciter that lacks verse timestamps."
                     )
                 }
             },
