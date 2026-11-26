@@ -79,6 +79,7 @@ fun RecitersScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp)
                     .padding(top = 16.dp, bottom = 8.dp)
             ) {
