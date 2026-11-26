@@ -178,11 +178,11 @@ class PlaylistRepository @Inject constructor(
         val playlistId = createPlaylist(name, description)
         if (entries.isEmpty()) return playlistId
 
-        val seen = HashSet<Triple<Int, Int, Int>>(entries.size)
+        val seen = HashSet<List<Int?>>(entries.size)
         val entities = ArrayList<PlaylistItemEntity>(entries.size)
         var orderIndex = 0
         for (entry in entries) {
-            val key = Triple(entry.surahNumber, entry.startAyah, entry.reciterId)
+            val key = listOf(entry.surahNumber, entry.startAyah, entry.endAyah, entry.reciterId)
             if (seen.add(key)) {
                 entities.add(
                     PlaylistItemEntity(
@@ -305,14 +305,15 @@ class PlaylistRepository @Inject constructor(
                     "description" to pl.description,
                     "isLiked" to pl.isLikedCollection,
                     "items" to items.map {
-                        mapOf(
-                            "surahNumber" to it.surahNumber,
-                            "surahName" to it.surahName,
-                            "surahArabic" to it.surahArabic,
-                            "reciterId" to it.reciterId,
-                            "reciterName" to it.reciterName,
-                            "startAyah" to it.startAyah,
-                        )
+                        buildMap<String, Any> {
+                            put("surahNumber", it.surahNumber)
+                            put("surahName", it.surahName)
+                            put("surahArabic", it.surahArabic)
+                            put("reciterId", it.reciterId)
+                            put("reciterName", it.reciterName)
+                            put("startAyah", it.startAyah)
+                            it.endAyah?.let { end -> put("endAyah", end) }
+                        }
                     }
                 )
             )
@@ -362,6 +363,7 @@ class PlaylistRepository @Inject constructor(
                         val reciterId = (itemMap["reciterId"] as? Number)?.toInt() ?: 7
                         val reciterName = itemMap["reciterName"] as? String ?: "Mishary Rashid Al-Afasy"
                         val startAyah = (itemMap["startAyah"] as? Number)?.toInt() ?: 1
+                        val endAyah = (itemMap["endAyah"] as? Number)?.toInt()
                         PlaylistItemEntity(
                             playlistId = newPlId,
                             surahNumber = surahNum,
@@ -370,6 +372,7 @@ class PlaylistRepository @Inject constructor(
                             reciterId = reciterId,
                             reciterName = reciterName,
                             startAyah = startAyah,
+                            endAyah = endAyah,
                             orderIndex = idx,
                         )
                     }

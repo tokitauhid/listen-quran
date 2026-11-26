@@ -189,4 +189,41 @@ class PlaybackSyncTrackerTest {
         assertEquals(0, tracker.syncState.value.currentWordIndex)
         assertEquals(0L, tracker.currentPositionMs.value)
     }
+
+    @Test
+    fun testPositionOffsetMapsClipRelativePositionsToCorrectAyahAndWord() {
+        val timings = sampleTimings()
+        // Clip starts at Ayah 2 (6090ms)
+        tracker.onMediaItemChanged(surahId = 1, reciterId = 7, startAyah = 2)
+        tracker.setTimings(
+            surahId = 1,
+            reciterId = 7,
+            timings = timings,
+            initialPosMs = 0L,
+            positionOffsetMs = 6090L,
+        )
+
+        assertEquals(2, tracker.syncState.value.currentAyahNumber)
+        assertEquals("1:2", tracker.syncState.value.currentVerseKey)
+        assertEquals(1, tracker.syncState.value.currentWordIndex)
+
+        // Seeking to 6910ms inside the clip corresponds to 6090 + 6910 = 13000ms -> Ayah 3, Word 2
+        tracker.onSeek(6910L)
+        assertEquals(3, tracker.syncState.value.currentAyahNumber)
+        assertEquals("1:3", tracker.syncState.value.currentVerseKey)
+        assertEquals(2, tracker.syncState.value.currentWordIndex)
+        assertEquals(6910L, tracker.currentPositionMs.value)
+
+        // Remote DLNA update passes absolute full-surah ms (7200ms) -> Ayah 2, Word 2, relative pos 1110ms
+        tracker.updateExternalPosition(7200L)
+        assertEquals(2, tracker.syncState.value.currentAyahNumber)
+        assertEquals(2, tracker.syncState.value.currentWordIndex)
+        assertEquals(1110L, tracker.currentPositionMs.value)
+
+        // Transition resets positionOffsetMs back to 0L
+        tracker.onMediaItemChanged(surahId = 1, reciterId = 7, startAyah = 1)
+        tracker.setTimings(1, 7, timings, initialPosMs = 0L)
+        assertEquals(1, tracker.syncState.value.currentAyahNumber)
+        assertEquals(1, tracker.syncState.value.currentWordIndex)
+    }
 }

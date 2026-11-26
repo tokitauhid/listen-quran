@@ -323,31 +323,62 @@ class QuranLibrarySessionCallback @Inject constructor(
             } else {
                 val surahId = parseSurahId(item.mediaId) ?: 1
                 val reciterId = parseReciterId(item.mediaId) ?: defaultReciter.id
+                val startAyah = PlaybackQueueManager.parseStartAyah(item.mediaId)
+                val endAyah = PlaybackQueueManager.parseEndAyah(item.mediaId)
                 val surah = quranRepository.getSurahById(surahId)
                 val reciter = reciterRepository.getReciterById(reciterId) ?: defaultReciter
                 val audioData = quranRepository.getChapterAudio(reciter.id, surahId)
                 if (audioData != null && surah != null) {
                     val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
-                    val resolvedItem = MediaItem.Builder()
-                        .setMediaId("surah:${surah.id}:reciter:${reciter.id}")
+                    val existingClip = item.clippingConfiguration
+                    val resolvedClip = if (existingClip != MediaItem.ClippingConfiguration.UNSET) {
+                        existingClip
+                    } else if (endAyah != null) {
+                        resolveAyahClipBounds(surah.id, startAyah, endAyah, audioData.timestamps)?.let { bounds ->
+                            MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(bounds.startMs)
+                                .setEndPositionMs(bounds.endMs)
+                                .build()
+                        } ?: MediaItem.ClippingConfiguration.UNSET
+                    } else {
+                        MediaItem.ClippingConfiguration.UNSET
+                    }
+
+                    val resolvedMediaId = if (item.mediaId.startsWith("surah:")) {
+                        item.mediaId
+                    } else {
+                        PlaybackQueueManager.encodeSurahMediaId(
+                            surahId = surah.id,
+                            reciterId = reciter.id,
+                            startAyah = startAyah,
+                            endAyah = endAyah,
+                            queueId = "resolved_${System.nanoTime()}",
+                        )
+                    }
+
+                    val existingMeta = item.mediaMetadata
+                    val builder = MediaItem.Builder()
+                        .setMediaId(resolvedMediaId)
                         .setUri(audioData.audioUrl)
                         .setMediaMetadata(
                             MediaMetadata.Builder()
-                                .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
-                                .setArtist(reciter.englishName)
-                                .setAlbumTitle("The Holy Quran")
-                                .setAlbumArtist(reciter.englishName)
-                                .setDisplayTitle("${surah.id}. ${surah.nameSimple}")
-                                .setSubtitle(reciter.englishName)
-                                .setDescription("${surah.translatedName} • ${surah.revelationPlace.replaceFirstChar { it.uppercase() }} • ${surah.versesCount} Verses")
-                                .setArtworkUri(artworkUri)
+                                .setTitle(existingMeta.title ?: "${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
+                                .setArtist(existingMeta.artist ?: reciter.englishName)
+                                .setAlbumTitle(existingMeta.albumTitle ?: "The Holy Quran")
+                                .setAlbumArtist(existingMeta.albumArtist ?: reciter.englishName)
+                                .setDisplayTitle(existingMeta.displayTitle ?: "${surah.id}. ${surah.nameSimple}")
+                                .setSubtitle(existingMeta.subtitle ?: reciter.englishName)
+                                .setDescription(existingMeta.description ?: "${surah.translatedName} • ${surah.revelationPlace.replaceFirstChar { it.uppercase() }} • ${surah.versesCount} Verses")
+                                .setArtworkUri(existingMeta.artworkUri ?: artworkUri)
                                 .setIsPlayable(true)
                                 .setIsBrowsable(false)
                                 .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
                                 .build()
                         )
-                        .build()
-                    resolvedList.add(resolvedItem)
+                    if (resolvedClip != MediaItem.ClippingConfiguration.UNSET) {
+                        builder.setClippingConfiguration(resolvedClip)
+                    }
+                    resolvedList.add(builder.build())
                 } else {
                     resolvedList.add(item)
                 }
@@ -436,12 +467,26 @@ class QuranLibrarySessionCallback @Inject constructor(
 
     private fun buildPlaylistItemMediaItem(item: PlaylistItem): MediaItem {
         val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
+        val subtitle = when {
+            item.endAyah != null && item.endAyah == item.startAyah -> "${item.reciterName} • Ayah ${item.startAyah}"
+            item.endAyah != null && item.endAyah > item.startAyah -> "${item.reciterName} • Ayahs ${item.startAyah}–${item.endAyah}"
+            item.startAyah > 1 -> "${item.reciterName} • Ayah ${item.startAyah}"
+            else -> item.reciterName
+        }
         return MediaItem.Builder()
-            .setMediaId("surah:${item.surahNumber}:reciter:${item.reciterId}")
+            .setMediaId(
+                PlaybackQueueManager.encodeSurahMediaId(
+                    surahId = item.surahNumber,
+                    reciterId = item.reciterId,
+                    startAyah = item.startAyah,
+                    endAyah = item.endAyah,
+                    queueId = "pl_${item.id}",
+                )
+            )
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle("${item.surahNumber}. ${item.surahName} (${item.surahArabic})")
-                    .setSubtitle(item.reciterName)
+                    .setSubtitle(subtitle)
                     .setDisplayTitle(item.surahName)
                     .setArtworkUri(artworkUri)
                     .setIsPlayable(true)

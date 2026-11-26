@@ -3,6 +3,7 @@ package com.listenquran.player
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -21,6 +22,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -82,13 +86,34 @@ class PlaybackQueueManager @Inject constructor(
         surah: Surah,
         reciter: Reciter,
         startAyah: Int = 1,
-        queueId: String = UUID.randomUUID().toString()
+        endAyah: Int? = null,
+        queueId: String = UUID.randomUUID().toString(),
+        clipBounds: AyahClipBounds? = null,
+        customLabel: String? = null,
     ): MediaItem {
-        val downloaded = downloadRepository.getDownloadedSurah(surah.id, reciter.id)
+        var effectiveReciter = reciter
+        var effectiveClipBounds = clipBounds
+        if (endAyah != null && effectiveClipBounds == null) {
+            val timings = quranRepository.getVerseTimings(reciter.id, surah.id)
+            effectiveClipBounds = resolveAyahClipBounds(surah.id, startAyah, endAyah, timings)
+            if (effectiveClipBounds == null) {
+                val fallbackReciter = getDefaultReciter()
+                if (fallbackReciter.id != reciter.id) {
+                    val fallbackTimings = quranRepository.getVerseTimings(fallbackReciter.id, surah.id)
+                    val fallbackBounds = resolveAyahClipBounds(surah.id, startAyah, endAyah, fallbackTimings)
+                    if (fallbackBounds != null) {
+                        effectiveReciter = fallbackReciter
+                        effectiveClipBounds = fallbackBounds
+                    }
+                }
+            }
+        }
+
+        val downloaded = downloadRepository.getDownloadedSurah(surah.id, effectiveReciter.id)
         var effectiveUri = when {
             downloaded != null && File(downloaded.localFilePath).exists() -> Uri.fromFile(File(downloaded.localFilePath))
-            reciter.audioServer != null -> {
-                val server = reciter.audioServer.trimEnd('/') + "/"
+            effectiveReciter.audioServer != null -> {
+                val server = effectiveReciter.audioServer.trimEnd('/') + "/"
                 val url = if (server.contains("mp3quran.net") || server.contains("/quran/")) {
                     server + String.format("%03d.mp3", surah.id)
                 } else {
@@ -97,7 +122,7 @@ class PlaybackQueueManager @Inject constructor(
                 Uri.parse(url)
             }
             else -> {
-                val defaultMatch = ReciterRepository.defaultReciters.find { it.id == reciter.id }
+                val defaultMatch = ReciterRepository.defaultReciters.find { it.id == effectiveReciter.id }
                 if (defaultMatch?.audioServer != null) {
                     val server = defaultMatch.audioServer.trimEnd('/') + "/"
                     val url = if (server.contains("mp3quran.net") || server.contains("/quran/")) {
@@ -111,20 +136,28 @@ class PlaybackQueueManager @Inject constructor(
         }
 
         if (effectiveUri == null) {
-            val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
+            val audioData = quranRepository.getChapterAudio(effectiveReciter.id, surah.id)
             if (audioData != null) {
                 effectiveUri = Uri.parse(audioData.audioUrl)
             }
         }
 
+        val ayahSuffix = when {
+            endAyah != null && endAyah == startAyah -> " • Ayah $startAyah"
+            endAyah != null && endAyah > startAyah -> " • Ayahs $startAyah–$endAyah"
+            startAyah > 1 -> " • Ayah $startAyah"
+            else -> ""
+        }
+        val displayTitle = customLabel?.takeIf { it.isNotBlank() } ?: "${surah.id}. ${surah.nameSimple}"
+
         val artworkUri = Uri.parse("android.resource://${context.packageName}/${R.drawable.ic_app_logo}")
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle("${surah.id}. ${surah.nameSimple} (${surah.nameArabic})")
-            .setArtist(reciter.englishName)
+            .setArtist(effectiveReciter.englishName)
             .setAlbumTitle("The Holy Quran")
-            .setAlbumArtist(reciter.englishName)
-            .setDisplayTitle("${surah.id}. ${surah.nameSimple}")
-            .setSubtitle("${reciter.englishName}${if (startAyah > 1) " • Ayah $startAyah" else ""}")
+            .setAlbumArtist(effectiveReciter.englishName)
+            .setDisplayTitle(displayTitle)
+            .setSubtitle("${effectiveReciter.englishName}$ayahSuffix")
             .setDescription("${surah.translatedName} • ${surah.revelationPlace.replaceFirstChar { it.uppercase() }} • ${surah.versesCount} Verses")
             .setArtworkUri(artworkUri)
             .setIsPlayable(true)
@@ -132,11 +165,13 @@ class PlaybackQueueManager @Inject constructor(
             .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .build()
 
-        val encodedMediaId = if (startAyah > 1) {
-            "surah:${surah.id}:reciter:${reciter.id}:ayah:$startAyah:uid:$queueId"
-        } else {
-            "surah:${surah.id}:reciter:${reciter.id}:uid:$queueId"
-        }
+        val encodedMediaId = encodeSurahMediaId(
+            surahId = surah.id,
+            reciterId = effectiveReciter.id,
+            startAyah = startAyah,
+            endAyah = endAyah,
+            queueId = queueId,
+        )
 
         val builder = MediaItem.Builder()
             .setMediaId(encodedMediaId)
@@ -144,6 +179,15 @@ class PlaybackQueueManager @Inject constructor(
 
         if (effectiveUri != null) {
             builder.setUri(effectiveUri)
+        }
+
+        if (effectiveClipBounds != null) {
+            builder.setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(effectiveClipBounds.startMs)
+                    .setEndPositionMs(effectiveClipBounds.endMs)
+                    .build()
+            )
         }
 
         return builder.build()
@@ -223,32 +267,104 @@ class PlaybackQueueManager @Inject constructor(
             }
 
             val defaultReciter = getDefaultReciter()
+            val clampedIndex = startIndex.coerceIn(0, items.size - 1)
+            currentSourceTitle = queueTitle
+
+            val resolvedEntries = items.map { item ->
+                val surah = resolvedSurahs.find { it.id == item.surahNumber } ?: resolvedSurahs.first()
+                val reciter = allReciters.find { it.id == item.reciterId } ?: defaultReciter
+                Triple(item, surah, reciter)
+            }
+
+            val timingPairs = buildSet {
+                resolvedEntries.forEach { (item, surah, reciter) ->
+                    if (item.endAyah != null) {
+                        add(reciter.id to surah.id)
+                    }
+                }
+                val target = resolvedEntries[clampedIndex]
+                if (target.first.startAyah > 1 || target.first.endAyah != null) {
+                    add(target.third.id to target.second.id)
+                }
+            }
+            val primaryTimings = if (timingPairs.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        timingPairs.map { (rId, sId) ->
+                            async { (rId to sId) to quranRepository.getVerseTimings(rId, sId) }
+                        }.awaitAll().toMap()
+                    }
+                }
+            } else emptyMap()
+
+            val fallbackPairs = buildSet {
+                resolvedEntries.forEach { (item, surah, reciter) ->
+                    if (item.endAyah != null && reciter.id != defaultReciter.id) {
+                        val t = primaryTimings[reciter.id to surah.id].orEmpty()
+                        if (resolveAyahClipBounds(surah.id, item.startAyah, item.endAyah, t) == null) {
+                            add(defaultReciter.id to surah.id)
+                        }
+                    }
+                }
+            }
+            val fallbackTimings = if (fallbackPairs.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        fallbackPairs.map { (rId, sId) ->
+                            async { (rId to sId) to quranRepository.getVerseTimings(rId, sId) }
+                        }.awaitAll().toMap()
+                    }
+                }
+            } else emptyMap()
+            val allTimingsMap = primaryTimings + fallbackTimings
+
             val mediaItems = ArrayList<MediaItem>(items.size)
             val queuedSurahs = ArrayList<Surah>(items.size)
             val queuedReciters = ArrayList<Reciter>(items.size)
 
-            for (item in items) {
-                val surah = resolvedSurahs.find { it.id == item.surahNumber } ?: resolvedSurahs.first()
-                val reciter = allReciters.find { it.id == item.reciterId } ?: defaultReciter
+            for ((item, surah, reciter) in resolvedEntries) {
+                var effectiveReciter = reciter
+                var clipBounds: AyahClipBounds? = null
+                if (item.endAyah != null) {
+                    val timings = allTimingsMap[reciter.id to surah.id].orEmpty()
+                    clipBounds = resolveAyahClipBounds(surah.id, item.startAyah, item.endAyah, timings)
+                    if (clipBounds == null && reciter.id != defaultReciter.id) {
+                        val fbTimings = allTimingsMap[defaultReciter.id to surah.id].orEmpty()
+                        val fbBounds = resolveAyahClipBounds(surah.id, item.startAyah, item.endAyah, fbTimings)
+                        if (fbBounds != null) {
+                            effectiveReciter = defaultReciter
+                            clipBounds = fbBounds
+                        }
+                    }
+                }
                 queuedSurahs.add(surah)
-                queuedReciters.add(reciter)
-                mediaItems.add(buildMediaItem(surah, reciter, item.startAyah))
+                queuedReciters.add(effectiveReciter)
+                mediaItems.add(
+                    buildMediaItem(
+                        surah = surah,
+                        reciter = effectiveReciter,
+                        startAyah = item.startAyah,
+                        endAyah = item.endAyah,
+                        clipBounds = clipBounds,
+                        customLabel = item.surahName.takeIf { it != surah.nameSimple },
+                    )
+                )
             }
-
-            val clampedIndex = startIndex.coerceIn(0, items.size - 1)
-            currentSourceTitle = queueTitle
 
             val targetItem = items[clampedIndex]
-            var startPosMs = 0L
-            if (targetItem.startAyah > 1 && clampedIndex in queuedSurahs.indices) {
-                val targetSurah = queuedSurahs[clampedIndex]
-                val targetReciter = queuedReciters[clampedIndex]
-                val audioData = quranRepository.getChapterAudio(targetReciter.id, targetSurah.id)
-                val targetTiming = audioData?.timestamps?.find { it.verseKey == "${targetSurah.id}:${targetItem.startAyah}" }
-                if (targetTiming != null) {
-                    startPosMs = targetTiming.timestampFrom
-                }
-            }
+            val targetSurah = queuedSurahs[clampedIndex]
+            val targetReciter = queuedReciters[clampedIndex]
+            val targetTimings = allTimingsMap[targetReciter.id to targetSurah.id]
+                ?: if (targetItem.startAyah > 1) {
+                    quranRepository.getVerseTimings(targetReciter.id, targetSurah.id)
+                } else emptyList()
+            val isClipped = mediaItems[clampedIndex].clippingConfiguration.endPositionMs != C.TIME_END_OF_SOURCE
+            val startPosMs = computeInitialStartPositionMs(
+                isClipped = isClipped,
+                surahId = targetSurah.id,
+                startAyah = targetItem.startAyah,
+                timings = targetTimings,
+            )
 
             withController { controller ->
                 if (shuffle && mediaItems.size > 1) {
@@ -295,35 +411,124 @@ class PlaybackQueueManager @Inject constructor(
 
             val surahIds = ArrayList<Int>(itemCount)
             val startAyahs = ArrayList<Int>(itemCount)
+            val endAyahs = ArrayList<Int?>(itemCount)
             val uids = ArrayList<String>(itemCount)
             for (i in 0 until itemCount) {
                 val mi = controller.getMediaItemAt(i)
                 surahIds.add(parseSurahId(mi.mediaId) ?: 1)
                 startAyahs.add(parseStartAyah(mi.mediaId))
+                endAyahs.add(parseEndAyah(mi.mediaId))
                 uids.add(parseQueueUid(mi.mediaId) ?: UUID.randomUUID().toString())
             }
 
             scope.launch {
                 val allSurahs = getAllSurahs()
+                val defaultReciter = getDefaultReciter()
+                val timingSurahIds = buildSet {
+                    for (i in 0 until itemCount) {
+                        if (endAyahs[i] != null || (i == currentIndex && currentAyahNumber > 1)) {
+                            add(surahIds[i])
+                        }
+                    }
+                }
+                val newReciterTimings = if (timingSurahIds.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        coroutineScope {
+                            timingSurahIds.map { sId ->
+                                async { sId to quranRepository.getVerseTimings(reciter.id, sId) }
+                            }.awaitAll().toMap()
+                        }
+                    }
+                } else emptyMap()
+
+                val fallbackSurahIds = if (reciter.id != defaultReciter.id) {
+                    buildSet {
+                        for (i in 0 until itemCount) {
+                            val end = endAyahs[i]
+                            if (end != null) {
+                                val t = newReciterTimings[surahIds[i]].orEmpty()
+                                if (resolveAyahClipBounds(surahIds[i], startAyahs[i], end, t) == null) {
+                                    add(surahIds[i])
+                                }
+                            }
+                        }
+                    }
+                } else emptySet()
+                val fallbackTimings = if (fallbackSurahIds.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        coroutineScope {
+                            fallbackSurahIds.map { sId ->
+                                async { sId to quranRepository.getVerseTimings(defaultReciter.id, sId) }
+                            }.awaitAll().toMap()
+                        }
+                    }
+                } else emptyMap()
+
                 val mediaItems = ArrayList<MediaItem>(itemCount)
                 val queuedSurahs = ArrayList<Surah>(itemCount)
 
                 for (i in 0 until itemCount) {
                     val sId = surahIds[i]
                     val surah = allSurahs.find { it.id == sId } ?: allSurahs.firstOrNull() ?: continue
-                    val ayah = if (i == currentIndex) currentAyahNumber else startAyahs[i]
+                    val end = endAyahs[i]
+                    val ayah = if (end != null) startAyahs[i] else if (i == currentIndex) currentAyahNumber else startAyahs[i]
+                    var effectiveReciter = reciter
+                    var clipBounds: AyahClipBounds? = null
+                    if (end != null) {
+                        clipBounds = resolveAyahClipBounds(sId, ayah, end, newReciterTimings[sId].orEmpty())
+                        if (clipBounds == null && reciter.id != defaultReciter.id) {
+                            val fbBounds = resolveAyahClipBounds(sId, ayah, end, fallbackTimings[sId].orEmpty())
+                            if (fbBounds != null) {
+                                effectiveReciter = defaultReciter
+                                clipBounds = fbBounds
+                            }
+                        }
+                    }
                     queuedSurahs.add(surah)
-                    mediaItems.add(buildMediaItem(surah, reciter, ayah, uids[i]))
+                    mediaItems.add(
+                        buildMediaItem(
+                            surah = surah,
+                            reciter = effectiveReciter,
+                            startAyah = ayah,
+                            endAyah = end,
+                            queueId = uids[i],
+                            clipBounds = clipBounds,
+                        )
+                    )
                 }
                 if (mediaItems.isEmpty()) return@launch
 
                 var startPosMs = 0L
-                if (currentAyahNumber > 1 && currentIndex in queuedSurahs.indices) {
+                if (currentIndex in queuedSurahs.indices) {
                     val targetSurah = queuedSurahs[currentIndex]
-                    val audioData = quranRepository.getChapterAudio(reciter.id, targetSurah.id)
-                    val targetTiming = audioData?.timestamps?.find { it.verseKey == "${targetSurah.id}:$currentAyahNumber" }
-                    if (targetTiming != null) {
-                        startPosMs = targetTiming.timestampFrom
+                    val targetItem = mediaItems[currentIndex]
+                    val clipConfig = targetItem.clippingConfiguration
+                    val isClipped = clipConfig.endPositionMs != C.TIME_END_OF_SOURCE
+                    if (isClipped) {
+                        val effectiveReciterId = parseReciterId(targetItem.mediaId) ?: reciter.id
+                        val timings = if (effectiveReciterId == reciter.id) {
+                            newReciterTimings[targetSurah.id]
+                        } else {
+                            fallbackTimings[targetSurah.id]
+                        } ?: quranRepository.getVerseTimings(effectiveReciterId, targetSurah.id)
+                        val startAyahBound = startAyahs[currentIndex]
+                        val endAyahBound = endAyahs[currentIndex] ?: startAyahBound
+                        if (currentAyahNumber in startAyahBound..endAyahBound && currentAyahNumber > startAyahBound) {
+                            val ayahTiming = timings.find { it.verseKey == "${targetSurah.id}:$currentAyahNumber" }
+                            if (ayahTiming != null) {
+                                val clipDur = (clipConfig.endPositionMs - clipConfig.startPositionMs).coerceAtLeast(0L)
+                                startPosMs = (ayahTiming.timestampFrom - clipConfig.startPositionMs).coerceIn(0L, clipDur)
+                            }
+                        }
+                    } else if (currentAyahNumber > 1) {
+                        val timings = newReciterTimings[targetSurah.id]
+                            ?: quranRepository.getVerseTimings(reciter.id, targetSurah.id)
+                        startPosMs = computeInitialStartPositionMs(
+                            isClipped = false,
+                            surahId = targetSurah.id,
+                            startAyah = currentAyahNumber,
+                            timings = timings,
+                        )
                     }
                 }
 
@@ -614,6 +819,7 @@ class PlaybackQueueManager @Inject constructor(
                     surah = surah,
                     reciter = reciter,
                     startAyah = parseStartAyah(mediaItem.mediaId),
+                    endAyah = parseEndAyah(mediaItem.mediaId),
                     timelineIndex = i
                 )
             )
@@ -714,6 +920,21 @@ class PlaybackQueueManager @Inject constructor(
     }
 
     companion object {
+        fun encodeSurahMediaId(
+            surahId: Int,
+            reciterId: Int,
+            startAyah: Int = 1,
+            endAyah: Int? = null,
+            queueId: String,
+        ): String {
+            val safeStart = startAyah.coerceAtLeast(1)
+            return when {
+                endAyah != null -> "surah:$surahId:reciter:$reciterId:ayah:$safeStart:end:$endAyah:uid:$queueId"
+                safeStart > 1 -> "surah:$surahId:reciter:$reciterId:ayah:$safeStart:uid:$queueId"
+                else -> "surah:$surahId:reciter:$reciterId:uid:$queueId"
+            }
+        }
+
         fun parseStartAyah(mediaId: String): Int {
             if (!mediaId.startsWith("surah:") || !mediaId.contains(":ayah:")) return 1
             return mediaId.substringAfter(":ayah:")
@@ -721,6 +942,14 @@ class PlaybackQueueManager @Inject constructor(
                 .toIntOrNull()
                 ?.coerceAtLeast(1)
                 ?: 1
+        }
+
+        fun parseEndAyah(mediaId: String): Int? {
+            if (!mediaId.startsWith("surah:") || !mediaId.contains(":end:")) return null
+            return mediaId.substringAfter(":end:")
+                .substringBefore(":")
+                .toIntOrNull()
+                ?.takeIf { it >= 1 }
         }
     }
 }

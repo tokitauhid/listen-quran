@@ -218,8 +218,17 @@ fun FullPlayerScreen(
                         }
                     }
                 } else {
+                    val topLabel = when {
+                        playbackState.activeStartAyah != null &&
+                            playbackState.activeEndAyah != null &&
+                            playbackState.activeStartAyah == playbackState.activeEndAyah -> "PLAYING AYAH"
+                        playbackState.activeStartAyah != null &&
+                            playbackState.activeEndAyah != null &&
+                            playbackState.activeEndAyah > playbackState.activeStartAyah -> "PLAYING AYAHS"
+                        else -> "PLAYING SURAH"
+                    }
                     Text(
-                        text = "PLAYING SURAH",
+                        text = topLabel,
                         style = MaterialTheme.typography.labelMedium,
                         letterSpacing = 1.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -349,8 +358,19 @@ fun FullPlayerScreen(
                                 color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
                             ) {
+                                val medallionText = when {
+                                    playbackState.activeStartAyah != null &&
+                                        playbackState.activeEndAyah != null &&
+                                        playbackState.activeStartAyah == playbackState.activeEndAyah ->
+                                        "Surah ${surah.id} • Ayah ${playbackState.activeStartAyah}"
+                                    playbackState.activeStartAyah != null &&
+                                        playbackState.activeEndAyah != null &&
+                                        playbackState.activeEndAyah > playbackState.activeStartAyah ->
+                                        "Surah ${surah.id} • Ayahs ${playbackState.activeStartAyah}–${playbackState.activeEndAyah}"
+                                    else -> "Surah ${surah.id} • ${surah.versesCount} Ayahs"
+                                }
                                 Text(
-                                    text = "Surah ${surah.id} • ${surah.versesCount} Ayahs",
+                                    text = medallionText,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.tertiary,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

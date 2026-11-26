@@ -61,6 +61,7 @@ data class QueueItem(
     val surah: Surah,
     val reciter: Reciter,
     val startAyah: Int = 1,
+    val endAyah: Int? = null,
     val timelineIndex: Int = 0,
 )
 

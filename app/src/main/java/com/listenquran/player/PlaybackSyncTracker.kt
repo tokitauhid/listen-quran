@@ -49,6 +49,7 @@ class PlaybackSyncTracker internal constructor(
 
     private var pollJob: Job? = null
     private var sortedTimings: List<VerseTiming> = emptyList()
+    private var positionOffsetMs: Long = 0L
 
     // Khatam 80% listening threshold state
     private var trackedSurahId: Int? = null
@@ -66,6 +67,7 @@ class PlaybackSyncTracker internal constructor(
      */
     fun onMediaItemChanged(surahId: Int, reciterId: Int, startAyah: Int = 1) {
         sortedTimings = emptyList()
+        positionOffsetMs = 0L
         resetKhatamTracking()
         _currentPositionMs.value = 0L
         _currentWordIndex.value = 0
@@ -84,7 +86,14 @@ class PlaybackSyncTracker internal constructor(
      * Supplies newly resolved timings for the active Surah & Reciter.
      * Sorts both verse boundaries and word segments for safe binary searching.
      */
-    fun setTimings(surahId: Int, reciterId: Int, timings: List<VerseTiming>, initialPosMs: Long = 0L) {
+    fun setTimings(
+        surahId: Int,
+        reciterId: Int,
+        timings: List<VerseTiming>,
+        initialPosMs: Long = 0L,
+        positionOffsetMs: Long = 0L,
+    ) {
+        this.positionOffsetMs = positionOffsetMs.coerceAtLeast(0L)
         if (timings.isEmpty()) {
             sortedTimings = emptyList()
             _syncState.update { current ->
@@ -110,7 +119,7 @@ class PlaybackSyncTracker internal constructor(
         sortedTimings = prepared
         val hasWordTimings = prepared.any { it.segments.isNotEmpty() }
 
-        val (matchedAyah, matchedWord, matchedKey) = matchPosition(initialPosMs, prepared)
+        val (matchedAyah, matchedWord, matchedKey) = matchPosition(initialPosMs + this.positionOffsetMs, prepared)
 
         _currentWordIndex.value = matchedWord
         _syncState.update { current ->
@@ -152,28 +161,34 @@ class PlaybackSyncTracker internal constructor(
      * Immediately evaluates position upon seeking (scrubber or verse click).
      */
     fun onSeek(newPositionMs: Long) {
-        _currentPositionMs.value = newPositionMs
-        // Reset delta jump tracking for Khatam to prevent counting seeks as listened
-        trackedAyahLastPos = newPositionMs
-        processPosition(newPositionMs)
-    }
-
-    /**
-     * Evaluates position updates pushed from a remote playback device (e.g., DLNA speaker).
-     */
-    fun updateExternalPosition(posMs: Long) {
-        val clamped = posMs.coerceAtLeast(0L)
+        val clamped = newPositionMs.coerceAtLeast(0L)
         _currentPositionMs.value = clamped
+        // Reset delta jump tracking for Khatam to prevent counting seeks as listened
+        trackedAyahLastPos = clamped + positionOffsetMs
         processPosition(clamped)
     }
 
+    /**
+     * Evaluates position updates pushed from a remote playback device (e.g., DLNA speaker),
+     * where [posMs] is already in full-surah milliseconds.
+     */
+    fun updateExternalPosition(posMs: Long) {
+        val clamped = posMs.coerceAtLeast(0L)
+        _currentPositionMs.value = (clamped - positionOffsetMs).coerceAtLeast(0L)
+        processAbsolutePosition(clamped)
+    }
+
     private fun processPosition(pos: Long) {
+        processAbsolutePosition(pos + positionOffsetMs)
+    }
+
+    private fun processAbsolutePosition(absolutePos: Long) {
         val timings = sortedTimings
         if (timings.isEmpty()) {
             return
         }
 
-        val (ayahNum, wordIdx, verseKey) = matchPosition(pos, timings)
+        val (ayahNum, wordIdx, verseKey) = matchPosition(absolutePos, timings)
 
         if (_currentWordIndex.value != wordIdx) {
             _currentWordIndex.value = wordIdx
@@ -191,7 +206,7 @@ class PlaybackSyncTracker internal constructor(
             }
         }
 
-        checkKhatamTracking(pos, timings)
+        checkKhatamTracking(absolutePos, timings)
     }
 
     private fun matchPosition(pos: Long, timings: List<VerseTiming>): Triple<Int, Int, String?> {
@@ -321,7 +336,7 @@ class PlaybackSyncTracker internal constructor(
         val timings = sortedTimings
         val pos = _currentPositionMs.value
         if (timings.isNotEmpty() && pos >= 0L) {
-            checkKhatamTracking(pos, timings)
+            checkKhatamTracking(pos + positionOffsetMs, timings)
         }
     }
 

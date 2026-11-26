@@ -21,7 +21,16 @@ data class PlaybackQueueState(
         }
 
     val totalVersesCount: Int
-        get() = upcomingItems.sumOf { it.surah.versesCount } + (currentItem?.surah?.versesCount ?: 0)
+        get() = upcomingItems.sumOf { itemVerseCount(it) } + (currentItem?.let { itemVerseCount(it) } ?: 0)
+
+    private fun itemVerseCount(item: QueueItem): Int {
+        val end = item.endAyah
+        return if (end != null && end >= item.startAyah) {
+            end - item.startAyah + 1
+        } else {
+            item.surah.versesCount
+        }
+    }
 
     val estimatedRemainingMinutes: Int
         get() = (totalVersesCount * 4.5 / 60).toInt().coerceAtLeast(1)

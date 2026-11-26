@@ -322,7 +322,7 @@ fun CategoryDetailSheet(
                 ) { index, entry ->
                     val surah = surahMap[entry.surahId]
                     if (surah != null) {
-                        if (entry.label != null || entry.subtitle != null || entry.startAyah > 1) {
+                        if (entry.label != null || entry.subtitle != null || entry.startAyah > 1 || entry.endAyah != null) {
                             CategoryVerseEntryRow(
                                 entry = entry,
                                 surah = surah,

@@ -132,4 +132,57 @@ class PlaybackQueueStateTest {
         assertEquals(36, resolvedSingle.items.first().surahNumber)
         assertEquals("Friday Favorites", resolvedSingle.title)
     }
+
+    @Test
+    fun testBoundedAyahQueueItemsCountClippedVersesAndResolveDistinctRanges() {
+        val baqarah = makeSurah(2, "Al-Baqarah", 286)
+        val ikhlas = makeSurah(112, "Al-Ikhlas", 4)
+
+        val state = PlaybackQueueState(
+            currentItem = QueueItem(surah = baqarah, reciter = testReciter, startAyah = 255, endAyah = 255, timelineIndex = 0),
+            upcomingItems = listOf(
+                QueueItem(surah = baqarah, reciter = testReciter, startAyah = 285, endAyah = 286, timelineIndex = 1),
+                QueueItem(surah = ikhlas, reciter = testReciter, startAyah = 1, endAyah = null, timelineIndex = 2),
+            ),
+            historyItems = emptyList(),
+            sourceTitle = "Before Sleep",
+            totalCount = 3,
+        )
+
+        // 1 (2:255) + 2 (2:285-286) + 4 (full Al-Ikhlas) = 7
+        assertEquals(7, state.totalVersesCount)
+
+        val opening = PlaylistItem(
+            id = 0L,
+            playlistId = 0L,
+            surahNumber = 2,
+            surahName = "Opening of Al-Baqarah",
+            surahArabic = "البقرة",
+            reciterId = 7,
+            reciterName = "Mishari",
+            startAyah = 1,
+            endAyah = 5,
+            orderIndex = 0,
+        )
+        val full = PlaylistItem(
+            id = 0L,
+            playlistId = 0L,
+            surahNumber = 2,
+            surahName = "Al-Baqarah",
+            surahArabic = "البقرة",
+            reciterId = 7,
+            reciterName = "Mishari",
+            startAyah = 1,
+            endAyah = null,
+            orderIndex = 1,
+        )
+        val resolved = PlaylistQueueResolver.resolve(
+            clickedItem = full,
+            explicitItems = listOf(opening, full),
+            playlistItemsFromStore = null,
+            explicitTitle = "Test",
+            storeTitle = null,
+        )
+        assertEquals(1, resolved.startIndex)
+    }
 }

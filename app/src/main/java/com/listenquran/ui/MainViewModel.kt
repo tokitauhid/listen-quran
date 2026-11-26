@@ -46,7 +46,8 @@ internal object PlaylistQueueResolver {
             ?: resolvedItems.indexOfFirst {
                 it.surahNumber == clickedItem.surahNumber &&
                     it.reciterId == clickedItem.reciterId &&
-                    it.startAyah == clickedItem.startAyah
+                    it.startAyah == clickedItem.startAyah &&
+                    it.endAyah == clickedItem.endAyah
             }.coerceAtLeast(0)
 
         return ResolvedPlaylistPlayback(

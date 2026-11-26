@@ -52,7 +52,7 @@ data class BrowseCategory(
             CategoryKind.LENGTH_AND_REVELATION -> "114 Surahs"
             CategoryKind.CURATED_COLLECTION -> when {
                 id == "quranic_duas" -> "${entries.size} Duas"
-                entries.any { it.startAyah > 1 } -> "${entries.size} Recitations"
+                entries.any { it.startAyah > 1 || it.endAyah != null } -> "${entries.size} Recitations"
                 else -> "${entries.size} Surahs"
             }
         }
@@ -160,11 +160,11 @@ object BrowseCategoryCatalog {
             entries = listOf(
                 CategoryEntry(93, 1, subtitle = "Your Lord has not forsaken you"),
                 CategoryEntry(94, 1, subtitle = "With hardship comes ease"),
-                CategoryEntry(13, 28, label = "Hearts Find Rest", subtitle = "Ar-Ra'd · 13:28"),
+                CategoryEntry(13, 28, 28, label = "Hearts Find Rest", subtitle = "Ar-Ra'd · 13:28"),
                 CategoryEntry(20, 1),
                 CategoryEntry(12, 1),
                 CategoryEntry(55, 1),
-                CategoryEntry(9, 40, label = "Do Not Grieve", subtitle = "At-Tawbah · 9:40"),
+                CategoryEntry(9, 40, 40, label = "Do Not Grieve", subtitle = "At-Tawbah · 9:40"),
             ),
         ),
         BrowseCategory(
@@ -179,8 +179,8 @@ object BrowseCategoryCatalog {
                 CategoryEntry(2, 1, 5, label = "Opening of Al-Baqarah", subtitle = "Al-Baqarah · 2:1–5"),
                 CategoryEntry(2, 255, 255, label = "Ayatul Kursi", subtitle = "Al-Baqarah · 2:255"),
                 CategoryEntry(2, 285, 286, label = "Closing of Al-Baqarah", subtitle = "Al-Baqarah · 2:285–286"),
-                CategoryEntry(17, 82, label = "Healing & Mercy", subtitle = "Al-Isra · 17:82"),
-                CategoryEntry(10, 57, label = "Healing for the Chests", subtitle = "Yunus · 10:57"),
+                CategoryEntry(17, 82, 82, label = "Healing & Mercy", subtitle = "Al-Isra · 17:82"),
+                CategoryEntry(10, 57, 57, label = "Healing for the Chests", subtitle = "Yunus · 10:57"),
                 CategoryEntry(112, 1),
                 CategoryEntry(113, 1),
                 CategoryEntry(114, 1),
@@ -194,8 +194,8 @@ object BrowseCategoryCatalog {
             group = CategoryGroup.SPIRITUAL_MOOD,
             tone = CategoryTone.PRIMARY,
             entries = listOf(
-                CategoryEntry(39, 53, label = "Never Despair of Mercy", subtitle = "Az-Zumar · 39:53"),
-                CategoryEntry(25, 63, label = "Servants of Ar-Rahman", subtitle = "Al-Furqan · 25:63"),
+                CategoryEntry(39, 53, 53, label = "Never Despair of Mercy", subtitle = "Az-Zumar · 39:53"),
+                CategoryEntry(25, 63, 63, label = "Servants of Ar-Rahman", subtitle = "Al-Furqan · 25:63"),
                 CategoryEntry(19, 1),
                 CategoryEntry(57, 1),
                 CategoryEntry(110, 1),

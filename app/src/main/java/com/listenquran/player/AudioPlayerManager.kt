@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -63,6 +64,8 @@ data class PlaybackState(
     val radioError: String? = null,
     val lastSurahBeforeRadio: Surah? = null,
     val lastReciterBeforeRadio: Reciter? = null,
+    val activeStartAyah: Int? = null,
+    val activeEndAyah: Int? = null,
 )
 
 @Singleton
@@ -121,6 +124,15 @@ class AudioPlayerManager @Inject constructor(
     @Volatile
     private var isRestartingHifzLoop: Boolean = false
 
+    @Volatile
+    private var activeClipBounds: AyahClipBounds? = null
+
+    @Volatile
+    private var unclippedEndAyahMs: Long? = null
+
+    @Volatile
+    private var isAdvancingClipEnd: Boolean = false
+
     private var castConnectJob: Job? = null
 
     private val isCastingOrConnecting: Boolean
@@ -147,12 +159,32 @@ class AudioPlayerManager @Inject constructor(
             if (outputDeviceManager.isCasting) {
                 scope.launch {
                     if (!outputDeviceManager.isCasting) return@launch
-                    _currentPositionMs.value = posMs
-                    if (durationMs > 0L && (_playbackState.value.durationMs <= 0L || _playbackState.value.verseTimings.isEmpty())) {
-                        _playbackState.update { it.copy(durationMs = durationMs) }
+                    val clip = activeClipBounds
+                    if (clip != null) {
+                        val relPos = (posMs - clip.startMs).coerceIn(0L, clip.durationMs)
+                        _currentPositionMs.value = relPos
+                        if (clip.durationMs > 0L) {
+                            _playbackState.update { it.copy(durationMs = clip.durationMs) }
+                        }
+                        syncTracker.updateExternalPosition(posMs)
+                        checkHifzLoop(posMs)
+                        if (posMs >= clip.endMs && !isAdvancingClipEnd) {
+                            isAdvancingClipEnd = true
+                            handleRemoteTrackEnded(advancedToNextUri = false)
+                        }
+                    } else {
+                        _currentPositionMs.value = posMs
+                        if (durationMs > 0L && (_playbackState.value.durationMs <= 0L || _playbackState.value.verseTimings.isEmpty())) {
+                            _playbackState.update { it.copy(durationMs = durationMs) }
+                        }
+                        syncTracker.updateExternalPosition(posMs)
+                        checkHifzLoop(posMs)
+                        val unclippedEnd = unclippedEndAyahMs
+                        if (unclippedEnd != null && posMs >= unclippedEnd && !isAdvancingClipEnd) {
+                            isAdvancingClipEnd = true
+                            handleRemoteTrackEnded(advancedToNextUri = false)
+                        }
                     }
-                    syncTracker.updateExternalPosition(posMs)
-                    checkHifzLoop(posMs)
                 }
             }
         }
@@ -272,7 +304,23 @@ class AudioPlayerManager @Inject constructor(
                                 val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
                                 val timings = audioData?.timestamps ?: emptyList()
                                 if (timings.isNotEmpty()) {
-                                    syncTracker.setTimings(surah.id, reciter.id, timings, browser?.currentPosition ?: 0L)
+                                    val clip = activeClipBounds
+                                    syncTracker.setTimings(
+                                        surahId = surah.id,
+                                        reciterId = reciter.id,
+                                        timings = timings,
+                                        initialPosMs = browser?.currentPosition ?: 0L,
+                                        positionOffsetMs = clip?.startMs ?: 0L,
+                                    )
+                                    if (clip == null && _playbackState.value.activeEndAyah != null) {
+                                        val startAyahBound = _playbackState.value.activeStartAyah ?: 1
+                                        unclippedEndAyahMs = resolveAyahClipBounds(
+                                            surah.id,
+                                            startAyahBound,
+                                            _playbackState.value.activeEndAyah,
+                                            timings,
+                                        )?.endMs
+                                    }
                                     _playbackState.update {
                                         it.copy(
                                             verseTimings = timings,
@@ -302,7 +350,8 @@ class AudioPlayerManager @Inject constructor(
                 val duration = if (rawDuration > 0) {
                     rawDuration
                 } else {
-                    _playbackState.value.durationMs.takeIf { it > 0 }
+                    activeClipBounds?.durationMs?.takeIf { it > 0 }
+                        ?: _playbackState.value.durationMs.takeIf { it > 0 }
                         ?: _playbackState.value.verseTimings.lastOrNull()?.timestampTo
                         ?: 0L
                 }
@@ -386,8 +435,14 @@ class AudioPlayerManager @Inject constructor(
                 if (outputDeviceManager.isCasting) {
                     if (skipNextRemotePush) {
                         skipNextRemotePush = false
+                        val currentUnbounded = mediaItem != null &&
+                            parseEndAyah(mediaItem.mediaId) == null &&
+                            parseStartAyah(mediaItem.mediaId) <= 1
                         val upcomingNext = getNextMediaItemInTimeline(controller)
-                        if (upcomingNext != null && parseStartAyah(upcomingNext.mediaId) <= 1) {
+                        if (currentUnbounded && upcomingNext != null &&
+                            parseStartAyah(upcomingNext.mediaId) <= 1 &&
+                            parseEndAyah(upcomingNext.mediaId) == null
+                        ) {
                             scope.launch {
                                 val nextDesc = buildRemoteDescriptorForMediaItem(upcomingNext, 0L, 0L)
                                 outputDeviceManager.updateNextTrackOnActiveDevice(nextDesc)
@@ -398,15 +453,21 @@ class AudioPlayerManager @Inject constructor(
                     } else if (mediaItem != null) {
                         val explicitSeek = pendingRemoteSeekMs
                         pendingRemoteSeekMs = null
-                        val initialStartPos = explicitSeek ?: if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
-                            controller.currentPosition.coerceAtLeast(0L)
-                        } else {
-                            0L
+                        val clipConfig = mediaItem.clippingConfiguration
+                        val isClipped = clipConfig.endPositionMs != C.TIME_END_OF_SOURCE
+                        val clipStart = if (isClipped) clipConfig.startPositionMs.coerceAtLeast(0L) else 0L
+                        val initialStartPos = explicitSeek ?: when {
+                            isClipped && reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED ->
+                                clipStart + controller.currentPosition.coerceAtLeast(0L)
+                            isClipped -> clipStart
+                            reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED ->
+                                controller.currentPosition.coerceAtLeast(0L)
+                            else -> 0L
                         }
                         val nextItem = getNextMediaItemInTimeline(controller)
                         scope.launch {
                             var resolvedStartPos = initialStartPos
-                            if (resolvedStartPos == 0L) {
+                            if (resolvedStartPos == 0L && !isClipped) {
                                 val embeddedStartAyah = parseStartAyah(mediaItem.mediaId)
                                 val sId = parseSurahId(mediaItem.mediaId)
                                 val rId = parseReciterId(mediaItem.mediaId) ?: _playbackState.value.currentReciter?.id ?: 7
@@ -417,11 +478,16 @@ class AudioPlayerManager @Inject constructor(
                                         ?.timestampFrom ?: 0L
                                 }
                             }
+                            val remoteDurationHint = if (isClipped) {
+                                _playbackState.value.verseTimings.lastOrNull()?.timestampTo ?: 0L
+                            } else {
+                                _playbackState.value.durationMs
+                            }
                             pushCurrentMediaItemToRemote(
                                 currentItem = mediaItem,
                                 nextItem = nextItem,
                                 startPosMs = resolvedStartPos,
-                                durationHintMs = _playbackState.value.durationMs,
+                                durationHintMs = remoteDurationHint,
                             )
                         }
                     }
@@ -522,12 +588,28 @@ class AudioPlayerManager @Inject constructor(
         val surahId = parseSurahId(mediaId) ?: return
         val reciterId = parseReciterId(mediaId)
         val startAyah = parseStartAyah(mediaId)
+        val endAyah = parseEndAyah(mediaId)
+        val clipConfig = mediaItem.clippingConfiguration
+        val isItemClipped = clipConfig.endPositionMs != C.TIME_END_OF_SOURCE
 
         if (lastSyncedMediaId != mediaId ||
             _playbackState.value.currentSurah?.id != surahId ||
             (reciterId != null && _playbackState.value.currentReciter?.id != reciterId)) {
             lastSyncedMediaId = mediaId
+            isAdvancingClipEnd = false
             val targetReciterId = reciterId ?: _playbackState.value.currentReciter?.id ?: 7
+            if (isItemClipped) {
+                activeClipBounds = AyahClipBounds(
+                    startAyah = startAyah,
+                    endAyah = endAyah ?: startAyah,
+                    startMs = clipConfig.startPositionMs.coerceAtLeast(0L),
+                    endMs = clipConfig.endPositionMs,
+                )
+                unclippedEndAyahMs = null
+            } else {
+                activeClipBounds = null
+                unclippedEndAyahMs = null
+            }
             syncTracker.onMediaItemChanged(surahId, targetReciterId, startAyah)
 
             scope.launch {
@@ -539,41 +621,87 @@ class AudioPlayerManager @Inject constructor(
                 }
                 val audioData = quranRepository.getChapterAudio(reciter.id, surah.id)
                 val timings = audioData?.timestamps ?: emptyList()
-                val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
-                val dur = browser?.duration?.takeIf { it > 0 } ?: surahDuration
-                var effectivePosMs = browser?.currentPosition?.coerceAtLeast(0L) ?: 0L
 
-                val targetTiming = if (startAyah > 1) {
-                    timings.find { it.verseKey == "${surah.id}:$startAyah" }
-                } else null
+                if (isItemClipped) {
+                    val clipStart = clipConfig.startPositionMs.coerceAtLeast(0L)
+                    val clipEnd = clipConfig.endPositionMs
+                    val bounds = AyahClipBounds(
+                        startAyah = startAyah,
+                        endAyah = endAyah ?: startAyah,
+                        startMs = clipStart,
+                        endMs = clipEnd,
+                    )
+                    activeClipBounds = bounds
+                    unclippedEndAyahMs = null
+                    val dur = browser?.duration?.takeIf { it > 0 } ?: bounds.durationMs
+                    val effectivePosMs = browser?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                    _currentPositionMs.value = effectivePosMs
+                    syncTracker.setTimings(
+                        surahId = surah.id,
+                        reciterId = reciter.id,
+                        timings = timings,
+                        initialPosMs = effectivePosMs,
+                        positionOffsetMs = clipStart,
+                    )
+                    val syncedAyah = if (timings.isNotEmpty()) syncTracker.syncState.value.currentAyahNumber else startAyah
+                    _playbackState.update {
+                        it.copy(
+                            isRadio = false,
+                            currentRadioStation = null,
+                            currentSurah = surah,
+                            currentReciter = reciter,
+                            durationMs = dur,
+                            verseTimings = timings,
+                            isSyncAvailable = timings.isNotEmpty(),
+                            hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+                            currentAyahNumber = syncedAyah,
+                            activeStartAyah = bounds.startAyah,
+                            activeEndAyah = bounds.endAyah,
+                        )
+                    }
+                } else {
+                    val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
+                    val dur = browser?.duration?.takeIf { it > 0 } ?: surahDuration
+                    var effectivePosMs = browser?.currentPosition?.coerceAtLeast(0L) ?: 0L
 
-                if (!outputDeviceManager.isCasting && seekToEmbeddedAyah && targetTiming != null) {
-                    val controller = browser
-                    if (controller != null &&
-                        controller.currentMediaItem?.mediaId == mediaId &&
-                        controller.currentPosition < targetTiming.timestampFrom - 1500L
-                    ) {
-                        controller.seekTo(targetTiming.timestampFrom)
+                    val targetTiming = if (startAyah > 1) {
+                        timings.find { it.verseKey == "${surah.id}:$startAyah" }
+                    } else null
+
+                    if (!outputDeviceManager.isCasting && seekToEmbeddedAyah && targetTiming != null) {
+                        val controller = browser
+                        if (controller != null &&
+                            controller.currentMediaItem?.mediaId == mediaId &&
+                            controller.currentPosition < targetTiming.timestampFrom - 1500L
+                        ) {
+                            controller.seekTo(targetTiming.timestampFrom)
+                            effectivePosMs = targetTiming.timestampFrom
+                        }
+                    } else if (startAyah > 1 && targetTiming != null && effectivePosMs == 0L) {
                         effectivePosMs = targetTiming.timestampFrom
                     }
-                } else if (startAyah > 1 && targetTiming != null && effectivePosMs == 0L) {
-                    effectivePosMs = targetTiming.timestampFrom
-                }
 
-                _currentPositionMs.value = effectivePosMs
-                syncTracker.setTimings(surah.id, reciter.id, timings, effectivePosMs)
-                _playbackState.update {
-                    it.copy(
-                        isRadio = false,
-                        currentRadioStation = null,
-                        currentSurah = surah,
-                        currentReciter = reciter,
-                        durationMs = dur,
-                        verseTimings = timings,
-                        isSyncAvailable = timings.isNotEmpty(),
-                        hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
-                        currentAyahNumber = startAyah
-                    )
+                    unclippedEndAyahMs = if (endAyah != null) {
+                        resolveAyahClipBounds(surah.id, startAyah, endAyah, timings)?.endMs
+                    } else null
+
+                    _currentPositionMs.value = effectivePosMs
+                    syncTracker.setTimings(surah.id, reciter.id, timings, effectivePosMs)
+                    _playbackState.update {
+                        it.copy(
+                            isRadio = false,
+                            currentRadioStation = null,
+                            currentSurah = surah,
+                            currentReciter = reciter,
+                            durationMs = dur,
+                            verseTimings = timings,
+                            isSyncAvailable = timings.isNotEmpty(),
+                            hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+                            currentAyahNumber = startAyah,
+                            activeStartAyah = if (endAyah != null) startAyah else null,
+                            activeEndAyah = endAyah,
+                        )
+                    }
                 }
             }
         }
@@ -635,6 +763,8 @@ class AudioPlayerManager @Inject constructor(
 
     private fun parseStartAyah(mediaId: String): Int = PlaybackQueueManager.parseStartAyah(mediaId)
 
+    private fun parseEndAyah(mediaId: String): Int? = PlaybackQueueManager.parseEndAyah(mediaId)
+
     private fun ensureServiceRunning() {
         try {
             val intent = Intent(context, ListenQuranMediaService::class.java)
@@ -654,6 +784,9 @@ class AudioPlayerManager @Inject constructor(
         queueTitle: String? = null
     ) {
         radioWatchdogJob?.cancel()
+        activeClipBounds = null
+        unclippedEndAyahMs = null
+        isAdvancingClipEnd = false
         syncTracker.isRadio = false
         syncTracker.onMediaItemChanged(surah.id, reciter.id, startAyah)
         ensureServiceRunning()
@@ -677,6 +810,8 @@ class AudioPlayerManager @Inject constructor(
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
+                    activeStartAyah = null,
+                    activeEndAyah = null,
                 )
             }
 
@@ -705,6 +840,9 @@ class AudioPlayerManager @Inject constructor(
     ) {
         if (surahs.isEmpty()) return
         radioWatchdogJob?.cancel()
+        activeClipBounds = null
+        unclippedEndAyahMs = null
+        isAdvancingClipEnd = false
         syncTracker.isRadio = false
         ensureServiceRunning()
         _currentPositionMs.value = 0L
@@ -730,6 +868,8 @@ class AudioPlayerManager @Inject constructor(
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
+                    activeStartAyah = null,
+                    activeEndAyah = null,
                 )
             }
 
@@ -755,40 +895,81 @@ class AudioPlayerManager @Inject constructor(
     ) {
         if (items.isEmpty()) return
         radioWatchdogJob?.cancel()
+        activeClipBounds = null
+        unclippedEndAyahMs = null
+        isAdvancingClipEnd = false
         ensureServiceRunning()
         _currentPositionMs.value = 0L
 
         val clamped = startIndex.coerceIn(0, items.size - 1)
         val targetItem = items[clamped]
         val targetSurah = allSurahs.find { it.id == targetItem.surahNumber }
-        val targetReciter = allReciters.find { it.id == targetItem.reciterId }
+        val targetReciter = allReciters.find { it.id == targetItem.reciterId } ?: reciterRepository.getDefaultReciter()
 
-        if (targetSurah != null && targetReciter != null) {
+        if (targetSurah != null) {
             syncTracker.isRadio = false
             syncTracker.onMediaItemChanged(targetSurah.id, targetReciter.id, targetItem.startAyah)
         }
 
         scope.launch {
-            val audioData = if (targetSurah != null && targetReciter != null) {
-                quranRepository.getChapterAudio(reciterId = targetReciter.id, chapterId = targetSurah.id)
-            } else null
-            val timings = audioData?.timestamps ?: emptyList()
+            var effectiveReciter = targetReciter
+            var timings = if (targetSurah != null) {
+                quranRepository.getVerseTimings(targetReciter.id, targetSurah.id)
+            } else emptyList()
 
-            if (targetSurah != null && targetReciter != null) {
-                val startPos = if (targetItem.startAyah > 1) {
-                    timings.find { it.verseKey == "${targetSurah.id}:${targetItem.startAyah}" }?.timestampFrom ?: 0L
-                } else 0L
+            var clipBounds = if (targetSurah != null && targetItem.endAyah != null) {
+                resolveAyahClipBounds(targetSurah.id, targetItem.startAyah, targetItem.endAyah, timings)
+            } else null
+
+            if (targetSurah != null && targetItem.endAyah != null && clipBounds == null) {
+                val defaultRec = reciterRepository.getDefaultReciter()
+                if (defaultRec.id != targetReciter.id) {
+                    val fbTimings = quranRepository.getVerseTimings(defaultRec.id, targetSurah.id)
+                    val fbBounds = resolveAyahClipBounds(targetSurah.id, targetItem.startAyah, targetItem.endAyah, fbTimings)
+                    if (fbBounds != null) {
+                        effectiveReciter = defaultRec
+                        timings = fbTimings
+                        clipBounds = fbBounds
+                    }
+                }
+            }
+
+            if (clipBounds != null && targetSurah != null) {
+                activeClipBounds = clipBounds
+                unclippedEndAyahMs = null
+                pendingRemoteSeekMs = clipBounds.startMs
+                syncTracker.setTimings(
+                    surahId = targetSurah.id,
+                    reciterId = effectiveReciter.id,
+                    timings = timings,
+                    initialPosMs = 0L,
+                    positionOffsetMs = clipBounds.startMs,
+                )
+            } else if (targetSurah != null) {
+                activeClipBounds = null
+                unclippedEndAyahMs = null
+                val startPos = computeInitialStartPositionMs(
+                    isClipped = false,
+                    surahId = targetSurah.id,
+                    startAyah = targetItem.startAyah,
+                    timings = timings,
+                )
                 if (startPos > 0L) {
                     pendingRemoteSeekMs = startPos
                 }
-                syncTracker.setTimings(targetSurah.id, targetReciter.id, timings, startPos)
+                syncTracker.setTimings(targetSurah.id, effectiveReciter.id, timings, startPos)
             }
+
+            val initialDurationMs = clipBounds?.durationMs
+                ?: timings.lastOrNull()?.timestampTo
+                ?: 0L
 
             _playbackState.update {
                 it.copy(
                     currentSurah = targetSurah ?: it.currentSurah,
-                    currentReciter = targetReciter ?: it.currentReciter,
+                    currentReciter = effectiveReciter,
                     isBuffering = true,
+                    durationMs = initialDurationMs,
                     currentAyahNumber = targetItem.startAyah,
                     verseTimings = timings,
                     isSyncAvailable = timings.isNotEmpty(),
@@ -796,6 +977,8 @@ class AudioPlayerManager @Inject constructor(
                     isRadio = false,
                     currentRadioStation = null,
                     radioError = null,
+                    activeStartAyah = clipBounds?.startAyah ?: targetItem.endAyah?.let { targetItem.startAyah },
+                    activeEndAyah = clipBounds?.endAyah ?: targetItem.endAyah,
                 )
             }
 
@@ -816,32 +999,86 @@ class AudioPlayerManager @Inject constructor(
         val currentSurah = _playbackState.value.currentSurah ?: return
         if (_playbackState.value.isRadio) return
         val currentAyah = _playbackState.value.currentAyahNumber.coerceAtLeast(1)
+        val activeStartBound = _playbackState.value.activeStartAyah
+        val activeEndBound = _playbackState.value.activeEndAyah
         val wasPlaying = _playbackState.value.isPlaying
         syncTracker.onMediaItemChanged(currentSurah.id, reciter.id, currentAyah)
         ensureServiceRunning()
 
         scope.launch {
-            val audioData = quranRepository.getChapterAudio(reciterId = reciter.id, chapterId = currentSurah.id)
-            val timings = audioData?.timestamps ?: emptyList()
+            var effectiveReciter = reciter
+            var timings = quranRepository.getVerseTimings(reciter.id, currentSurah.id)
+            var clipBounds = if (activeEndBound != null) {
+                resolveAyahClipBounds(currentSurah.id, activeStartBound ?: 1, activeEndBound, timings)
+            } else null
+
+            if (activeEndBound != null && clipBounds == null) {
+                val defaultRec = reciterRepository.getDefaultReciter()
+                if (defaultRec.id != reciter.id) {
+                    val fbTimings = quranRepository.getVerseTimings(defaultRec.id, currentSurah.id)
+                    val fbBounds = resolveAyahClipBounds(currentSurah.id, activeStartBound ?: 1, activeEndBound, fbTimings)
+                    if (fbBounds != null) {
+                        effectiveReciter = defaultRec
+                        timings = fbTimings
+                        clipBounds = fbBounds
+                    }
+                }
+            }
+
+            activeClipBounds = clipBounds
+            unclippedEndAyahMs = null
+            isAdvancingClipEnd = false
+
             val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
-            val targetPos = if (currentAyah > 1) {
-                timings.find { it.verseKey == "${currentSurah.id}:$currentAyah" }?.timestampFrom ?: 0L
-            } else 0L
-            _currentPositionMs.value = targetPos
-            pendingRemoteSeekMs = targetPos
-            syncTracker.setTimings(currentSurah.id, reciter.id, timings, targetPos)
-            _playbackState.update {
-                it.copy(
-                    currentReciter = reciter,
-                    isBuffering = true,
-                    durationMs = surahDuration,
-                    verseTimings = timings,
-                    isSyncAvailable = timings.isNotEmpty(),
-                    hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+            if (clipBounds != null) {
+                val startAyahBound = clipBounds.startAyah
+                val targetAbsPos = if (currentAyah in startAyahBound..clipBounds.endAyah && currentAyah > startAyahBound) {
+                    timings.find { it.verseKey == "${currentSurah.id}:$currentAyah" }?.timestampFrom ?: clipBounds.startMs
+                } else {
+                    clipBounds.startMs
+                }
+                val relPos = (targetAbsPos - clipBounds.startMs).coerceIn(0L, clipBounds.durationMs)
+                _currentPositionMs.value = relPos
+                pendingRemoteSeekMs = targetAbsPos
+                syncTracker.setTimings(
+                    surahId = currentSurah.id,
+                    reciterId = effectiveReciter.id,
+                    timings = timings,
+                    initialPosMs = relPos,
+                    positionOffsetMs = clipBounds.startMs,
                 )
+                _playbackState.update {
+                    it.copy(
+                        currentReciter = effectiveReciter,
+                        isBuffering = true,
+                        durationMs = clipBounds.durationMs,
+                        verseTimings = timings,
+                        isSyncAvailable = timings.isNotEmpty(),
+                        hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+                        activeStartAyah = clipBounds.startAyah,
+                        activeEndAyah = clipBounds.endAyah,
+                    )
+                }
+            } else {
+                val targetPos = if (currentAyah > 1) {
+                    timings.find { it.verseKey == "${currentSurah.id}:$currentAyah" }?.timestampFrom ?: 0L
+                } else 0L
+                _currentPositionMs.value = targetPos
+                pendingRemoteSeekMs = targetPos
+                syncTracker.setTimings(currentSurah.id, effectiveReciter.id, timings, targetPos)
+                _playbackState.update {
+                    it.copy(
+                        currentReciter = effectiveReciter,
+                        isBuffering = true,
+                        durationMs = surahDuration,
+                        verseTimings = timings,
+                        isSyncAvailable = timings.isNotEmpty(),
+                        hasWordTimings = timings.any { t -> t.segments.isNotEmpty() },
+                    )
+                }
             }
             queueManager.switchReciterPreservingQueue(
-                reciter = reciter,
+                reciter = effectiveReciter,
                 currentAyahNumber = currentAyah,
                 wasPlayingOverride = wasPlaying,
                 autoPlay = !isCastingOrConnecting,
@@ -875,8 +1112,9 @@ class AudioPlayerManager @Inject constructor(
         _currentPositionMs.value = clampedPos
         syncTracker.onSeek(clampedPos)
         if (outputDeviceManager.isCasting) {
+            val remoteTarget = (activeClipBounds?.startMs ?: 0L) + clampedPos
             scope.launch {
-                outputDeviceManager.seekRemote(clampedPos)
+                outputDeviceManager.seekRemote(remoteTarget)
             }
             return
         }
@@ -887,9 +1125,16 @@ class AudioPlayerManager @Inject constructor(
 
     fun seekToAyah(ayahNumber: Int) {
         val surahId = _playbackState.value.currentSurah?.id ?: return
+        val clip = activeClipBounds
+        if (clip != null && ayahNumber !in clip.startAyah..clip.endAyah) return
         val targetTiming = _playbackState.value.verseTimings.find { it.verseKey == "$surahId:$ayahNumber" }
         if (targetTiming != null) {
-            seekTo(targetTiming.timestampFrom)
+            val targetPos = if (clip != null) {
+                (targetTiming.timestampFrom - clip.startMs).coerceIn(0L, clip.durationMs)
+            } else {
+                targetTiming.timestampFrom
+            }
+            seekTo(targetPos)
         }
     }
 
@@ -1001,6 +1246,9 @@ class AudioPlayerManager @Inject constructor(
     fun playRadio(station: RadioStation) {
         ensureServiceRunning()
         radioWatchdogJob?.cancel()
+        activeClipBounds = null
+        unclippedEndAyahMs = null
+        isAdvancingClipEnd = false
         _currentPositionMs.value = 0L
 
         val prevSurah = if (!_playbackState.value.isRadio) _playbackState.value.currentSurah else _playbackState.value.lastSurahBeforeRadio
@@ -1015,6 +1263,8 @@ class AudioPlayerManager @Inject constructor(
                 lastSurahBeforeRadio = prevSurah,
                 lastReciterBeforeRadio = prevReciter,
                 queue = emptyList(),
+                activeStartAyah = null,
+                activeEndAyah = null,
             )
         }
 
@@ -1075,6 +1325,9 @@ class AudioPlayerManager @Inject constructor(
 
     fun stopRadio() {
         radioWatchdogJob?.cancel()
+        activeClipBounds = null
+        unclippedEndAyahMs = null
+        isAdvancingClipEnd = false
         if (outputDeviceManager.isCasting) {
             scope.launch { outputDeviceManager.pauseRemote() }
         }
@@ -1089,6 +1342,8 @@ class AudioPlayerManager @Inject constructor(
                 isPlaying = false,
                 isBuffering = false,
                 radioError = null,
+                activeStartAyah = null,
+                activeEndAyah = null,
             )
         }
     }
@@ -1413,6 +1668,7 @@ class AudioPlayerManager @Inject constructor(
                 val isBuffering = browser?.playbackState == Player.STATE_BUFFERING
                 val pos = browser?.currentPosition ?: _currentPositionMs.value
                 val dur = browser?.duration?.takeIf { it > 0 }
+                    ?: activeClipBounds?.durationMs?.takeIf { it > 0 }
                     ?: _playbackState.value.verseTimings.lastOrNull()?.timestampTo
                     ?: _playbackState.value.durationMs
 
@@ -1425,8 +1681,37 @@ class AudioPlayerManager @Inject constructor(
                 }
 
                 checkHifzLoop(pos)
+                checkUnclippedEndAyah(pos)
                 delay(200L)
             }
+        }
+    }
+
+    private fun checkUnclippedEndAyah(pos: Long) {
+        if (activeClipBounds != null || isAdvancingClipEnd) return
+        val endMs = unclippedEndAyahMs ?: return
+        if (pos < endMs) return
+
+        isAdvancingClipEnd = true
+        if (_sleepTimerState.value.isRunning) {
+            val mode = _sleepTimerState.value.mode
+            if (mode is SleepTimerMode.EndOfSurah ||
+                (mode is SleepTimerMode.EndOfPlaylist && queueManager.queueState.value.upcomingItems.isEmpty())
+            ) {
+                syncTracker.flushKhatamProgress()
+                withController { it.pause() }
+                cancelSleepTimer()
+                return
+            }
+        }
+        if (_playbackState.value.stopAtEndOfSurah) {
+            _playbackState.update { it.copy(stopAtEndOfSurah = false) }
+            withController { it.pause() }
+        } else if (_playbackState.value.repeatMode == Player.REPEAT_MODE_ONE) {
+            isAdvancingClipEnd = false
+            seekToAyah(_playbackState.value.activeStartAyah ?: 1)
+        } else {
+            playNext()
         }
     }
 
@@ -1526,6 +1811,7 @@ class AudioPlayerManager @Inject constructor(
         } else {
             _currentPositionMs.value.coerceAtLeast(0L)
         }
+        val remoteStartPosMs = (activeClipBounds?.startMs ?: 0L) + localPosMs
 
         // Pause local audio output immediately so phone and remote speaker never overlap
         browser?.takeIf { it.isConnected }?.pause()
@@ -1541,15 +1827,24 @@ class AudioPlayerManager @Inject constructor(
             val nextItem = getNextMediaItemInTimeline(controller)
             castConnectJob = scope.launch {
                 try {
+                    val remoteDurationHint = if (activeClipBounds != null) {
+                        state.verseTimings.lastOrNull()?.timestampTo ?: 0L
+                    } else {
+                        state.durationMs
+                    }
                     val currentDesc = if (currentItem != null) {
-                        buildRemoteDescriptorForMediaItem(currentItem, localPosMs, state.durationMs)
+                        buildRemoteDescriptorForMediaItem(currentItem, remoteStartPosMs, remoteDurationHint)
                     } else if (state.currentSurah != null && state.currentReciter != null) {
-                        buildRemoteDescriptorForSurah(state.currentSurah, state.currentReciter, localPosMs, state.durationMs)
+                        buildRemoteDescriptorForSurah(state.currentSurah, state.currentReciter, remoteStartPosMs, remoteDurationHint)
                     } else null
 
-                    val nextDesc = nextItem
-                        ?.takeIf { parseStartAyah(it.mediaId) <= 1 }
-                        ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+                    val currentIsUnbounded = currentItem == null ||
+                        (parseEndAyah(currentItem.mediaId) == null && parseStartAyah(currentItem.mediaId) <= 1)
+                    val nextDesc = if (currentIsUnbounded) {
+                        nextItem
+                            ?.takeIf { parseStartAyah(it.mediaId) <= 1 && parseEndAyah(it.mediaId) == null }
+                            ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+                    } else null
                     val autoPlay = wasPlaying || currentDesc != null
                     val res = outputDeviceManager.connectToDevice(
                         device = device,
@@ -1579,13 +1874,19 @@ class AudioPlayerManager @Inject constructor(
         castConnectJob = null
         scope.launch {
             val resumePosMs = outputDeviceManager.disconnect()
-            _currentPositionMs.value = resumePosMs
-            syncTracker.onSeek(resumePosMs)
+            val clip = activeClipBounds
+            val localResumePosMs = if (clip != null) {
+                (resumePosMs - clip.startMs).coerceIn(0L, clip.durationMs)
+            } else {
+                resumePosMs
+            }
+            _currentPositionMs.value = localResumePosMs
+            syncTracker.onSeek(localResumePosMs)
             _playbackState.update { it.copy(isBuffering = false) }
             if (resumeLocal) {
                 withController { controller ->
-                    if (resumePosMs > 0L) {
-                        controller.seekTo(resumePosMs)
+                    if (localResumePosMs > 0L) {
+                        controller.seekTo(localResumePosMs)
                     }
                     if (wasPlaying) {
                         controller.play()
@@ -1661,9 +1962,12 @@ class AudioPlayerManager @Inject constructor(
     ) {
         if (!outputDeviceManager.isCasting) return
         val currentDesc = buildRemoteDescriptorForMediaItem(currentItem, startPosMs, durationHintMs) ?: return
-        val nextDesc = nextItem
-            ?.takeIf { parseStartAyah(it.mediaId) <= 1 }
-            ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+        val currentIsUnbounded = parseEndAyah(currentItem.mediaId) == null && parseStartAyah(currentItem.mediaId) <= 1
+        val nextDesc = if (currentIsUnbounded) {
+            nextItem
+                ?.takeIf { parseStartAyah(it.mediaId) <= 1 && parseEndAyah(it.mediaId) == null }
+                ?.let { buildRemoteDescriptorForMediaItem(it, 0L, 0L) }
+        } else null
         val res = outputDeviceManager.loadTrackOnActiveDevice(currentDesc, nextDesc, autoPlay = true)
         if (res.isFailure) {
             _castMessageEvent.emit(res.exceptionOrNull()?.message ?: "Failed to cast track")

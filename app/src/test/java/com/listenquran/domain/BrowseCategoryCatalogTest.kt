@@ -2,9 +2,12 @@ package com.listenquran.domain
 
 import com.listenquran.domain.model.BrowseCategoryCatalog
 import com.listenquran.domain.model.CategoryGroup
+import com.listenquran.domain.model.CategoryKind
 import com.listenquran.domain.model.khatam.QuranAyahMetadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
@@ -117,5 +120,50 @@ class BrowseCategoryCatalogTest {
             assertEquals(summary.startAyah, entries.first().startAyah)
             entries.drop(1).forEach { assertEquals(1, it.startAyah) }
         }
+    }
+
+    @Test
+    fun allAyahSpecificCategoryEntriesDefineEndAyahBounds() {
+        BrowseCategoryCatalog.allCategories
+            .filter { it.kind == CategoryKind.CURATED_COLLECTION }
+            .forEach { category ->
+                category.entries.forEach { entry ->
+                    if (entry.startAyah > 1) {
+                        assertNotNull(
+                            "Entry ${entry.surahId}:${entry.startAyah} in ${category.id} must specify endAyah so it does not play the entire surah",
+                            entry.endAyah
+                        )
+                        val maxAyah = QuranAyahMetadata.SURAH_VERSE_COUNTS[entry.surahId - 1]
+                        assertTrue(entry.endAyah!! in entry.startAyah..maxAyah)
+                    }
+                }
+            }
+
+        val expectedSingleAyahKeys = mapOf(
+            "peace_sakinah" to listOf(13 to 28, 9 to 40),
+            "ruqyah_healing" to listOf(2 to 255, 17 to 82, 10 to 57),
+            "mercy_forgiveness" to listOf(39 to 53, 25 to 63),
+        )
+        expectedSingleAyahKeys.forEach { (categoryId, pairs) ->
+            val category = BrowseCategoryCatalog.findById(categoryId)!!
+            pairs.forEach { (surahId, ayah) ->
+                val match = category.entries.find { it.surahId == surahId && it.startAyah == ayah }
+                assertNotNull("Expected $surahId:$ayah in $categoryId", match)
+                assertEquals(ayah, match!!.endAyah)
+            }
+        }
+
+        val ruqyahOpening = BrowseCategoryCatalog.findById("ruqyah_healing")!!
+            .entries.find { it.surahId == 2 && it.startAyah == 1 }!!
+        assertEquals(5, ruqyahOpening.endAyah)
+
+        // Full-surah entries keep endAyah = null
+        val friday = BrowseCategoryCatalog.findById("friday_sunnah")!!
+        assertTrue(friday.entries.all { it.startAyah == 1 && it.endAyah == null })
+
+        // Juz entries stay unbounded
+        val juz1 = BrowseCategoryCatalog.juzEntries(1)
+        assertTrue(juz1.all { it.endAyah == null })
+        assertNull(juz1.first().endAyah)
     }
 }

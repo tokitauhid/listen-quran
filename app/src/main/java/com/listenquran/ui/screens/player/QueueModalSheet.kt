@@ -322,7 +322,7 @@ fun QueueModalSheet(
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                                         )
                                         Text(
-                                            text = item.reciter.englishName,
+                                            text = formatQueueItemSubtitle(item),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                         )
@@ -392,7 +392,7 @@ fun QueueModalSheet(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${nowPlaying.reciter.englishName} • ${nowPlaying.surah.versesCount} Ayahs",
+                                    text = formatQueueItemSubtitle(nowPlaying),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -511,7 +511,7 @@ fun QueueModalSheet(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                text = "${item.reciter.englishName} • ${item.surah.versesCount} Ayahs",
+                                                text = formatQueueItemSubtitle(item),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -568,4 +568,15 @@ fun QueueModalSheet(
             }
         }
     }
+}
+
+private fun formatQueueItemSubtitle(item: QueueItem): String {
+    val end = item.endAyah
+    val scopeLabel = when {
+        end != null && end == item.startAyah -> "Ayah ${item.startAyah}"
+        end != null && end > item.startAyah -> "Ayahs ${item.startAyah}–$end"
+        item.startAyah > 1 -> "From Ayah ${item.startAyah}"
+        else -> "${item.surah.versesCount} Ayahs"
+    }
+    return "${item.reciter.englishName} • $scopeLabel"
 }
