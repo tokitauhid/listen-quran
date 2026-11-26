@@ -471,7 +471,9 @@ class OutputDeviceManager internal constructor(
 
         if (autoPlay) {
             val shouldSeek = currentTrack.startPositionMs > 1500L &&
-                (currentTrack.durationMs <= 0L || currentTrack.startPositionMs < currentTrack.durationMs - 2000L)
+                (currentTrack.durationMs <= 0L ||
+                    currentTrack.durationMs <= currentTrack.startPositionMs ||
+                    currentTrack.startPositionMs < currentTrack.durationMs - 2000L)
             val prePlayPos = if (shouldSeek) controlClient.getPositionInfo(device).getOrNull() else null
 
             val playRes = controlClient.play(device)

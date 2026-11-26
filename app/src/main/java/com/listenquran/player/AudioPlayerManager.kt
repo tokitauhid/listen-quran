@@ -133,6 +133,21 @@ class AudioPlayerManager @Inject constructor(
     @Volatile
     private var isAdvancingClipEnd: Boolean = false
 
+    @Volatile
+    private var clipRemoteHasEnteredWindow: Boolean = false
+
+    @Volatile
+    private var clipRemoteOutOfWindowPolls: Int = 0
+
+    @Volatile
+    private var clipRemoteSeekRetries: Int = 0
+
+    private fun resetRemoteClipTracking() {
+        clipRemoteHasEnteredWindow = false
+        clipRemoteOutOfWindowPolls = 0
+        clipRemoteSeekRetries = 0
+    }
+
     private var castConnectJob: Job? = null
 
     private val isCastingOrConnecting: Boolean
@@ -161,6 +176,21 @@ class AudioPlayerManager @Inject constructor(
                     if (!outputDeviceManager.isCasting) return@launch
                     val clip = activeClipBounds
                     if (clip != null) {
+                        val inWindow = posMs in (clip.startMs - 3_000L)..(clip.endMs + 2_000L)
+                        if (inWindow) {
+                            clipRemoteHasEnteredWindow = true
+                            clipRemoteOutOfWindowPolls = 0
+                        } else if (!clipRemoteHasEnteredWindow) {
+                            clipRemoteOutOfWindowPolls++
+                            if (clipRemoteOutOfWindowPolls >= 3 && clipRemoteSeekRetries < 3 && clip.startMs > 1_500L) {
+                                clipRemoteOutOfWindowPolls = 0
+                                clipRemoteSeekRetries++
+                                scope.launch {
+                                    outputDeviceManager.seekRemote(clip.startMs)
+                                }
+                            }
+                            return@launch
+                        }
                         val relPos = (posMs - clip.startMs).coerceIn(0L, clip.durationMs)
                         _currentPositionMs.value = relPos
                         if (clip.durationMs > 0L) {
@@ -168,7 +198,7 @@ class AudioPlayerManager @Inject constructor(
                         }
                         syncTracker.updateExternalPosition(posMs)
                         checkHifzLoop(posMs)
-                        if (posMs >= clip.endMs && !isAdvancingClipEnd) {
+                        if (clipRemoteHasEnteredWindow && posMs >= clip.endMs && !isAdvancingClipEnd) {
                             isAdvancingClipEnd = true
                             handleRemoteTrackEnded(advancedToNextUri = false)
                         }
@@ -451,6 +481,7 @@ class AudioPlayerManager @Inject constructor(
                             scope.launch { outputDeviceManager.updateNextTrackOnActiveDevice(null) }
                         }
                     } else if (mediaItem != null) {
+                        resetRemoteClipTracking()
                         val explicitSeek = pendingRemoteSeekMs
                         pendingRemoteSeekMs = null
                         val clipConfig = mediaItem.clippingConfiguration
@@ -478,11 +509,7 @@ class AudioPlayerManager @Inject constructor(
                                         ?.timestampFrom ?: 0L
                                 }
                             }
-                            val remoteDurationHint = if (isClipped) {
-                                _playbackState.value.verseTimings.lastOrNull()?.timestampTo ?: 0L
-                            } else {
-                                _playbackState.value.durationMs
-                            }
+                            val remoteDurationHint = resolveFullSurahDurationMs(mediaItem)
                             pushCurrentMediaItemToRemote(
                                 currentItem = mediaItem,
                                 nextItem = nextItem,
@@ -597,6 +624,7 @@ class AudioPlayerManager @Inject constructor(
             (reciterId != null && _playbackState.value.currentReciter?.id != reciterId)) {
             lastSyncedMediaId = mediaId
             isAdvancingClipEnd = false
+            resetRemoteClipTracking()
             val targetReciterId = reciterId ?: _playbackState.value.currentReciter?.id ?: 7
             if (isItemClipped) {
                 activeClipBounds = AyahClipBounds(
@@ -787,6 +815,7 @@ class AudioPlayerManager @Inject constructor(
         activeClipBounds = null
         unclippedEndAyahMs = null
         isAdvancingClipEnd = false
+        resetRemoteClipTracking()
         syncTracker.isRadio = false
         syncTracker.onMediaItemChanged(surah.id, reciter.id, startAyah)
         ensureServiceRunning()
@@ -843,6 +872,7 @@ class AudioPlayerManager @Inject constructor(
         activeClipBounds = null
         unclippedEndAyahMs = null
         isAdvancingClipEnd = false
+        resetRemoteClipTracking()
         syncTracker.isRadio = false
         ensureServiceRunning()
         _currentPositionMs.value = 0L
@@ -898,6 +928,7 @@ class AudioPlayerManager @Inject constructor(
         activeClipBounds = null
         unclippedEndAyahMs = null
         isAdvancingClipEnd = false
+        resetRemoteClipTracking()
         ensureServiceRunning()
         _currentPositionMs.value = 0L
 
@@ -1028,6 +1059,7 @@ class AudioPlayerManager @Inject constructor(
             activeClipBounds = clipBounds
             unclippedEndAyahMs = null
             isAdvancingClipEnd = false
+            resetRemoteClipTracking()
 
             val surahDuration = timings.lastOrNull()?.timestampTo ?: 0L
             if (clipBounds != null) {
@@ -1249,6 +1281,7 @@ class AudioPlayerManager @Inject constructor(
         activeClipBounds = null
         unclippedEndAyahMs = null
         isAdvancingClipEnd = false
+        resetRemoteClipTracking()
         _currentPositionMs.value = 0L
 
         val prevSurah = if (!_playbackState.value.isRadio) _playbackState.value.currentSurah else _playbackState.value.lastSurahBeforeRadio
@@ -1328,6 +1361,7 @@ class AudioPlayerManager @Inject constructor(
         activeClipBounds = null
         unclippedEndAyahMs = null
         isAdvancingClipEnd = false
+        resetRemoteClipTracking()
         if (outputDeviceManager.isCasting) {
             scope.launch { outputDeviceManager.pauseRemote() }
         }
@@ -1400,8 +1434,11 @@ class AudioPlayerManager @Inject constructor(
                 controller.seekToNextMediaItem()
             } else if (controller.mediaItemCount > 0) {
                 if (outputDeviceManager.isCasting && controller.mediaItemCount == 1) {
+                    val clipStart = activeClipBounds?.startMs ?: 0L
+                    isAdvancingClipEnd = false
+                    resetRemoteClipTracking()
                     scope.launch {
-                        outputDeviceManager.seekRemote(0L)
+                        outputDeviceManager.seekRemote(clipStart)
                         outputDeviceManager.playRemote()
                     }
                 } else {
@@ -1430,8 +1467,11 @@ class AudioPlayerManager @Inject constructor(
                 controller.seekToPreviousMediaItem()
             } else if (controller.mediaItemCount > 0) {
                 if (outputDeviceManager.isCasting && controller.mediaItemCount == 1) {
+                    val clipStart = activeClipBounds?.startMs ?: 0L
+                    isAdvancingClipEnd = false
+                    resetRemoteClipTracking()
                     scope.launch {
-                        outputDeviceManager.seekRemote(0L)
+                        outputDeviceManager.seekRemote(clipStart)
                         outputDeviceManager.playRemote()
                     }
                 } else {
@@ -1804,6 +1844,7 @@ class AudioPlayerManager @Inject constructor(
         }
         ensureServiceRunning()
         castConnectJob?.cancel()
+        resetRemoteClipTracking()
         val state = _playbackState.value
         val wasPlaying = state.isPlaying
         val localPosMs = if (!outputDeviceManager.isCasting) {
@@ -1811,7 +1852,6 @@ class AudioPlayerManager @Inject constructor(
         } else {
             _currentPositionMs.value.coerceAtLeast(0L)
         }
-        val remoteStartPosMs = (activeClipBounds?.startMs ?: 0L) + localPosMs
 
         // Pause local audio output immediately so phone and remote speaker never overlap
         browser?.takeIf { it.isConnected }?.pause()
@@ -1825,12 +1865,19 @@ class AudioPlayerManager @Inject constructor(
         withController { controller ->
             val currentItem = controller.currentMediaItem
             val nextItem = getNextMediaItemInTimeline(controller)
+            val clipStart = activeClipBounds?.startMs
+                ?: currentItem?.clippingConfiguration
+                    ?.takeIf { it.endPositionMs != C.TIME_END_OF_SOURCE }
+                    ?.startPositionMs
+                    ?.coerceAtLeast(0L)
+                ?: 0L
+            val remoteStartPosMs = clipStart + localPosMs
             castConnectJob = scope.launch {
                 try {
-                    val remoteDurationHint = if (activeClipBounds != null) {
-                        state.verseTimings.lastOrNull()?.timestampTo ?: 0L
+                    val remoteDurationHint = if (currentItem != null) {
+                        resolveFullSurahDurationMs(currentItem)
                     } else {
-                        state.durationMs
+                        state.verseTimings.lastOrNull()?.timestampTo ?: state.durationMs
                     }
                     val currentDesc = if (currentItem != null) {
                         buildRemoteDescriptorForMediaItem(currentItem, remoteStartPosMs, remoteDurationHint)
@@ -1944,7 +1991,10 @@ class AudioPlayerManager @Inject constructor(
             _playbackState.update { it.copy(stopAtEndOfSurah = false) }
             outputDeviceManager.pauseRemote()
         } else if (_playbackState.value.repeatMode == Player.REPEAT_MODE_ONE) {
-            outputDeviceManager.seekRemote(0L)
+            val clipStart = activeClipBounds?.startMs ?: 0L
+            isAdvancingClipEnd = false
+            resetRemoteClipTracking()
+            outputDeviceManager.seekRemote(clipStart)
             outputDeviceManager.playRemote()
         } else {
             if (advancedToNextUri) {
@@ -1952,6 +2002,12 @@ class AudioPlayerManager @Inject constructor(
             }
             playNext()
         }
+    }
+
+    private suspend fun resolveFullSurahDurationMs(mediaItem: MediaItem): Long {
+        val sId = parseSurahId(mediaItem.mediaId) ?: return 0L
+        val rId = parseReciterId(mediaItem.mediaId) ?: _playbackState.value.currentReciter?.id ?: 7
+        return quranRepository.getVerseTimings(rId, sId).lastOrNull()?.timestampTo ?: 0L
     }
 
     private suspend fun pushCurrentMediaItemToRemote(

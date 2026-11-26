@@ -340,6 +340,44 @@ class OutputDeviceManagerTest {
         manager.disconnect()
     }
 
+    @Test
+    fun `loadTrackOnActiveDevice seeks to startPositionMs even when durationMs hint is smaller or stale`() = runTest {
+        val fakeDiscovery = FakeDiscoveryClient(listOf(testSpeaker))
+        val fakeControl = FakeRemoteControlClient().apply {
+            transportState = RemoteTransportState.PLAYING
+            positionInfo = RemotePositionInfo(relTimeMs = 1_000L, trackDurationMs = 7_264_000L, trackUri = null)
+        }
+        val server = LocalMediaHttpServer(OkHttpClient())
+        val manager = OutputDeviceManager(fakeDiscovery, fakeControl, server, pollIntervalMs = 500L, seekDelayMs = 0L, ioDispatcher = Dispatchers.IO)
+
+        val surah1 = RemoteTrackDescriptor(
+            mediaKey = "s1_r7",
+            title = "1. Al-Fatihah",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 46_490L,
+            startPositionMs = 0L,
+        )
+        assertTrue(manager.connectToDevice(testSpeaker, surah1, autoPlay = true).isSuccess)
+
+        val ayatulKursiWithStaleDuration = RemoteTrackDescriptor(
+            mediaKey = "s2_r7_255",
+            title = "Ayatul Kursi",
+            artist = "Mishari",
+            album = "The Holy Quran",
+            streamUrl = null,
+            localFilePath = tempFile.absolutePath,
+            durationMs = 46_490L,
+            startPositionMs = 5_600_000L,
+        )
+        val res = manager.loadTrackOnActiveDevice(ayatulKursiWithStaleDuration, nextTrack = null, autoPlay = true)
+        assertTrue(res.isSuccess)
+        assertEquals(1, fakeControl.actions.count { it == "Seek:5600000" })
+        manager.disconnect()
+    }
+
     private class FakeDiscoveryClient(
         private val devices: List<OutputDevice>,
     ) : DeviceDiscoveryClient {
