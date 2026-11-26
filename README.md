@@ -40,8 +40,8 @@
         <sub><b>255+ Verified Reciters</b></sub>
       </td>
       <td align="center" width="20%">
-        <img src="./assets/screenshots/05_library_hifz.png" alt="Library & Sleep Timer" width="100%" /><br />
-        <sub><b>Library & Sleep Timer</b></sub>
+        <img src="./assets/screenshots/05_library_hifz.png" alt="Library & Bookmarks" width="100%" /><br />
+        <sub><b>Library & Bookmarks</b></sub>
       </td>
     </tr>
   </table>
