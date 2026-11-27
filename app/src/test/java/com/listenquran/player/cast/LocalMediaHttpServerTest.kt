@@ -175,4 +175,30 @@ class LocalMediaHttpServerTest {
             closer.join(1000)
         }
     }
+
+    @Test
+    fun `accepts Range bytes=0- as live stream and rejects non-zero byte offset with 416`() {
+        val token = hub.openSession()
+        server.setSessionToken(token)
+        val wavUrl = server.buildLiveStreamUrl(token, LiveStreamFormat.WAV)
+
+        client.newCall(
+            Request.Builder().url(wavUrl).header("Range", "bytes=1024-").get().build()
+        ).execute().use { resp ->
+            assertEquals(416, resp.code)
+        }
+
+        val samplePcm = byteArrayOf(1, 2, 3, 4)
+        hub.handleBuffer(ByteBuffer.wrap(samplePcm))
+        val closer = thread {
+            Thread.sleep(60)
+            hub.closeSession()
+        }
+        client.newCall(
+            Request.Builder().url(wavUrl).header("Range", "bytes=0-").get().build()
+        ).execute().use { resp ->
+            assertEquals(200, resp.code)
+        }
+        closer.join(1000)
+    }
 }

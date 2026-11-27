@@ -137,13 +137,23 @@ class LocalMediaHttpServer @Inject constructor(
             val method = parts[0].uppercase(Locale.US)
             val rawPath = parts[1].substringBefore('?')
 
+            var rangeHeader: String? = null
             while (true) {
                 val line = readLine(input) ?: break
                 if (line.isEmpty()) break
+                if (line.startsWith("Range:", ignoreCase = true)) {
+                    rangeHeader = line.substringAfter(':').trim()
+                }
             }
 
             if (method != "GET" && method != "HEAD") {
                 writeStatusResponse(output, 405, "Method Not Allowed")
+                return
+            }
+
+            val rangeStart = parseRangeStartOffset(rangeHeader)
+            if (rangeStart != null && rangeStart > 0L) {
+                writeStatusResponse(output, 416, "Range Not Satisfiable")
                 return
             }
 
@@ -279,6 +289,15 @@ class LocalMediaHttpServer @Inject constructor(
             buf[i + 1] = b0
             i += 2
         }
+    }
+
+    private fun parseRangeStartOffset(rangeHeader: String?): Long? {
+        if (rangeHeader.isNullOrBlank()) return null
+        val trimmed = rangeHeader.trim()
+        if (!trimmed.startsWith("bytes=", ignoreCase = true)) return null
+        val rangeSpec = trimmed.substringAfter('=').substringBefore(',').trim()
+        val startPart = rangeSpec.substringBefore('-').trim()
+        return startPart.toLongOrNull()
     }
 
     companion object {

@@ -43,6 +43,7 @@ class OutputDeviceManager internal constructor(
     private val deviceCache: CastDeviceCache? = null,
     private val appContext: Context? = null,
     private val pollIntervalMs: Long = 2000L,
+    private val steadyPollIntervalMs: Long = pollIntervalMs,
     private val connectPollIntervalMs: Long = 200L,
     private val connectTimeoutMs: Long = 10_000L,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -64,6 +65,7 @@ class OutputDeviceManager internal constructor(
         deviceCache = deviceCache,
         appContext = context,
         pollIntervalMs = 2000L,
+        steadyPollIntervalMs = 5000L,
         connectPollIntervalMs = 200L,
         connectTimeoutMs = 10_000L,
         ioDispatcher = Dispatchers.IO,
@@ -319,6 +321,9 @@ class OutputDeviceManager internal constructor(
         }
         intentionalPause = !autoPlay
 
+        val token = pcmStreamHub.openSession()
+        pcmStreamHub.paused = false
+
         _routeState.update {
             it.copy(
                 activeDevice = device,
@@ -327,9 +332,6 @@ class OutputDeviceManager internal constructor(
                 speakerDelayMs = 0L,
             )
         }
-
-        val token = pcmStreamHub.openSession()
-        pcmStreamHub.paused = false
 
         try {
             mediaServer.start(lanIp, forceRestart = true)
@@ -595,14 +597,17 @@ class OutputDeviceManager internal constructor(
         pollJob = scope.launch {
             var consecutiveFailures = 0
             var recoveryAttempted = false
+            var steadyPlayingPolls = 0
             while (isActive && pollGeneration.get() == gen && sessionGeneration.get() == expectedSessionGen) {
-                delay(pollIntervalMs)
+                val intervalMs = if (steadyPlayingPolls >= 5) steadyPollIntervalMs else pollIntervalMs
+                delay(intervalMs)
                 if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
 
                 val transportRes = controlClient.getTransportInfo(device)
                 if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
 
                 if (transportRes.isFailure) {
+                    steadyPlayingPolls = 0
                     consecutiveFailures++
                     if (consecutiveFailures >= 3) {
                         val reason = transportRes.exceptionOrNull()?.message ?: "Connection unreachable"
@@ -622,6 +627,7 @@ class OutputDeviceManager internal constructor(
                 when (transport) {
                     RemoteTransportState.PLAYING -> {
                         recoveryAttempted = false
+                        steadyPlayingPolls++
                         if (pos != null && pos.relTimeMs > 0L) {
                             val writtenMs = pcmStreamHub.streamMsWritten
                             if (writtenMs >= pos.relTimeMs) {

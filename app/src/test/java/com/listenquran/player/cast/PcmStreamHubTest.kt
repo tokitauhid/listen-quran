@@ -146,4 +146,32 @@ class PcmStreamHubTest {
 
         hub.closeSession()
     }
+
+    @Test
+    fun `per-source bufferedBytes ledger and writeFromByteBufferWithLimit respect watermarks`() {
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 200L)
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+
+        val buf1 = ByteBuffer.wrap(ByteArray(32) { 5 })
+        // Cap at 20 bytes -> frame-aligned 20 bytes written, 12 bytes remain unconsumed
+        assertEquals(20, hub.writeFromByteBufferWithLimit(PcmSource.MAIN, buf1, maxSourceBufferedBytes = 20))
+        assertEquals(12, buf1.remaining())
+        assertEquals(20, hub.bufferedBytes(PcmSource.MAIN))
+        assertEquals(0, hub.bufferedBytes(PcmSource.CUE))
+
+        // Further writes while at cap return 0 (backpressure)
+        assertEquals(0, hub.writeFromByteBufferWithLimit(PcmSource.MAIN, buf1, maxSourceBufferedBytes = 20))
+
+        // Inactive source returns -1
+        assertEquals(-1, hub.writeFromByteBufferWithLimit(PcmSource.CUE, ByteBuffer.wrap(ByteArray(16)), 64))
+
+        // Reading 12 bytes reduces MAIN ledger cleanly to 8
+        assertEquals(12, hub.read(token, ByteArray(12), maxLen = 12, clientId = clientId))
+        assertEquals(8, hub.bufferedBytes(PcmSource.MAIN))
+
+        hub.clearSourceBuffer(PcmSource.MAIN)
+        assertEquals(0, hub.bufferedBytes(PcmSource.MAIN))
+        hub.closeSession()
+    }
 }

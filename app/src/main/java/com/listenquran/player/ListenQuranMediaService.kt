@@ -43,6 +43,9 @@ class ListenQuranMediaService : MediaLibraryService() {
     lateinit var outputDeviceManager: OutputDeviceManager
 
     @Inject
+    lateinit var transitionCoordinator: SurahTransitionCoordinator
+
+    @Inject
     lateinit var playerManagerProvider: Provider<AudioPlayerManager>
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -173,6 +176,14 @@ class ListenQuranMediaService : MediaLibraryService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession {
         return mediaLibrarySession
+    }
+
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        val keepInForeground = startInForegroundRequired ||
+            outputDeviceManager.isCasting ||
+            outputDeviceManager.routeState.value.isConnecting ||
+            transitionCoordinator.isInTransition
+        super.onUpdateNotification(session, keepInForeground)
     }
 
     override fun onDestroy() {

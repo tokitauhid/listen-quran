@@ -25,6 +25,7 @@ import com.listenquran.data.repository.QuranRepository
 import com.listenquran.data.repository.ReciterRepository
 import com.listenquran.data.repository.StatsRepository
 import com.listenquran.domain.model.*
+import com.listenquran.player.cast.CastAudioModeController
 import com.listenquran.player.cast.CastProtocol
 import com.listenquran.player.cast.FadeGainAudioProcessor
 import com.listenquran.player.cast.LiveTrackMetadata
@@ -91,6 +92,7 @@ class AudioPlayerManager @Inject constructor(
     val syncTracker: PlaybackSyncTracker,
     val outputDeviceManager: OutputDeviceManager,
     val localAudioOutputs: LocalAudioOutputs,
+    private val castAudioModeController: CastAudioModeController,
     private val mainFadeGainProcessor: FadeGainAudioProcessor,
     private val transitionCoordinator: SurahTransitionCoordinator,
     private val userPreferencesRepository: UserPreferencesRepository,
@@ -220,6 +222,8 @@ class AudioPlayerManager @Inject constructor(
             syncTracker.playbackSpeedProvider = { _playbackState.value.playbackSpeed }
             outputDeviceManager.routeState.collect { route ->
                 syncTracker.outputLatencyMs = if (route.isCasting) route.speakerDelayMs else 0L
+                val castActive = route.isCasting || route.isConnecting
+                castAudioModeController.setCastMode(castActive)
             }
         }
         scope.launch {
@@ -1969,19 +1973,13 @@ class AudioPlayerManager @Inject constructor(
             isLocallyMutedForCast = true
             localMuteFadeJob?.cancel()
             transitionCoordinator.onCastMuteChanged(true)
+            // Switch both players to headless CastPcmAudioSink so DefaultAudioSink resets and
+            // closes any Android AudioTrack in AudioFlinger, avoiding OS mute-track pausing.
+            castAudioModeController.setCastMode(true)
             // Release local audio focus while casting to a Wi-Fi speaker so backgrounded playback
             // never halts when another app (video, browser, voice note) requests phone audio focus.
             exo.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
             exo.setHandleAudioBecomingNoisy(false)
-            val startVol = exo.volume
-            if (startVol > 0f) {
-                val steps = 10
-                for (i in steps downTo 0) {
-                    exo.volume = startVol * (i / steps.toFloat())
-                    delay(25L)
-                }
-            }
-            exo.volume = 0f
         }
     }
 
@@ -1990,6 +1988,7 @@ class AudioPlayerManager @Inject constructor(
         withContext(Dispatchers.Main) {
             isLocallyMutedForCast = false
             localMuteFadeJob?.cancel()
+            castAudioModeController.setCastMode(false)
             transitionCoordinator.onCastMuteChanged(false)
             if (seekBackMs > 0L) {
                 val targetPos = (exo.currentPosition - seekBackMs).coerceAtLeast(0L)
@@ -1997,17 +1996,9 @@ class AudioPlayerManager @Inject constructor(
                 _currentPositionMs.value = targetPos
                 syncTracker.onSeek(targetPos)
             }
+            exo.volume = 1f
             exo.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             exo.setHandleAudioBecomingNoisy(true)
-            val startVol = exo.volume
-            if (startVol < 1f) {
-                val steps = 10
-                for (i in 0..steps) {
-                    exo.volume = startVol + (1f - startVol) * (i / steps.toFloat())
-                    delay(25L)
-                }
-            }
-            exo.volume = 1f
         }
     }
 

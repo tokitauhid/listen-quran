@@ -94,7 +94,7 @@ class CuePlayer @Inject constructor(
                         }
 
                         player.addListener(listener)
-                        player.volume = if (isCastMuted) 0f else 1f
+                        player.volume = 1f
                         player.playbackParameters = PlaybackParameters(playbackSpeed)
                         player.setMediaItem(clipItem)
                         player.prepare()
@@ -114,9 +114,10 @@ class CuePlayer @Inject constructor(
     }
 
     suspend fun setMuted(muted: Boolean) {
+        // Silencing during cast is handled by RoutingAudioSink -> CastPcmAudioSink with zero AudioTrack.
         withContext(Dispatchers.Main) {
             runCatching {
-                cuePlayerProvider.get().volume = if (muted) 0f else 1f
+                cuePlayerProvider.get().volume = 1f
             }
         }
     }

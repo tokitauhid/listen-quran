@@ -45,12 +45,17 @@ class PcmStreamHub internal constructor(
         const val FRAME_SIZE_BYTES = CHANNEL_COUNT * BYTES_PER_SAMPLE
         const val BYTES_PER_SECOND = SAMPLE_RATE_HZ * FRAME_SIZE_BYTES
         const val DEFAULT_CAPACITY_BYTES = BYTES_PER_SECOND * 8 // 8 seconds ring buffer
-        const val DEFAULT_INITIAL_PREBUFFER_MS = 1200L
+        const val DEFAULT_INITIAL_PREBUFFER_MS = 250L
         const val DEFAULT_IDLE_SILENCE_THRESHOLD_MS = 1600L
         const val SILENCE_SLICE_MS = 20L
         const val SILENCE_SLICE_BYTES = ((SAMPLE_RATE_HZ / 50) * FRAME_SIZE_BYTES) // 3528 bytes (20 ms)
         const val DECLICK_FRAMES = 352 // ~8 ms at 44.1 kHz
     }
+
+    private data class SourceSegment(
+        val source: PcmSource,
+        var bytes: Int,
+    )
 
     private val lock = Object()
     private val capacityBytes = DEFAULT_CAPACITY_BYTES
@@ -58,6 +63,9 @@ class PcmStreamHub internal constructor(
     private var readPos = 0
     private var writePos = 0
     private var availableBytes = 0
+    private val segments = ArrayDeque<SourceSegment>()
+    private var mainBufferedBytes = 0
+    private var cueBufferedBytes = 0
 
     @Volatile
     private var activeToken: String? = null
@@ -120,6 +128,10 @@ class PcmStreamHub internal constructor(
         return token != null && token == current
     }
 
+    fun bufferedBytes(source: PcmSource): Int = synchronized(lock) {
+        if (source == PcmSource.MAIN) mainBufferedBytes else cueBufferedBytes
+    }
+
     fun openSession(): String {
         val token = UUID.randomUUID().toString().replace("-", "")
         synchronized(lock) {
@@ -129,6 +141,7 @@ class PcmStreamHub internal constructor(
             readPos = 0
             writePos = 0
             availableBytes = 0
+            resetLedgerLocked()
             bytesWrittenToStream = 0L
             silenceSlicesEmitted = 0L
             underrunSilenceTransitions = 0
@@ -149,6 +162,7 @@ class PcmStreamHub internal constructor(
             readPos = 0
             writePos = 0
             availableBytes = 0
+            resetLedgerLocked()
             prebufferSilenceRemainingBytes = 0
             resetDeclickLocked()
             lock.notifyAll()
@@ -160,9 +174,63 @@ class PcmStreamHub internal constructor(
             readPos = 0
             writePos = 0
             availableBytes = 0
+            resetLedgerLocked()
             lastPcmWriteNs = System.nanoTime()
             lock.notifyAll()
         }
+    }
+
+    fun clearSourceBuffer(source: PcmSource) {
+        synchronized(lock) {
+            val onlyThisSource = segments.all { it.source == source }
+            if (activeSource == source || onlyThisSource || availableBytes == 0) {
+                readPos = 0
+                writePos = 0
+                availableBytes = 0
+                resetLedgerLocked()
+                lastPcmWriteNs = System.nanoTime()
+                lock.notifyAll()
+            }
+        }
+    }
+
+    private fun recordAppendLocked(source: PcmSource, bytes: Int) {
+        if (bytes <= 0) return
+        val tail = segments.lastOrNull()
+        if (tail != null && tail.source == source) {
+            tail.bytes += bytes
+        } else {
+            segments.addLast(SourceSegment(source, bytes))
+        }
+        if (source == PcmSource.MAIN) {
+            mainBufferedBytes += bytes
+        } else {
+            cueBufferedBytes += bytes
+        }
+    }
+
+    private fun consumeSegmentsLocked(bytesToConsume: Int) {
+        var remaining = bytesToConsume
+        while (remaining > 0 && segments.isNotEmpty()) {
+            val head = segments.first()
+            val take = minOf(remaining, head.bytes)
+            head.bytes -= take
+            if (head.source == PcmSource.MAIN) {
+                mainBufferedBytes = (mainBufferedBytes - take).coerceAtLeast(0)
+            } else {
+                cueBufferedBytes = (cueBufferedBytes - take).coerceAtLeast(0)
+            }
+            remaining -= take
+            if (head.bytes == 0) {
+                segments.removeFirst()
+            }
+        }
+    }
+
+    private fun resetLedgerLocked() {
+        segments.clear()
+        mainBufferedBytes = 0
+        cueBufferedBytes = 0
     }
 
     /**
@@ -235,7 +303,7 @@ class PcmStreamHub internal constructor(
                 val remaining = buffer.remaining()
                 if (remaining <= 0) return
                 if (sourceEncoding != C.ENCODING_PCM_16BIT) return
-                writeFromByteBuffer(buffer)
+                writeFromByteBuffer(buffer, source)
             }
         }
 
@@ -253,10 +321,51 @@ class PcmStreamHub internal constructor(
 
         // Only accept PCM-16; drop partial trailing frame bytes to stay frame-aligned.
         if (incomingEncoding != C.ENCODING_PCM_16BIT) return
-        writeFromByteBuffer(buffer)
+        writeFromByteBuffer(buffer, PcmSource.MAIN)
     }
 
-    private fun writeFromByteBuffer(buffer: ByteBuffer) {
+    /**
+     * Bounded, non-dropping PCM write for [CastPcmAudioSink].
+     *
+     * Returns `-1` when no cast session is open or [source] is not currently [activeSource].
+     * Returns `0` when [source] already has at least [maxSourceBufferedBytes] queued or the ring
+     * is full (applying backpressure without consuming [buffer]).
+     * Otherwise consumes and copies up to `maxWritable` frame-aligned bytes, advancing [buffer] position.
+     */
+    fun writeFromByteBufferWithLimit(
+        source: PcmSource,
+        buffer: ByteBuffer,
+        maxSourceBufferedBytes: Int,
+    ): Int {
+        val remaining = buffer.remaining()
+        val alignedRemaining = (remaining / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+        if (alignedRemaining <= 0) return 0
+
+        synchronized(lock) {
+            if (activeToken == null || activeSource != source) return -1
+            val currentForSource = if (source == PcmSource.MAIN) mainBufferedBytes else cueBufferedBytes
+            val sourceRoom = (maxSourceBufferedBytes - currentForSource).coerceAtLeast(0)
+            val ringRoom = (capacityBytes - availableBytes).coerceAtLeast(0)
+            val maxWritable = (minOf(sourceRoom, ringRoom) / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+            if (maxWritable <= 0) return 0
+
+            val toWrite = minOf(alignedRemaining, maxWritable)
+            val firstCopy = minOf(toWrite, capacityBytes - writePos)
+            buffer.get(ringBuffer, writePos, firstCopy)
+            val secondCopy = toWrite - firstCopy
+            if (secondCopy > 0) {
+                buffer.get(ringBuffer, 0, secondCopy)
+            }
+            writePos = (writePos + toWrite) % capacityBytes
+            availableBytes += toWrite
+            recordAppendLocked(source, toWrite)
+            lastPcmWriteNs = System.nanoTime()
+            lock.notifyAll()
+            return toWrite
+        }
+    }
+
+    private fun writeFromByteBuffer(buffer: ByteBuffer, source: PcmSource = PcmSource.MAIN) {
         val remaining = buffer.remaining()
         val alignedLen = (remaining / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
         if (alignedLen <= 0) return
@@ -283,12 +392,13 @@ class PcmStreamHub internal constructor(
             }
             writePos = (writePos + toWrite) % capacityBytes
             availableBytes += toWrite
+            recordAppendLocked(source, toWrite)
             lastPcmWriteNs = System.nanoTime()
             lock.notifyAll()
         }
     }
 
-    internal fun writePcmBytes(src: ByteArray, offset: Int, length: Int) {
+    internal fun writePcmBytes(src: ByteArray, offset: Int, length: Int, source: PcmSource = PcmSource.MAIN) {
         if (activeToken == null || length <= 0) return
         val alignedLen = (length / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
         if (alignedLen <= 0) return
@@ -314,6 +424,7 @@ class PcmStreamHub internal constructor(
             }
             writePos = (writePos + toWrite) % capacityBytes
             availableBytes += toWrite
+            recordAppendLocked(source, toWrite)
             lastPcmWriteNs = System.nanoTime()
             lock.notifyAll()
         }
@@ -326,6 +437,7 @@ class PcmStreamHub internal constructor(
             val actualDrop = drop.coerceAtMost(availableBytes)
             readPos = (readPos + actualDrop) % capacityBytes
             availableBytes -= actualDrop
+            consumeSegmentsLocked(actualDrop)
         }
     }
 
@@ -408,6 +520,7 @@ class PcmStreamHub internal constructor(
                 }
                 readPos = (readPos + toRead) % capacityBytes
                 availableBytes -= toRead
+                consumeSegmentsLocked(toRead)
 
                 if (wasEmittingSilence && hasEmittedRealAudio) {
                     declickFadeInRemainingFrames = DECLICK_FRAMES

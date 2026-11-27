@@ -19,6 +19,8 @@ import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.ListenQuranMediaService
 import com.listenquran.player.QuranForwardingPlayer
 import com.listenquran.player.QuranLibrarySessionCallback
+import com.listenquran.player.cast.CastAudioModeController
+import com.listenquran.player.cast.CastPcmAudioSink
 import com.listenquran.player.cast.DeviceDiscoveryClient
 import com.listenquran.player.cast.DlnaControlClient
 import com.listenquran.player.cast.FadeGainAudioProcessor
@@ -26,8 +28,8 @@ import com.listenquran.player.cast.OutputDeviceManager
 import com.listenquran.player.cast.PcmSource
 import com.listenquran.player.cast.PcmStreamHub
 import com.listenquran.player.cast.RemoteControlClient
+import com.listenquran.player.cast.RoutingAudioSink
 import com.listenquran.player.cast.SsdpDiscoveryClient
-import com.listenquran.player.cast.StreamingAudioProcessorChain
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -96,37 +98,55 @@ object MediaModule {
         fadeGainAudioProcessor: FadeGainAudioProcessor,
         pcmStreamHub: PcmStreamHub,
         pcmSource: PcmSource,
+        castAudioModeController: CastAudioModeController,
     ): ExoPlayer {
-        val processorChain = StreamingAudioProcessorChain(
-            fadeGainAudioProcessor = fadeGainAudioProcessor,
-            audioBufferSink = pcmStreamHub.sinkFor(pcmSource),
-        )
         val bufferSizeProvider = DefaultAudioTrackBufferSizeProvider.Builder()
             .setMinPcmBufferDurationUs(120_000)
             .setMaxPcmBufferDurationUs(250_000)
             .setPcmBufferMultiplicationFactor(2)
             .build()
+        val localSink = DefaultAudioSink.Builder(context)
+            .setAudioProcessors(arrayOf(fadeGainAudioProcessor))
+            .setAudioTrackBufferSizeProvider(bufferSizeProvider)
+            .build()
+        val castSink = CastPcmAudioSink(
+            fadeGainAudioProcessor = fadeGainAudioProcessor,
+            pcmStreamHub = pcmStreamHub,
+            source = pcmSource,
+        )
+        val routingSink = RoutingAudioSink(
+            localSink = localSink,
+            castSink = castSink,
+            castModeController = castAudioModeController,
+        )
         val renderersFactory = object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
                 context: Context,
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParams: Boolean,
-            ): AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setAudioProcessorChain(processorChain)
-                    .setAudioTrackBufferSizeProvider(bufferSizeProvider)
-                    .build()
-            }
+            ): AudioSink = routingSink
         }
         val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
             .setDataSourceFactory(cacheDataSourceFactory)
 
-        return ExoPlayer.Builder(context, renderersFactory)
+        val player = ExoPlayer.Builder(context, renderersFactory)
             .setAudioAttributes(audioAttributes, handleAudioFocus)
             .setHandleAudioBecomingNoisy(handleBecomingNoisy)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
+
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        castAudioModeController.addListener {
+            mainHandler.post {
+                runCatching {
+                    player.createMessage { _, _ ->
+                        routingSink.syncModeIfNeeded()
+                    }.send()
+                }
+            }
+        }
+        return player
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -138,6 +158,7 @@ object MediaModule {
         cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
         fadeGainAudioProcessor: FadeGainAudioProcessor,
         pcmStreamHub: PcmStreamHub,
+        castAudioModeController: CastAudioModeController,
     ): ExoPlayer {
         return buildStreamingExoPlayer(
             context = context,
@@ -148,6 +169,7 @@ object MediaModule {
             fadeGainAudioProcessor = fadeGainAudioProcessor,
             pcmStreamHub = pcmStreamHub,
             pcmSource = PcmSource.MAIN,
+            castAudioModeController = castAudioModeController,
         )
     }
 
@@ -160,6 +182,7 @@ object MediaModule {
         audioAttributes: AudioAttributes,
         cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
         pcmStreamHub: PcmStreamHub,
+        castAudioModeController: CastAudioModeController,
     ): ExoPlayer {
         return buildStreamingExoPlayer(
             context = context,
@@ -170,6 +193,7 @@ object MediaModule {
             fadeGainAudioProcessor = FadeGainAudioProcessor(),
             pcmStreamHub = pcmStreamHub,
             pcmSource = PcmSource.CUE,
+            castAudioModeController = castAudioModeController,
         )
     }
 
