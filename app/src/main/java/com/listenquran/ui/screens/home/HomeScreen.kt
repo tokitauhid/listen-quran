@@ -109,6 +109,9 @@ fun HomeScreen(
     dismissedUpdateTag: String? = null,
     onOpenUpdateSheet: () -> Unit = {},
     onDismissUpdateBanner: (String) -> Unit = {},
+    outputRouteState: com.listenquran.player.cast.OutputRouteState = com.listenquran.player.cast.OutputRouteState(),
+    onOpenOutputPicker: (() -> Unit)? = null,
+    defaultSleepTimerMinutes: Int = 30,
     resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
@@ -651,42 +654,10 @@ fun HomeScreen(
                     }
                 }
 
-                // 0b. Jump Back In Hero Card
-                val activeOrFallback = playbackState.currentSurah?.takeIf { !playbackState.isRadio } != null ||
-                    surahProgressList.isNotEmpty()
-                if (activeOrFallback) {
-                    item(key = "home_jump_back_in") {
-                        JumpBackInHeroCard(
-                            playbackState = playbackState,
-                            currentPositionMs = currentPositionMs,
-                            fallbackProgress = surahProgressList.firstOrNull(),
-                            surahs = surahs,
-                            reciters = reciters,
-                            onTogglePlayPause = onTogglePlayPause,
-                            onResumeProgress = onResumeProgress,
-                            onOpenFullPlayer = onOpenFullPlayer,
-                        )
-                    }
-                }
-
-                // 0c. Continue Listening (partially finished long surahs)
                 val activeSurahId = playbackState.currentSurah?.takeIf { !playbackState.isRadio }?.id
                 val activeReciterId = playbackState.currentReciter?.id
                 val continueEntries = surahProgressList.filterNot {
                     activeSurahId != null && it.surahId == activeSurahId && it.reciterId == activeReciterId
-                }
-                if (continueEntries.isNotEmpty()) {
-                    item(key = "continue_listening_header", contentType = "section_header") {
-                        SectionHeader(title = "Continue Listening")
-                    }
-                    item(key = "continue_listening_carousel", contentType = "horizontal_carousel") {
-                        ContinueListeningCarousel(
-                            entries = continueEntries,
-                            surahs = surahs,
-                            reciters = reciters,
-                            onResumeProgress = onResumeProgress,
-                        )
-                    }
                 }
 
                 // 0d. Because you listened to [Reciter]
@@ -824,10 +795,20 @@ fun HomeScreen(
                         }
                     }
                 }
-                // 3. Recently Listened (Granular rows)
-                if (displaySurahs.isNotEmpty()) {
+                // 3. Recently Listened (Continue Listening + granular rows)
+                if (continueEntries.isNotEmpty() || displaySurahs.isNotEmpty()) {
                     item(key = "recent_surahs_header", contentType = "section_header") {
                         SectionHeader(title = "Recently Listened")
+                    }
+                    if (continueEntries.isNotEmpty()) {
+                        item(key = "continue_listening_carousel", contentType = "horizontal_carousel") {
+                            ContinueListeningCarousel(
+                                entries = continueEntries,
+                                surahs = surahs,
+                                reciters = reciters,
+                                onResumeProgress = onResumeProgress,
+                            )
+                        }
                     }
                     items(
                         items = pairs,
@@ -1044,6 +1025,9 @@ fun HomeScreen(
             onPlayNext = onPlayNext,
             onAddToQueue = onAddToQueue,
             onAddToPlaylist = onAddToPlaylist,
+            outputRouteState = outputRouteState,
+            onOpenOutputPicker = onOpenOutputPicker,
+            defaultSleepTimerMinutes = defaultSleepTimerMinutes,
         )
     }
 

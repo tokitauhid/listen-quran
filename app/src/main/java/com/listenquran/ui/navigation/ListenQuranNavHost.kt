@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import com.listenquran.domain.model.*
+import com.listenquran.player.cast.OutputRouteState
 import com.listenquran.ui.MainViewModel
 import com.listenquran.ui.screens.categories.CategoriesScreen
 import com.listenquran.ui.screens.home.HomeScreen
@@ -39,6 +40,9 @@ fun ListenQuranNavHost(
     onOpenReciterProfile: (Reciter) -> Unit,
     onAddToPlaylist: (Surah) -> Unit,
     onOpenFullPlayer: () -> Unit = {},
+    outputRouteState: OutputRouteState = OutputRouteState(),
+    onOpenOutputPicker: () -> Unit = {},
+    customSleepTimerMinutes: Int = 30,
     homeResetTrigger: Int = 0,
     libraryResetTrigger: Int = 0,
     modifier: Modifier = Modifier,
@@ -118,6 +122,9 @@ fun ListenQuranNavHost(
                     dismissedUpdateTag = dismissedUpdateTag,
                     onOpenUpdateSheet = { viewModel.openUpdateSheet() },
                     onDismissUpdateBanner = { viewModel.dismissUpdateBanner(it) },
+                    outputRouteState = outputRouteState,
+                    onOpenOutputPicker = onOpenOutputPicker,
+                    defaultSleepTimerMinutes = customSleepTimerMinutes,
                     resetTrigger = homeResetTrigger,
                 )
             }
@@ -135,6 +142,9 @@ fun ListenQuranNavHost(
                     onPlayNext = { viewModel.playNextInQueue(it) },
                     onAddToQueue = { viewModel.addToQueue(it) },
                     onAddToPlaylist = onAddToPlaylist,
+                    outputRouteState = outputRouteState,
+                    onOpenOutputPicker = onOpenOutputPicker,
+                    defaultSleepTimerMinutes = customSleepTimerMinutes,
                 )
             }
             composable(TopLevelDestination.RADIO.route) {

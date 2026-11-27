@@ -17,6 +17,8 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.domain.model.Playlist
 import com.listenquran.domain.model.PlaylistItem
+import com.listenquran.player.cast.OutputRouteState
 import com.listenquran.ui.theme.AmiriQuranFont
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -45,6 +48,8 @@ fun PlaylistDetailScreen(
     onDeleteItem: (Long) -> Unit,
     onDeletePlaylist: () -> Unit,
     onReorderItems: ((List<PlaylistItem>) -> Unit)? = null,
+    outputRouteState: OutputRouteState = OutputRouteState(),
+    onOpenOutputPicker: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var localItems by remember(items) { mutableStateOf(items) }
@@ -154,14 +159,40 @@ fun PlaylistDetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        if (localItems.isNotEmpty()) {
-                            Button(
-                                onClick = onPlayAll,
-                                shape = RoundedCornerShape(12.dp)
+                        if (localItems.isNotEmpty() || onOpenOutputPicker != null) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play All")
+                                if (localItems.isNotEmpty()) {
+                                    Button(
+                                        onClick = onPlayAll,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Play All")
+                                    }
+                                }
+                                if (onOpenOutputPicker != null) {
+                                    FilledTonalIconButton(
+                                        onClick = onOpenOutputPicker,
+                                        modifier = Modifier.size(44.dp),
+                                        colors = if (outputRouteState.isCasting) {
+                                            IconButtonDefaults.filledTonalIconButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.primary,
+                                            )
+                                        } else {
+                                            IconButtonDefaults.filledTonalIconButtonColors()
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = if (outputRouteState.isCasting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                                            contentDescription = "Select playback device",
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

@@ -23,6 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
@@ -38,6 +40,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -60,6 +63,7 @@ import com.listenquran.domain.model.CategoryEntry
 import com.listenquran.domain.model.CategoryKind
 import com.listenquran.domain.model.Surah
 import com.listenquran.player.SleepTimerMode
+import com.listenquran.player.cast.OutputRouteState
 import com.listenquran.ui.screens.home.SurahListItem
 import com.listenquran.ui.theme.AmiriQuranFont
 import com.listenquran.ui.theme.BottomSheetShape
@@ -86,6 +90,9 @@ fun CategoryDetailSheet(
     onPlayNext: ((Surah) -> Unit)? = null,
     onAddToQueue: ((Surah) -> Unit)? = null,
     onAddToPlaylist: ((Surah) -> Unit)? = null,
+    outputRouteState: OutputRouteState = OutputRouteState(),
+    onOpenOutputPicker: (() -> Unit)? = null,
+    defaultSleepTimerMinutes: Int = 30,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val tonePalette = resolveCategoryTonePalette(category.tone, colorScheme)
@@ -265,44 +272,80 @@ fun CategoryDetailSheet(
                         contentDescription = "Save as Playlist",
                     )
                 }
+
+                if (onOpenOutputPicker != null) {
+                    FilledTonalIconButton(
+                        onClick = onOpenOutputPicker,
+                        modifier = Modifier.size(48.dp),
+                        colors = if (outputRouteState.isCasting) {
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = colorScheme.primaryContainer,
+                                contentColor = colorScheme.primary,
+                            )
+                        } else {
+                            IconButtonDefaults.filledTonalIconButtonColors()
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (outputRouteState.isCasting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                            contentDescription = "Select playback device",
+                        )
+                    }
+                }
             }
 
             if (category.showSleepTimerShortcut && onPlayWithSleepTimer != null && displayedEntries.isNotEmpty()) {
+                val timerMins = defaultSleepTimerMinutes.coerceAtLeast(1)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    AssistChip(
-                        onClick = {
-                            onPlayWithSleepTimer(displayedEntries, SleepTimerMode.Duration(30))
-                            onDismiss()
-                        },
-                        label = { Text("Play + 30m Timer") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Timer,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
-                    AssistChip(
-                        onClick = {
-                            onPlayWithSleepTimer(displayedEntries, SleepTimerMode.EndOfSurah)
-                            onDismiss()
-                        },
-                        label = { Text("Play + End of Surah") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Rounded.Timer,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        },
-                    )
+                    item(key = "play_with_timer") {
+                        AssistChip(
+                            onClick = {
+                                onPlayWithSleepTimer(displayedEntries, SleepTimerMode.Duration(timerMins))
+                                onDismiss()
+                            },
+                            label = {
+                                Text(
+                                    text = "Play with ${timerMins}m timer",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Timer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                        )
+                    }
+                    item(key = "play_till_end_of_queue") {
+                        AssistChip(
+                            onClick = {
+                                onPlayWithSleepTimer(displayedEntries, SleepTimerMode.EndOfPlaylist)
+                                onDismiss()
+                            },
+                            label = {
+                                Text(
+                                    text = "Play till end of queue",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Timer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            },
+                        )
+                    }
                 }
             }
 

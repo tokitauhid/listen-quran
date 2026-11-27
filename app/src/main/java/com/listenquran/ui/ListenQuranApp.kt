@@ -243,6 +243,10 @@ fun ListenQuranApp(
     val isImeVisible = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
     val hasActivePlayback = playbackState.currentSurah != null || playbackState.isRadio
     val isMiniPlayerVisible = hasActivePlayback && !showFullPlayer && !isImeVisible
+    val onOpenOutputPicker: () -> Unit = {
+        showOutputPickerSheet = true
+        viewModel.scanOutputDevices()
+    }
 
     ListenQuranTheme(themeMode = themeMode, dynamicColor = dynamicColorEnabled) {
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
@@ -402,6 +406,9 @@ fun ListenQuranApp(
                             onOpenReciterProfile = { selectedReciterForProfile = it },
                             onAddToPlaylist = { surahToAddToPlaylist = it },
                             onOpenFullPlayer = { showFullPlayer = true },
+                            outputRouteState = outputRouteState,
+                            onOpenOutputPicker = onOpenOutputPicker,
+                            customSleepTimerMinutes = customSleepTimerMinutes,
                             homeResetTrigger = homeResetTrigger,
                             libraryResetTrigger = libraryResetTrigger,
                             modifier = Modifier.fillMaxSize(),
@@ -427,6 +434,8 @@ fun ListenQuranApp(
                                     selectedPlaylistForDetail = null
                                 },
                                 onReorderItems = { viewModel.reorderPlaylistItems(it) },
+                                outputRouteState = outputRouteState,
+                                onOpenOutputPicker = onOpenOutputPicker,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -491,10 +500,7 @@ fun ListenQuranApp(
                     onOpenQueue = { showQueueSheet = true },
                     onOpenSleepTimer = { showSleepTimerDialog = true },
                     onOpenActionsMenu = { showActionsMenuSheet = true },
-                    onOpenOutputPicker = {
-                        showOutputPickerSheet = true
-                        viewModel.scanOutputDevices()
-                    },
+                    onOpenOutputPicker = onOpenOutputPicker,
                     onStopRadio = { viewModel.stopRadio() },
                     onResumeSurah = { viewModel.resumeSurahAfterRadio() },
                     onRetryRadio = {

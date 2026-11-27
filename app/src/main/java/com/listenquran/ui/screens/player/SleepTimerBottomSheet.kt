@@ -155,7 +155,7 @@ fun SleepTimerBottomSheet(
                     }
 
                     SleepTimerOptionRow(
-                        title = "End of playlist",
+                        title = "End of queue",
                         subtitle = subtitle,
                         isActive = isActive,
                         enabled = enabled,

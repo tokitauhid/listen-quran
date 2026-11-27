@@ -29,16 +29,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +62,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+
+private enum class SettingsAccordionSection {
+    STATISTICS,
+    APPEARANCE,
+    PLAYBACK,
+    READING,
+    HIFZ,
+    STORAGE,
+    REMINDERS,
+    BACKUP,
+    ABOUT,
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,6 +125,10 @@ fun SettingsScreen(
     }
 
     // Dialog & Interaction states
+    var expandedSection by rememberSaveable { mutableStateOf<SettingsAccordionSection?>(null) }
+    val toggleSection: (SettingsAccordionSection) -> Unit = { section ->
+        expandedSection = if (expandedSection == section) null else section
+    }
     var showReciterPicker by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
@@ -195,125 +215,233 @@ fun SettingsScreen(
                 top = 8.dp,
                 bottom = LocalMiniPlayerInset.current + 16.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // 1. STATS SECTION
             item(key = "section_statistics") {
-                StatisticsSection(
-                    statsSummary = statsSummary,
-                    isDetailsExpanded = settingsPreferences.statsDetailsExpanded,
-                    onToggleDetails = { onToggleStatsDetailsExpanded(!settingsPreferences.statsDetailsExpanded) },
-                    onClearStats = { showClearStatsDialog = true }
-                )
+                SettingsAccordionCard(
+                    title = "Listening Statistics",
+                    subtitle = "${formatTotalDuration(statsSummary.totalSecondsListened)} · ${statsSummary.currentDayStreak}d streak · ${statsSummary.totalSurahsCompleted} completed",
+                    icon = Icons.Outlined.BarChart,
+                    expanded = expandedSection == SettingsAccordionSection.STATISTICS,
+                    onToggle = { toggleSection(SettingsAccordionSection.STATISTICS) },
+                ) {
+                    StatisticsSection(
+                        statsSummary = statsSummary,
+                        isDetailsExpanded = settingsPreferences.statsDetailsExpanded,
+                        onToggleDetails = { onToggleStatsDetailsExpanded(!settingsPreferences.statsDetailsExpanded) },
+                        onClearStats = { showClearStatsDialog = true }
+                    )
+                }
             }
 
             // 2. APPEARANCE SECTION
             item(key = "section_appearance") {
-                AppearanceSection(
-                    currentTheme = currentTheme,
-                    onSelectTheme = onSelectTheme,
-                    dynamicColorEnabled = dynamicColorEnabled,
-                    onToggleDynamicColor = onToggleDynamicColor
-                )
+                val themeLabel = when (currentTheme) {
+                    ThemeMode.DARK -> "Dark"
+                    ThemeMode.LIGHT -> "Light"
+                    ThemeMode.AMOLED -> "AMOLED"
+                    ThemeMode.SYSTEM -> "System"
+                }
+                val appearanceSummary = if (dynamicColorEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    "$themeLabel · Material You"
+                } else {
+                    "$themeLabel theme"
+                }
+                SettingsAccordionCard(
+                    title = "Appearance",
+                    subtitle = appearanceSummary,
+                    icon = Icons.Outlined.Palette,
+                    expanded = expandedSection == SettingsAccordionSection.APPEARANCE,
+                    onToggle = { toggleSection(SettingsAccordionSection.APPEARANCE) },
+                ) {
+                    AppearanceSection(
+                        currentTheme = currentTheme,
+                        onSelectTheme = onSelectTheme,
+                        dynamicColorEnabled = dynamicColorEnabled,
+                        onToggleDynamicColor = onToggleDynamicColor
+                    )
+                }
             }
 
             // 3. AUDIO & PLAYBACK SECTION
             item(key = "section_playback") {
-                AudioPlaybackSection(
-                    defaultReciter = defaultReciter,
-                    playbackSpeed = settingsPreferences.playbackSpeed,
-                    customSleepTimerMinutes = settingsPreferences.customSleepTimerMinutes,
-                    transitionFadeSeconds = settingsPreferences.transitionFadeSeconds,
-                    transitionGapMs = settingsPreferences.transitionGapMs,
-                    bismillahBetweenSurahs = settingsPreferences.bismillahBetweenSurahs,
-                    onChangeReciterClick = { showReciterPicker = true },
-                    onSelectPlaybackSpeed = onSelectPlaybackSpeed,
-                    onSelectSleepTimer = onSelectCustomSleepTimerMinutes,
-                    onSetTransitionFadeSeconds = onSetTransitionFadeSeconds,
-                    onSetTransitionGapMs = onSetTransitionGapMs,
-                    onToggleBismillahBetweenSurahs = onToggleBismillahBetweenSurahs,
-                )
+                SettingsAccordionCard(
+                    title = "Audio & Playback",
+                    subtitle = "${defaultReciter?.englishName ?: "Mishari Rashid al-`Afasy"} · ${settingsPreferences.playbackSpeed}x · ${settingsPreferences.customSleepTimerMinutes}m timer",
+                    icon = Icons.Outlined.GraphicEq,
+                    expanded = expandedSection == SettingsAccordionSection.PLAYBACK,
+                    onToggle = { toggleSection(SettingsAccordionSection.PLAYBACK) },
+                ) {
+                    AudioPlaybackSection(
+                        defaultReciter = defaultReciter,
+                        playbackSpeed = settingsPreferences.playbackSpeed,
+                        customSleepTimerMinutes = settingsPreferences.customSleepTimerMinutes,
+                        transitionFadeSeconds = settingsPreferences.transitionFadeSeconds,
+                        transitionGapMs = settingsPreferences.transitionGapMs,
+                        bismillahBetweenSurahs = settingsPreferences.bismillahBetweenSurahs,
+                        onChangeReciterClick = { showReciterPicker = true },
+                        onSelectPlaybackSpeed = onSelectPlaybackSpeed,
+                        onSelectSleepTimer = onSelectCustomSleepTimerMinutes,
+                        onSetTransitionFadeSeconds = onSetTransitionFadeSeconds,
+                        onSetTransitionGapMs = onSetTransitionGapMs,
+                        onToggleBismillahBetweenSurahs = onToggleBismillahBetweenSurahs,
+                    )
+                }
             }
 
             // 4. READING & SCRIPTURE SECTION
             item(key = "section_reading") {
-                ReadingScriptureSection(
-                    wordByWordEnabled = settingsPreferences.wordByWordEnabled,
-                    translationEnabled = settingsPreferences.translationEnabled,
-                    onToggleWordByWord = onToggleWordByWord,
-                    onToggleTranslation = onToggleTranslation
-                )
+                val readingParts = buildList {
+                    if (settingsPreferences.wordByWordEnabled) add("Word-by-word")
+                    if (settingsPreferences.translationEnabled) add("Translation")
+                }
+                SettingsAccordionCard(
+                    title = "Reading & Scripture",
+                    subtitle = if (readingParts.isEmpty()) "All off" else readingParts.joinToString(" · "),
+                    icon = Icons.AutoMirrored.Outlined.MenuBook,
+                    expanded = expandedSection == SettingsAccordionSection.READING,
+                    onToggle = { toggleSection(SettingsAccordionSection.READING) },
+                ) {
+                    ReadingScriptureSection(
+                        wordByWordEnabled = settingsPreferences.wordByWordEnabled,
+                        translationEnabled = settingsPreferences.translationEnabled,
+                        onToggleWordByWord = onToggleWordByWord,
+                        onToggleTranslation = onToggleTranslation
+                    )
+                }
             }
 
             // 5. MEMORIZATION & HIFZ SECTION
             item(key = "section_hifz") {
-                HifzSection(
-                    repeatCount = settingsPreferences.hifzRepeatCount,
-                    delaySeconds = settingsPreferences.hifzDelaySeconds,
-                    onSetLoop = onSetHifzLoop
-                )
+                val repeatSummary = if (settingsPreferences.hifzRepeatCount == 0) "Loop (∞)" else "${settingsPreferences.hifzRepeatCount}x repeat"
+                val gapSummary = if (settingsPreferences.hifzDelaySeconds == 0) "No gap" else "${settingsPreferences.hifzDelaySeconds}s gap"
+                SettingsAccordionCard(
+                    title = "Memorization & Hifz",
+                    subtitle = "$repeatSummary · $gapSummary",
+                    icon = Icons.Outlined.Repeat,
+                    expanded = expandedSection == SettingsAccordionSection.HIFZ,
+                    onToggle = { toggleSection(SettingsAccordionSection.HIFZ) },
+                ) {
+                    HifzSection(
+                        repeatCount = settingsPreferences.hifzRepeatCount,
+                        delaySeconds = settingsPreferences.hifzDelaySeconds,
+                        onSetLoop = onSetHifzLoop
+                    )
+                }
             }
 
             // 6. STORAGE & DOWNLOADS SECTION
             item(key = "section_storage") {
-                StorageDownloadsSection(
-                    context = context,
-                    downloadedSurahs = downloadedSurahs,
-                    totalDownloadedBytes = totalDownloadedBytes,
-                    cacheSizeBytes = cacheSizeBytes,
-                    isListExpanded = downloadedListExpanded,
-                    onToggleListExpanded = { downloadedListExpanded = !downloadedListExpanded },
-                    onClearCacheClick = { showClearCacheDialog = true },
-                    onDeleteAllDownloadsClick = { showDeleteAllDownloadsDialog = true },
-                    onDeleteSurahClick = { surahToDelete = it }
-                )
+                SettingsAccordionCard(
+                    title = "Storage & Downloads",
+                    subtitle = "${formatBytes(totalDownloadedBytes)} saved · ${formatBytes(cacheSizeBytes)} cache",
+                    icon = Icons.Outlined.Storage,
+                    expanded = expandedSection == SettingsAccordionSection.STORAGE,
+                    onToggle = { toggleSection(SettingsAccordionSection.STORAGE) },
+                ) {
+                    StorageDownloadsSection(
+                        context = context,
+                        downloadedSurahs = downloadedSurahs,
+                        totalDownloadedBytes = totalDownloadedBytes,
+                        cacheSizeBytes = cacheSizeBytes,
+                        isListExpanded = downloadedListExpanded,
+                        onToggleListExpanded = { downloadedListExpanded = !downloadedListExpanded },
+                        onClearCacheClick = { showClearCacheDialog = true },
+                        onDeleteAllDownloadsClick = { showDeleteAllDownloadsDialog = true },
+                        onDeleteSurahClick = { surahToDelete = it }
+                    )
+                }
             }
 
             // 7. REMINDERS & NOTIFICATIONS SECTION
             item(key = "section_reminders") {
-                RemindersSection(
-                    context = context,
-                    hasNotificationPermission = hasNotificationPermission,
-                    dailyReminderEnabled = settingsPreferences.dailyReminderEnabled,
-                    dailyHour = settingsPreferences.dailyReminderHour,
-                    dailyMinute = settingsPreferences.dailyReminderMinute,
-                    fridayReminderEnabled = settingsPreferences.fridayReminderEnabled,
-                    fridayHour = settingsPreferences.fridayReminderHour,
-                    fridayMinute = settingsPreferences.fridayReminderMinute,
-                    onRequestPermission = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                    },
-                    onToggleDailyReminder = onToggleDailyReminder,
-                    onToggleFridayReminder = onToggleFridayReminder
-                )
+                val activeRemindersCount = listOf(
+                    settingsPreferences.dailyReminderEnabled,
+                    settingsPreferences.fridayReminderEnabled,
+                ).count { it }
+                val reminderSummary = when (activeRemindersCount) {
+                    0 -> "Off"
+                    1 -> "1 reminder active"
+                    else -> "$activeRemindersCount reminders active"
+                }
+                SettingsAccordionCard(
+                    title = "Reminders & Alerts",
+                    subtitle = reminderSummary,
+                    icon = Icons.Outlined.Notifications,
+                    expanded = expandedSection == SettingsAccordionSection.REMINDERS,
+                    onToggle = { toggleSection(SettingsAccordionSection.REMINDERS) },
+                ) {
+                    RemindersSection(
+                        context = context,
+                        hasNotificationPermission = hasNotificationPermission,
+                        dailyReminderEnabled = settingsPreferences.dailyReminderEnabled,
+                        dailyHour = settingsPreferences.dailyReminderHour,
+                        dailyMinute = settingsPreferences.dailyReminderMinute,
+                        fridayReminderEnabled = settingsPreferences.fridayReminderEnabled,
+                        fridayHour = settingsPreferences.fridayReminderHour,
+                        fridayMinute = settingsPreferences.fridayReminderMinute,
+                        onRequestPermission = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onToggleDailyReminder = onToggleDailyReminder,
+                        onToggleFridayReminder = onToggleFridayReminder
+                    )
+                }
             }
 
             // 8. BACKUP & RESTORE SECTION
             item(key = "section_backup") {
-                BackupRestoreSection(
-                    lastBackupTimestamp = settingsPreferences.lastBackupTimestamp,
-                    onCreateBackupClick = {
-                        val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                        backupExportLauncher.launch("listen_quran_backup_$timeStr.json")
-                    },
-                    onRestoreBackupClick = {
-                        backupImportLauncher.launch(arrayOf("application/json", "*/*"))
-                    }
-                )
+                val backupSummary = if (settingsPreferences.lastBackupTimestamp > 0L) {
+                    "Last: ${SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(settingsPreferences.lastBackupTimestamp))}"
+                } else {
+                    "Export or restore JSON backup"
+                }
+                SettingsAccordionCard(
+                    title = "Backup & Restore",
+                    subtitle = backupSummary,
+                    icon = Icons.Outlined.Backup,
+                    expanded = expandedSection == SettingsAccordionSection.BACKUP,
+                    onToggle = { toggleSection(SettingsAccordionSection.BACKUP) },
+                ) {
+                    BackupRestoreSection(
+                        lastBackupTimestamp = settingsPreferences.lastBackupTimestamp,
+                        onCreateBackupClick = {
+                            val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                            backupExportLauncher.launch("listen_quran_backup_$timeStr.json")
+                        },
+                        onRestoreBackupClick = {
+                            backupImportLauncher.launch(arrayOf("application/json", "*/*"))
+                        }
+                    )
+                }
             }
 
             // 9. ABOUT SECTION
             item(key = "section_about") {
-                AboutSection(
-                    updateState = updateState,
-                    autoCheckUpdates = autoCheckUpdates,
-                    lastCheckedAtMs = lastUpdateCheckMs,
-                    onCheckForUpdates = onCheckForUpdates,
-                    onToggleAutoCheckUpdates = onToggleAutoCheckUpdates,
-                    onOpenUpdateSheet = onOpenUpdateSheet,
-                )
+                val aboutSubtitle = if (updateState is AppUpdateState.UpdateAvailable) {
+                    "v${BuildConfig.VERSION_NAME} · Update v${updateState.release.versionName} available"
+                } else {
+                    "v${BuildConfig.VERSION_NAME}"
+                }
+                SettingsAccordionCard(
+                    title = "About Listen Quran",
+                    subtitle = aboutSubtitle,
+                    icon = Icons.Outlined.Info,
+                    expanded = expandedSection == SettingsAccordionSection.ABOUT,
+                    onToggle = { toggleSection(SettingsAccordionSection.ABOUT) },
+                ) {
+                    AboutSection(
+                        updateState = updateState,
+                        autoCheckUpdates = autoCheckUpdates,
+                        lastCheckedAtMs = lastUpdateCheckMs,
+                        onCheckForUpdates = onCheckForUpdates,
+                        onToggleAutoCheckUpdates = onToggleAutoCheckUpdates,
+                        onOpenUpdateSheet = onOpenUpdateSheet,
+                    )
+                }
             }
         }
     }
@@ -487,6 +615,84 @@ fun SettingsScreen(
 }
 
 // -------------------------------------------------------------
+// ACCORDION WRAPPER
+// -------------------------------------------------------------
+
+@Composable
+private fun SettingsAccordionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        content = content,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------
 // SECTION 1: STATISTICS
 // -------------------------------------------------------------
 
@@ -498,107 +704,73 @@ private fun StatisticsSection(
     onClearStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
+        // 3 KPI metric cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            MetricCard(
+                title = "Total Time",
+                value = formatTotalDuration(statsSummary.totalSecondsListened),
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "Streak",
+                value = "${statsSummary.currentDayStreak} days",
+                highlight = statsSummary.currentDayStreak > 0,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                title = "Completed",
+                value = "${statsSummary.totalSurahsCompleted}",
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        // Top Reciter
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(
+                    MaterialTheme.colorScheme.surfaceContainerHigh,
+                    RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.BarChart,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        "Listening Statistics",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                TextButton(
-                    onClick = onClearStats,
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) {
-                    Text(
-                        "Reset",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+            Text(
+                "Top Reciter",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = if (statsSummary.topReciterName.isNotBlank()) statsSummary.topReciterName else "No sessions yet",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
-            // 3 KPI metric cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MetricCard(
-                    title = "Total Time",
-                    value = formatTotalDuration(statsSummary.totalSecondsListened),
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Streak",
-                    value = "${statsSummary.currentDayStreak} days",
-                    highlight = statsSummary.currentDayStreak > 0,
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Completed",
-                    value = "${statsSummary.totalSurahsCompleted}",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Top Reciter
+        // Collapsible Details + Reset row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                        RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    "Top Reciter",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = if (statsSummary.topReciterName.isNotBlank()) statsSummary.topReciterName else "No sessions yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // Collapsible Details
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onToggleDetails)
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     text = if (isDetailsExpanded) "Hide detailed breakdown" else "Show detailed breakdown",
@@ -611,26 +783,36 @@ private fun StatisticsSection(
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
-
-            AnimatedVisibility(
-                visible = isDetailsExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+            TextButton(
+                onClick = onClearStats,
+                contentPadding = PaddingValues(horizontal = 8.dp)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    WeeklyListeningBarChart(
-                        statsSummary = statsSummary,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Text(
+                    "Reset",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
 
-                    ReciterBreakdownDonutChart(
-                        statsSummary = statsSummary,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+        AnimatedVisibility(
+            visible = isDetailsExpanded,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                WeeklyListeningBarChart(
+                    statsSummary = statsSummary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                ReciterBreakdownDonutChart(
+                    statsSummary = statsSummary,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -684,37 +866,15 @@ private fun AppearanceSection(
     onToggleDynamicColor: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Palette,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Appearance",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Text(
-                "Choose your preferred color theme. Changes apply immediately.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Text(
+            "Choose your preferred color theme. Changes apply immediately.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
             // M3 SingleChoiceSegmentedButtonRow
             SingleChoiceSegmentedButtonRow(
@@ -783,7 +943,6 @@ private fun AppearanceSection(
                     )
                 }
             }
-        }
     }
 }
 
@@ -837,32 +996,10 @@ private fun AudioPlaybackSection(
     onToggleBismillahBetweenSurahs: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.GraphicEq,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Audio & Playback",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             // Audio Quality Note (Truthful representation)
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1039,7 +1176,6 @@ private fun AudioPlaybackSection(
                     onCheckedChange = onToggleBismillahBetweenSurahs,
                 )
             }
-        }
     }
 }
 
@@ -1055,32 +1191,10 @@ private fun ReadingScriptureSection(
     onToggleTranslation: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Outlined.MenuBook,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Reading & Scripture",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             // Word-by-Word
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1130,7 +1244,6 @@ private fun ReadingScriptureSection(
                     onCheckedChange = onToggleTranslation
                 )
             }
-        }
     }
 }
 
@@ -1146,32 +1259,10 @@ private fun HifzSection(
     onSetLoop: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Repeat,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Memorization & Hifz",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             Text(
                 "Configure default repeat counts and delay gaps for Hifz practice loops.",
                 style = MaterialTheme.typography.bodySmall,
@@ -1215,7 +1306,6 @@ private fun HifzSection(
                     }
                 }
             }
-        }
     }
 }
 
@@ -1245,32 +1335,10 @@ private fun StorageDownloadsSection(
     }
     val freeDeviceBytes = statFs?.availableBytes ?: 0L
 
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Storage,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Storage & Downloads",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             // StatFs Metric Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1414,7 +1482,6 @@ private fun StorageDownloadsSection(
                     }
                 }
             }
-        }
     }
 }
 
@@ -1437,32 +1504,10 @@ private fun RemindersSection(
     onToggleFridayReminder: (Boolean, Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Notifications,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Reminders & Alerts",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             // Permission Warning Banner if missing
             if (!hasNotificationPermission) {
                 Surface(
@@ -1622,7 +1667,6 @@ private fun RemindersSection(
                     }
                 }
             }
-        }
     }
 }
 
@@ -1637,32 +1681,10 @@ private fun BackupRestoreSection(
     onRestoreBackupClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Backup,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Backup & Restore",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             Text(
                 "Export your playlists, liked surahs, bookmarks with tadabbur notes, hifz loops, and listening statistics to a secure JSON backup with SHA-256 integrity verification.",
                 style = MaterialTheme.typography.bodySmall,
@@ -1730,7 +1752,6 @@ private fun BackupRestoreSection(
                     Text("Restore Backup", style = MaterialTheme.typography.labelMedium)
                 }
             }
-        }
     }
 }
 
@@ -1749,33 +1770,12 @@ private fun AboutSection(
     modifier: Modifier = Modifier
 ) {
     var showWhatsNewDialog by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
-    Card(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "About Listen Quran",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1787,7 +1787,7 @@ private fun AboutSection(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    "v${BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
@@ -1950,39 +1950,6 @@ private fun AboutSection(
                     onCheckedChange = onToggleAutoCheckUpdates,
                 )
             }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-
-            Text(
-                "Scripture, ayah audio, and timing metadata provided with gratitude to the Quran Foundation (Quran.com) and QuranicAudio open CDN.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.Security,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        "Private & Local-First. No accounts, no advertising, and zero tracking. Audio streaming requires internet; personal data stays strictly on this device.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
     }
 
     if (showWhatsNewDialog) {
@@ -2032,6 +1999,50 @@ private fun AboutSection(
                         title = "Crackle-Free Live PCM Audio",
                         description = "Added source gating, a 1200ms prebuffer, and right-sized AudioTrack buffers so live recitations and Bismillah cues never interleave or burst."
                     )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Surface(
+                        onClick = {
+                            uriHandler.openUri("https://github.com/tokitauhid/listen-quran")
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Code,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Source Code",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = "github.com/tokitauhid/listen-quran",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                                contentDescription = "Open source code",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {

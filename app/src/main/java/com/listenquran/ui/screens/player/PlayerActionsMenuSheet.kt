@@ -190,7 +190,7 @@ fun PlayerActionsMenuSheet(
 
             val timerSubtitle = when {
                 playbackState.stopAtEndOfSurah -> "Stopping at end of surah"
-                playbackState.sleepTimerMode is com.listenquran.player.SleepTimerMode.EndOfPlaylist -> "Stopping at end of playlist"
+                playbackState.sleepTimerMode is com.listenquran.player.SleepTimerMode.EndOfPlaylist -> "Stopping at end of queue"
                 playbackState.sleepTimerRemainingSeconds != null -> {
                     val m = playbackState.sleepTimerRemainingSeconds / 60
                     val s = playbackState.sleepTimerRemainingSeconds % 60

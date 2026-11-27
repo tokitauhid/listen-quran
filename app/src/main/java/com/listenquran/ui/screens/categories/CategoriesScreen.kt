@@ -42,6 +42,7 @@ import com.listenquran.domain.model.CategoryGroup
 import com.listenquran.domain.model.CategoryKind
 import com.listenquran.domain.model.Surah
 import com.listenquran.player.SleepTimerMode
+import com.listenquran.player.cast.OutputRouteState
 import com.listenquran.ui.components.LocalMiniPlayerInset
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +56,9 @@ fun CategoriesScreen(
     onPlayNext: ((Surah) -> Unit)? = null,
     onAddToQueue: ((Surah) -> Unit)? = null,
     onAddToPlaylist: ((Surah) -> Unit)? = null,
+    outputRouteState: OutputRouteState = OutputRouteState(),
+    onOpenOutputPicker: (() -> Unit)? = null,
+    defaultSleepTimerMinutes: Int = 30,
     modifier: Modifier = Modifier,
 ) {
     var selectedGroupName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -227,6 +231,9 @@ fun CategoriesScreen(
             onPlayNext = onPlayNext,
             onAddToQueue = onAddToQueue,
             onAddToPlaylist = onAddToPlaylist,
+            outputRouteState = outputRouteState,
+            onOpenOutputPicker = onOpenOutputPicker,
+            defaultSleepTimerMinutes = defaultSleepTimerMinutes,
         )
     }
 

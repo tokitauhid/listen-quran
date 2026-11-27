@@ -654,7 +654,7 @@ fun FullPlayerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
                                 onClick = onOpenSleepTimer,
-                                label = { Text("End of Playlist") },
+                                label = { Text("End of Queue") },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer

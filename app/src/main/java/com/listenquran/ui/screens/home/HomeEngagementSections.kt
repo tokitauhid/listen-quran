@@ -1,15 +1,10 @@
 package com.listenquran.ui.screens.home
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,17 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,22 +28,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.listenquran.domain.model.ListeningStatsSummary
 import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.Surah
-import com.listenquran.player.PlaybackState
 import com.listenquran.player.SurahResumeProgress
 import com.listenquran.ui.theme.AmiriQuranFont
-import com.listenquran.util.ReciterImages
 import java.util.Calendar
 
 @Composable
@@ -179,196 +163,6 @@ fun HomeGreetingAndSuggestionHeader(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun JumpBackInHeroCard(
-    playbackState: PlaybackState,
-    currentPositionMs: Long,
-    fallbackProgress: SurahResumeProgress?,
-    surahs: List<Surah>,
-    reciters: List<Reciter>,
-    onTogglePlayPause: () -> Unit,
-    onResumeProgress: (SurahResumeProgress) -> Unit,
-    onOpenFullPlayer: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val activeSurah = playbackState.currentSurah?.takeIf { !playbackState.isRadio }
-    val activeReciter = playbackState.currentReciter
-    val progressSurah = if (activeSurah == null && fallbackProgress != null) {
-        surahs.find { it.id == fallbackProgress.surahId }
-    } else null
-    val progressReciter = if (activeSurah == null && fallbackProgress != null) {
-        reciters.find { it.id == fallbackProgress.reciterId }
-    } else null
-
-    val surah = activeSurah ?: progressSurah ?: return
-    val reciter = activeReciter ?: progressReciter
-    val posMs = if (activeSurah != null) currentPositionMs else (fallbackProgress?.positionMs ?: 0L)
-    val durMs = if (activeSurah != null) playbackState.durationMs else (fallbackProgress?.durationMs ?: 0L)
-    val isPlaying = activeSurah != null && playbackState.isPlaying
-
-    val fraction = if (durMs > 0L) (posMs.toFloat() / durMs.toFloat()).coerceIn(0f, 1f) else 0f
-    val remainingMins = if (durMs > posMs) (((durMs - posMs) / 60_000L).toInt()).coerceAtLeast(1) else 0
-    val photoUrl = remember(reciter) {
-        reciter?.let { ReciterImages.getPhotoUrl(it.id, it.englishName, it.photoUrl) }
-    }
-
-    val colorScheme = MaterialTheme.colorScheme
-    val heroBrush = remember(colorScheme) {
-        Brush.linearGradient(
-            listOf(
-                colorScheme.primaryContainer.copy(alpha = 0.85f),
-                colorScheme.surfaceContainerHigh,
-            )
-        )
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .clickable {
-                if (activeSurah != null) onOpenFullPlayer()
-                else if (fallbackProgress != null) onResumeProgress(fallbackProgress)
-            },
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(heroBrush)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                    modifier = Modifier.size(56.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text(
-                            text = surah.id.toString(),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        if (photoUrl != null) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(photoUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = reciter?.englishName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                            )
-                        }
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isPlaying) "NOW LISTENING" else "JUMP BACK IN",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                    Text(
-                        text = "${surah.id}. ${surah.nameSimple}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = surah.nameArabic,
-                        fontFamily = AmiriQuranFont,
-                        fontSize = 18.sp,
-                        lineHeight = 36.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
-                        maxLines = 1,
-                    )
-                    if (reciter != null) {
-                        Text(
-                            text = reciter.englishName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                FilledIconButton(
-                    onClick = {
-                        if (activeSurah != null) {
-                            onTogglePlayPause()
-                        } else if (fallbackProgress != null) {
-                            onResumeProgress(fallbackProgress)
-                        }
-                    },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                    ),
-                    modifier = Modifier.size(50.dp),
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Resume",
-                        modifier = Modifier.size(26.dp),
-                    )
-                }
-            }
-
-            if (durMs > 0L) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LinearProgressIndicator(
-                        progress = { fraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(5.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = if (activeSurah != null) {
-                                "Ayah ${playbackState.currentAyahNumber}"
-                            } else {
-                                "Ayah ${fallbackProgress?.lastAyahNumber ?: 1}"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (remainingMins > 0) {
-                            Text(
-                                text = "$remainingMins min left",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
                 }
             }
         }
