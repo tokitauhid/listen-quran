@@ -499,6 +499,19 @@ class OutputDeviceManager internal constructor(
         return res
     }
 
+    /**
+     * Synchronizes transport pause/play when playback state changes outside [togglePlayPause]
+     * (e.g. notification shade or lockscreen controls).
+     */
+    suspend fun syncPlaybackState(isPlaying: Boolean) {
+        if (!isCasting) return
+        val shouldPause = !isPlaying
+        pcmStreamHub.paused = shouldPause
+        if (intentionalPause != shouldPause) {
+            if (shouldPause) pauseRemote() else playRemote()
+        }
+    }
+
     suspend fun setRemoteVolume(volume: Int): Result<Unit> {
         val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
         val clamped = volume.coerceIn(0, 100)

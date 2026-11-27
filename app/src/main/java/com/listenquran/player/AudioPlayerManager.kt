@@ -325,6 +325,9 @@ class AudioPlayerManager @Inject constructor(
                 }
                 _playbackState.update { it.copy(isPlaying = isPlaying) }
                 syncTracker.onPlayStateChanged(isPlaying) { browser }
+                if (outputDeviceManager.isCasting) {
+                    scope.launch { outputDeviceManager.syncPlaybackState(isPlaying) }
+                }
                 if (isPlaying) {
                     radioWatchdogJob?.cancel()
                     _playbackState.update { it.copy(radioError = null, isBuffering = false) }
@@ -1966,6 +1969,9 @@ class AudioPlayerManager @Inject constructor(
             isLocallyMutedForCast = true
             localMuteFadeJob?.cancel()
             transitionCoordinator.onCastMuteChanged(true)
+            // Release local audio focus while casting to a Wi-Fi speaker so backgrounded playback
+            // never halts when another app (video, browser, voice note) requests phone audio focus.
+            exo.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ false)
             exo.setHandleAudioBecomingNoisy(false)
             val startVol = exo.volume
             if (startVol > 0f) {
@@ -1991,6 +1997,7 @@ class AudioPlayerManager @Inject constructor(
                 _currentPositionMs.value = targetPos
                 syncTracker.onSeek(targetPos)
             }
+            exo.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
             exo.setHandleAudioBecomingNoisy(true)
             val startVol = exo.volume
             if (startVol < 1f) {

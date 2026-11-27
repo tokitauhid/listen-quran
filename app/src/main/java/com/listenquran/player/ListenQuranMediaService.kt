@@ -8,6 +8,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -81,6 +82,12 @@ class ListenQuranMediaService : MediaLibraryService() {
                     if (active) {
                         wasCastActive = true
                         acquireCastLocks()
+                        runCatching {
+                            ContextCompat.startForegroundService(
+                                this@ListenQuranMediaService,
+                                Intent(this@ListenQuranMediaService, ListenQuranMediaService::class.java)
+                            )
+                        }
                     } else if (wasCastActive) {
                         wasCastActive = false
                         releaseCastLocks()
