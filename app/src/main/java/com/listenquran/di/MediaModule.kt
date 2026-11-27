@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioTrackBufferSizeProvider
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
@@ -22,6 +23,7 @@ import com.listenquran.player.cast.DeviceDiscoveryClient
 import com.listenquran.player.cast.DlnaControlClient
 import com.listenquran.player.cast.FadeGainAudioProcessor
 import com.listenquran.player.cast.OutputDeviceManager
+import com.listenquran.player.cast.PcmSource
 import com.listenquran.player.cast.PcmStreamHub
 import com.listenquran.player.cast.RemoteControlClient
 import com.listenquran.player.cast.SsdpDiscoveryClient
@@ -93,11 +95,17 @@ object MediaModule {
         cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
         fadeGainAudioProcessor: FadeGainAudioProcessor,
         pcmStreamHub: PcmStreamHub,
+        pcmSource: PcmSource,
     ): ExoPlayer {
         val processorChain = StreamingAudioProcessorChain(
             fadeGainAudioProcessor = fadeGainAudioProcessor,
-            pcmStreamHub = pcmStreamHub,
+            audioBufferSink = pcmStreamHub.sinkFor(pcmSource),
         )
+        val bufferSizeProvider = DefaultAudioTrackBufferSizeProvider.Builder()
+            .setMinPcmBufferDurationUs(120_000)
+            .setMaxPcmBufferDurationUs(250_000)
+            .setPcmBufferMultiplicationFactor(2)
+            .build()
         val renderersFactory = object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
                 context: Context,
@@ -106,6 +114,7 @@ object MediaModule {
             ): AudioSink {
                 return DefaultAudioSink.Builder(context)
                     .setAudioProcessorChain(processorChain)
+                    .setAudioTrackBufferSizeProvider(bufferSizeProvider)
                     .build()
             }
         }
@@ -138,6 +147,7 @@ object MediaModule {
             cacheDataSourceFactory = cacheDataSourceFactory,
             fadeGainAudioProcessor = fadeGainAudioProcessor,
             pcmStreamHub = pcmStreamHub,
+            pcmSource = PcmSource.MAIN,
         )
     }
 
@@ -159,6 +169,7 @@ object MediaModule {
             cacheDataSourceFactory = cacheDataSourceFactory,
             fadeGainAudioProcessor = FadeGainAudioProcessor(),
             pcmStreamHub = pcmStreamHub,
+            pcmSource = PcmSource.CUE,
         )
     }
 

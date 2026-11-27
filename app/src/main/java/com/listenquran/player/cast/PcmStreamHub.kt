@@ -10,6 +10,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 
+enum class PcmSource { MAIN, CUE }
+
 /**
  * Shared bounded PCM ring buffer bridging Media3's [TeeAudioProcessor] output
  * to the live DLNA HTTP streaming server.
@@ -43,8 +45,8 @@ class PcmStreamHub internal constructor(
         const val FRAME_SIZE_BYTES = CHANNEL_COUNT * BYTES_PER_SAMPLE
         const val BYTES_PER_SECOND = SAMPLE_RATE_HZ * FRAME_SIZE_BYTES
         const val DEFAULT_CAPACITY_BYTES = BYTES_PER_SECOND * 8 // 8 seconds ring buffer
-        const val DEFAULT_INITIAL_PREBUFFER_MS = 450L
-        const val DEFAULT_IDLE_SILENCE_THRESHOLD_MS = 750L
+        const val DEFAULT_INITIAL_PREBUFFER_MS = 1200L
+        const val DEFAULT_IDLE_SILENCE_THRESHOLD_MS = 1600L
         const val SILENCE_SLICE_MS = 20L
         const val SILENCE_SLICE_BYTES = ((SAMPLE_RATE_HZ / 50) * FRAME_SIZE_BYTES) // 3528 bytes (20 ms)
         const val DECLICK_FRAMES = 352 // ~8 ms at 44.1 kHz
@@ -59,6 +61,9 @@ class PcmStreamHub internal constructor(
 
     @Volatile
     private var activeToken: String? = null
+
+    @Volatile
+    var activeSource: PcmSource = PcmSource.MAIN
 
     private var nextClientId: Long = 0L
     private var activeClientId: Long = 0L
@@ -119,6 +124,7 @@ class PcmStreamHub internal constructor(
         val token = UUID.randomUUID().toString().replace("-", "")
         synchronized(lock) {
             activeToken = token
+            activeSource = PcmSource.MAIN
             paused = false
             readPos = 0
             writePos = 0
@@ -137,6 +143,7 @@ class PcmStreamHub internal constructor(
     fun closeSession() {
         synchronized(lock) {
             activeToken = null
+            activeSource = PcmSource.MAIN
             activeClientId = 0L
             paused = false
             readPos = 0
@@ -203,6 +210,35 @@ class PcmStreamHub internal constructor(
         nextSilenceDueNs = 0L
     }
 
+    /**
+     * Returns an exclusive [TeeAudioProcessor.AudioBufferSink] for [source] ([PcmSource.MAIN]
+     * or [PcmSource.CUE]). Only buffers from [activeSource] enter the ring buffer, preventing
+     * simultaneous main + cue interleaving.
+     */
+    fun sinkFor(source: PcmSource): TeeAudioProcessor.AudioBufferSink =
+        object : TeeAudioProcessor.AudioBufferSink {
+            @Volatile
+            private var sourceEncoding: Int = C.ENCODING_PCM_16BIT
+
+            override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
+                sourceEncoding = encoding
+                if (activeSource == source) {
+                    incomingSampleRateHz = sampleRateHz
+                    incomingChannelCount = channelCount
+                    incomingEncoding = encoding
+                }
+            }
+
+            override fun handleBuffer(buffer: ByteBuffer) {
+                if (activeSource != source) return
+                if (activeToken == null) return
+                val remaining = buffer.remaining()
+                if (remaining <= 0) return
+                if (sourceEncoding != C.ENCODING_PCM_16BIT) return
+                writeFromByteBuffer(buffer)
+            }
+        }
+
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
         incomingSampleRateHz = sampleRateHz
         incomingChannelCount = channelCount
@@ -210,12 +246,18 @@ class PcmStreamHub internal constructor(
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
+        if (activeSource != PcmSource.MAIN) return
         if (activeToken == null) return
         val remaining = buffer.remaining()
         if (remaining <= 0) return
 
         // Only accept PCM-16; drop partial trailing frame bytes to stay frame-aligned.
         if (incomingEncoding != C.ENCODING_PCM_16BIT) return
+        writeFromByteBuffer(buffer)
+    }
+
+    private fun writeFromByteBuffer(buffer: ByteBuffer) {
+        val remaining = buffer.remaining()
         val alignedLen = (remaining / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
         if (alignedLen <= 0) return
 

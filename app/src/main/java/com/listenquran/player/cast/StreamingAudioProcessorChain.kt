@@ -24,7 +24,7 @@ import java.nio.ByteBuffer
 @OptIn(UnstableApi::class)
 class StreamingAudioProcessorChain(
     val fadeGainAudioProcessor: FadeGainAudioProcessor,
-    pcmStreamHub: PcmStreamHub,
+    audioBufferSink: TeeAudioProcessor.AudioBufferSink,
 ) : AudioProcessorChain {
 
     private val silenceSkippingAudioProcessor = SilenceSkippingAudioProcessor()
@@ -69,7 +69,7 @@ class StreamingAudioProcessorChain(
         putChannelMixingMatrix(ChannelMixingMatrix.create(2, 2))
         runCatching { putChannelMixingMatrix(ChannelMixingMatrix.create(6, 2)) }
     }
-    private val teeAudioProcessor = TeeAudioProcessor(pcmStreamHub)
+    private val teeAudioProcessor = TeeAudioProcessor(audioBufferSink)
 
     private val processors: Array<AudioProcessor> = arrayOf(
         fadeGainAudioProcessor,

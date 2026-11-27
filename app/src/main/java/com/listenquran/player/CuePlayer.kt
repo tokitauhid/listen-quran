@@ -8,6 +8,8 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.listenquran.data.repository.QuranDownloadRepository
 import com.listenquran.data.repository.QuranRepository
+import com.listenquran.player.cast.PcmSource
+import com.listenquran.player.cast.PcmStreamHub
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -29,6 +31,7 @@ class CuePlayer @Inject constructor(
     @Named("cue") private val cuePlayerProvider: Provider<ExoPlayer>,
     private val quranRepository: QuranRepository,
     private val downloadRepository: QuranDownloadRepository,
+    private val pcmStreamHub: PcmStreamHub,
 ) {
     suspend fun playBismillah(
         reciterId: Int,
@@ -64,44 +67,49 @@ class CuePlayer @Inject constructor(
 
         return withContext(Dispatchers.Main) {
             val player = cuePlayerProvider.get()
-            val finished = withTimeoutOrNull(maxWaitMs) {
-                suspendCancellableCoroutine<Boolean> { cont ->
-                    val listener = object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            if (playbackState == Player.STATE_ENDED) {
+            pcmStreamHub.activeSource = PcmSource.CUE
+            try {
+                val finished = withTimeoutOrNull(maxWaitMs) {
+                    suspendCancellableCoroutine<Boolean> { cont ->
+                        val listener = object : Player.Listener {
+                            override fun onPlaybackStateChanged(playbackState: Int) {
+                                if (playbackState == Player.STATE_ENDED) {
+                                    player.removeListener(this)
+                                    if (cont.isActive) cont.resume(true)
+                                }
+                            }
+
+                            override fun onPlayerError(error: PlaybackException) {
                                 player.removeListener(this)
-                                if (cont.isActive) cont.resume(true)
+                                if (cont.isActive) cont.resume(false)
                             }
                         }
 
-                        override fun onPlayerError(error: PlaybackException) {
-                            player.removeListener(this)
-                            if (cont.isActive) cont.resume(false)
+                        cont.invokeOnCancellation {
+                            player.removeListener(listener)
+                            runCatching {
+                                player.stop()
+                                player.clearMediaItems()
+                            }
                         }
-                    }
 
-                    cont.invokeOnCancellation {
-                        player.removeListener(listener)
-                        runCatching {
-                            player.stop()
-                            player.clearMediaItems()
-                        }
+                        player.addListener(listener)
+                        player.volume = if (isCastMuted) 0f else 1f
+                        player.playbackParameters = PlaybackParameters(playbackSpeed)
+                        player.setMediaItem(clipItem)
+                        player.prepare()
+                        player.play()
                     }
+                } ?: false
 
-                    player.addListener(listener)
-                    player.volume = if (isCastMuted) 0f else 1f
-                    player.playbackParameters = PlaybackParameters(playbackSpeed)
-                    player.setMediaItem(clipItem)
-                    player.prepare()
-                    player.play()
+                runCatching {
+                    player.stop()
+                    player.clearMediaItems()
                 }
-            } ?: false
-
-            runCatching {
-                player.stop()
-                player.clearMediaItems()
+                finished
+            } finally {
+                pcmStreamHub.activeSource = PcmSource.MAIN
             }
-            finished
         }
     }
 
@@ -114,6 +122,7 @@ class CuePlayer @Inject constructor(
     }
 
     suspend fun stop() {
+        pcmStreamHub.activeSource = PcmSource.MAIN
         withContext(Dispatchers.Main) {
             runCatching {
                 val player = cuePlayerProvider.get()

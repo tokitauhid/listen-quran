@@ -112,4 +112,38 @@ class PcmStreamHubTest {
         assertEquals(2.toByte(), out[0])
         hub.closeSession()
     }
+
+    @Test
+    fun `exclusive activeSource prevents Main and Cue PCM interleaving`() {
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 200L)
+        val mainSink = hub.sinkFor(PcmSource.MAIN)
+        val cueSink = hub.sinkFor(PcmSource.CUE)
+        mainSink.flush(44100, 2, C.ENCODING_PCM_16BIT)
+        cueSink.flush(44100, 2, C.ENCODING_PCM_16BIT)
+
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+
+        val mainBytes = ByteArray(16) { 11 }
+        val cueBytes = ByteArray(16) { 22 }
+
+        // Active source defaults to MAIN -> Cue bytes must be ignored
+        mainSink.handleBuffer(ByteBuffer.wrap(mainBytes))
+        cueSink.handleBuffer(ByteBuffer.wrap(cueBytes))
+
+        val out1 = ByteArray(16)
+        assertEquals(16, hub.read(token, out1, clientId = clientId))
+        assertArrayEquals(mainBytes, out1)
+
+        // Switching to CUE -> Main bytes must be ignored
+        hub.activeSource = PcmSource.CUE
+        mainSink.handleBuffer(ByteBuffer.wrap(mainBytes))
+        cueSink.handleBuffer(ByteBuffer.wrap(cueBytes))
+
+        val out2 = ByteArray(16)
+        assertEquals(16, hub.read(token, out2, clientId = clientId))
+        assertArrayEquals(cueBytes, out2)
+
+        hub.closeSession()
+    }
 }

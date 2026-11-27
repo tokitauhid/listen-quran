@@ -102,10 +102,11 @@ class TranslationRepositoryTest {
         assertEquals("In the name of Allāh, the Entirely Merciful", success.translations[1])
         assertEquals("[All] praise is [due] to Allāh", success.translations[2])
 
-        // Verify stored in Room
-        assertEquals(2, dao.stored.size)
-        assertEquals(1, dao.stored[0].surahNumber)
-        assertEquals(20, dao.stored[0].translationId)
+        // Verify stored in Room (ignoring background prefetch for Surah 2)
+        val surah1Stored = dao.stored.filter { it.surahNumber == 1 }
+        assertEquals(2, surah1Stored.size)
+        assertEquals(1, surah1Stored[0].surahNumber)
+        assertEquals(20, surah1Stored[0].translationId)
     }
 
     @Test
