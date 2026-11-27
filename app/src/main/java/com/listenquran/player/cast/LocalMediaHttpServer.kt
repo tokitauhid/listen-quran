@@ -1,403 +1,326 @@
 package com.listenquran.player.cast
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.IOException
 import java.io.OutputStream
-import java.io.RandomAccessFile
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.Locale
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
-sealed interface CastMediaSource {
-    val contentType: String
-
-    data class LocalFile(
-        val file: File,
-        override val contentType: String = "audio/mpeg",
-    ) : CastMediaSource
-
-    data class RemoteHttpProxy(
-        val upstreamUrl: String,
-        override val contentType: String = "audio/mpeg",
-    ) : CastMediaSource
-}
-
+/**
+ * Lightweight local HTTP server streaming live 44.1 kHz stereo PCM audio from [PcmStreamHub]
+ * to DLNA/UPnP renderers on the same LAN.
+ *
+ * Supports WAV (`audio/wav`) and big-endian L16 (`audio/L16;rate=44100;channels=2`) fallback,
+ * streaming DLNA headers, and `HEAD` preflight requests.
+ */
 @Singleton
 class LocalMediaHttpServer @Inject constructor(
-    private val okHttpClient: OkHttpClient,
+    private val hub: PcmStreamHub,
 ) {
-    private val lock = Any()
-    private val registry = ConcurrentHashMap<String, CastMediaSource>()
-    private val streamClient: OkHttpClient = okHttpClient.newBuilder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .writeTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
+    private val serverLock = Any()
+    private val activeToken = AtomicReference<String?>(null)
+    private val activeStreamSocket = AtomicReference<Socket?>(null)
+    private val running = AtomicBoolean(false)
+    private val rendererConnectedNotified = AtomicBoolean(false)
 
     @Volatile
+    var onRendererConnected: (() -> Unit)? = null
+
     private var serverSocket: ServerSocket? = null
-
-    @Volatile
-    private var serverScope: CoroutineScope? = null
-
-    @Volatile
-    private var sessionToken: String = UUID.randomUUID().toString()
-
-    @Volatile
-    private var baseUrl: String? = null
+    private var acceptThread: Thread? = null
+    private var workerPool: ExecutorService? = null
+    private var boundHostAddress: String = "127.0.0.1"
+    private var boundPort: Int = 0
 
     val isRunning: Boolean
-        get() = serverSocket?.let { !it.isClosed } == true
+        get() = running.get()
+
+    val baseUrl: String?
+        get() = if (running.get() && boundPort > 0) "http://$boundHostAddress:$boundPort" else null
 
     fun start(bindAddress: InetAddress, port: Int = 0, forceRestart: Boolean = false): String {
-        synchronized(lock) {
-            val currentSocket = serverSocket
-            val currentBase = baseUrl
-            if (!forceRestart && currentSocket != null && !currentSocket.isClosed && currentBase != null &&
-                currentSocket.inetAddress == bindAddress
-            ) {
-                return currentBase
+        synchronized(serverLock) {
+            val host = bindAddress.hostAddress ?: "127.0.0.1"
+            if (running.get() && !forceRestart && boundHostAddress == host && serverSocket?.isClosed == false) {
+                return "http://$boundHostAddress:$boundPort"
             }
             stopLocked()
 
-            val newToken = UUID.randomUUID().toString()
-            val socket = ServerSocket(port, 16, bindAddress)
-            val host = bindAddress.hostAddress?.let {
-                if (it.contains(':')) "[$it]" else it
-            } ?: "127.0.0.1"
-            val url = "http://$host:${socket.localPort}"
+            val socket = ServerSocket(port, 16, bindAddress).apply {
+                reuseAddress = true
+                soTimeout = 500
+            }
+            val pool = Executors.newCachedThreadPool { runnable ->
+                Thread(runnable, "ListenQuran-LiveStreamWorker").apply { isDaemon = true }
+            }
 
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-            sessionToken = newToken
             serverSocket = socket
-            baseUrl = url
-            serverScope = scope
+            workerPool = pool
+            boundHostAddress = host
+            boundPort = socket.localPort
+            rendererConnectedNotified.set(false)
+            running.set(true)
 
-            scope.launch {
-                while (isActive && !socket.isClosed) {
+            acceptThread = Thread({
+                while (running.get() && !socket.isClosed) {
                     try {
                         val client = socket.accept()
-                        launch {
-                            handleClient(client, newToken)
-                        }
-                    } catch (_: IOException) {
-                        if (socket.isClosed) break
+                        pool.execute { handleClient(client) }
+                    } catch (_: SocketTimeoutException) {
+                        // Poll running flag.
+                    } catch (_: Exception) {
+                        if (running.get()) break
                     }
                 }
+            }, "ListenQuran-LiveStreamAccept").apply {
+                isDaemon = true
+                start()
             }
-            return url
+
+            return "http://$boundHostAddress:$boundPort"
         }
     }
 
-    fun sanitizeKey(mediaKey: String): String = mediaKey.replace(Regex("[^A-Za-z0-9_.-]"), "_")
-
-    fun registerMedia(mediaKey: String, source: CastMediaSource): String {
-        val currentBase = baseUrl ?: throw IllegalStateException("LocalMediaHttpServer is not started")
-        val sanitizedKey = sanitizeKey(mediaKey)
-        registry[sanitizedKey] = source
-        return "$currentBase/stream/$sessionToken/$sanitizedKey.mp3"
+    fun setSessionToken(token: String) {
+        activeToken.set(token)
+        rendererConnectedNotified.set(false)
     }
 
-    fun retainOnly(mediaKeys: Set<String>) {
-        val allowed = mediaKeys.mapTo(HashSet()) { sanitizeKey(it) }
-        registry.keys.retainAll(allowed)
-    }
-
-    fun clearMedia() {
-        registry.clear()
+    fun buildLiveStreamUrl(token: String, format: LiveStreamFormat = LiveStreamFormat.WAV): String {
+        val base = baseUrl ?: throw IllegalStateException("LocalMediaHttpServer is not running")
+        val ext = if (format == LiveStreamFormat.L16) "l16" else "wav"
+        return "$base/live/$token.$ext"
     }
 
     fun stop() {
-        synchronized(lock) {
+        synchronized(serverLock) {
             stopLocked()
         }
     }
 
     private fun stopLocked() {
-        registry.clear()
+        running.set(false)
+        activeToken.set(null)
+        rendererConnectedNotified.set(false)
+        runCatching { activeStreamSocket.getAndSet(null)?.close() }
         runCatching { serverSocket?.close() }
         serverSocket = null
-        baseUrl = null
-        serverScope?.cancel()
-        serverScope = null
+        acceptThread?.interrupt()
+        acceptThread = null
+        workerPool?.shutdownNow()
+        workerPool = null
+        boundPort = 0
     }
 
-    private fun handleClient(client: Socket, expectedToken: String) {
-        client.use { socket ->
-            socket.soTimeout = 15_000
-            val input = BufferedInputStream(socket.getInputStream())
-            val output = BufferedOutputStream(socket.getOutputStream())
+    private fun handleClient(client: Socket) {
+        client.use { sock ->
+            sock.soTimeout = 10_000
+            runCatching { sock.tcpNoDelay = true }
+            runCatching { sock.sendBufferSize = 65536 }
+            val input = BufferedInputStream(sock.getInputStream())
+            val output = sock.getOutputStream()
 
             val requestLine = readLine(input) ?: return
             val parts = requestLine.split(' ')
             if (parts.size < 2) {
-                writeStatusResponse(output, 400, "Bad Request", "Invalid request line")
+                writeStatusResponse(output, 400, "Bad Request")
                 return
             }
-
             val method = parts[0].uppercase(Locale.US)
             val rawPath = parts[1].substringBefore('?')
 
-            val headers = LinkedHashMap<String, String>()
             while (true) {
                 val line = readLine(input) ?: break
                 if (line.isEmpty()) break
-                val colon = line.indexOf(':')
-                if (colon > 0) {
-                    headers[line.substring(0, colon).trim().lowercase(Locale.US)] =
-                        line.substring(colon + 1).trim()
-                }
             }
 
             if (method != "GET" && method != "HEAD") {
-                writeStatusResponse(output, 405, "Method Not Allowed", "Only GET and HEAD supported")
+                writeStatusResponse(output, 405, "Method Not Allowed")
                 return
             }
 
-            val segments = rawPath.trimStart('/').split('/')
-            if (segments.size != 3 || segments[0] != "stream") {
-                writeStatusResponse(output, 403, "Forbidden", "Invalid stream path")
+            if (!rawPath.startsWith("/live/")) {
+                writeStatusResponse(output, 404, "Not Found")
+                return
+            }
+            val filePart = rawPath.removePrefix("/live/")
+            val format = when {
+                filePart.endsWith(".wav", ignoreCase = true) -> LiveStreamFormat.WAV
+                filePart.endsWith(".l16", ignoreCase = true) -> LiveStreamFormat.L16
+                else -> {
+                    writeStatusResponse(output, 404, "Not Found")
+                    return
+                }
+            }
+            val token = filePart.substringBeforeLast('.')
+            val expected = activeToken.get()
+            if (expected.isNullOrBlank() || token != expected || !hub.isTokenValid(token)) {
+                writeStatusResponse(output, 403, "Forbidden")
                 return
             }
 
-            val token = segments[1]
-            if (token != expectedToken) {
-                writeStatusResponse(output, 403, "Forbidden", "Invalid session token")
+            if (method == "HEAD") {
+                val headers = buildLiveHeaders(format)
+                output.write(headers.toByteArray(Charsets.US_ASCII))
+                output.flush()
                 return
             }
 
-            val filePart = segments[2]
-            val mediaKey = filePart.removeSuffix(".mp3")
-            val source = registry[mediaKey] ?: registry[filePart]
-            if (source == null) {
-                writeStatusResponse(output, 404, "Not Found", "Unknown media key")
+            val clientId = hub.beginClientStream(token)
+            if (clientId < 0L) {
+                writeStatusResponse(output, 403, "Forbidden")
                 return
             }
+            activeStreamSocket.getAndSet(sock)?.let { prev ->
+                if (prev !== sock) runCatching { prev.close() }
+            }
 
-            socket.soTimeout = 0
-            val rangeHeader = headers["range"]
-            when (source) {
-                is CastMediaSource.LocalFile -> serveLocalFile(source, method, rangeHeader, output)
-                is CastMediaSource.RemoteHttpProxy -> serveRemoteProxy(source, method, rangeHeader, output)
+            try {
+                val headers = buildLiveHeaders(format)
+                output.write(headers.toByteArray(Charsets.US_ASCII))
+                output.flush()
+
+                hub.onHttpStreamStarted()
+                if (rendererConnectedNotified.compareAndSet(false, true)) {
+                    onRendererConnected?.invoke()
+                }
+
+                if (format == LiveStreamFormat.WAV) {
+                    output.write(buildStreamingWavHeader())
+                    output.flush()
+                }
+
+                val buffer = ByteArray(32768)
+                while (running.get() && hub.isTokenValid(token)) {
+                    val n = hub.read(token = token, dst = buffer, offset = 0, maxLen = buffer.size, clientId = clientId)
+                    if (n < 0) break
+                    if (n == 0) continue
+
+                    if (format == LiveStreamFormat.L16) {
+                        swapPairsInPlace(buffer, n)
+                    }
+
+                    try {
+                        output.write(buffer, 0, n)
+                        output.flush()
+                    } catch (_: Exception) {
+                        break
+                    }
+                }
+            } finally {
+                activeStreamSocket.compareAndSet(sock, null)
             }
         }
     }
 
-    private fun serveLocalFile(
-        source: CastMediaSource.LocalFile,
-        method: String,
-        rangeHeader: String?,
-        output: OutputStream,
-    ) {
-        val file = source.file
-        if (!file.exists() || !file.isFile) {
-            writeStatusResponse(output, 404, "Not Found", "Audio file missing")
-            return
+    private fun buildLiveHeaders(format: LiveStreamFormat): String {
+        val contentType = when (format) {
+            LiveStreamFormat.WAV -> "audio/wav"
+            LiveStreamFormat.L16 -> "audio/L16;rate=${PcmStreamHub.SAMPLE_RATE_HZ};channels=${PcmStreamHub.CHANNEL_COUNT}"
         }
-
-        val totalLength = file.length()
-        if (totalLength <= 0L) {
-            writeStatusResponse(output, 200, "OK", "")
-            return
-        }
-
-        var start = 0L
-        var end = totalLength - 1L
-        var isPartial = false
-
-        if (!rangeHeader.isNullOrBlank()) {
-            val parsed = parseByteRange(rangeHeader, totalLength)
-            if (parsed == null) {
-                val header = buildString {
-                    append("HTTP/1.1 416 Range Not Satisfiable\r\n")
-                    append("Content-Range: bytes */$totalLength\r\n")
-                    append("Content-Length: 0\r\n")
-                    append("Connection: close\r\n\r\n")
-                }
-                output.write(header.toByteArray(Charsets.UTF_8))
-                output.flush()
-                return
-            }
-            start = parsed.first
-            end = parsed.second
-            isPartial = true
-        }
-
-        val contentLength = (end - start) + 1L
-        val statusLine = if (isPartial) "HTTP/1.1 206 Partial Content" else "HTTP/1.1 200 OK"
-        val header = buildString {
-            append("$statusLine\r\n")
-            append("Content-Type: ${source.contentType}\r\n")
-            append("Content-Length: $contentLength\r\n")
-            append("Accept-Ranges: bytes\r\n")
-            if (isPartial) {
-                append("Content-Range: bytes $start-$end/$totalLength\r\n")
-            }
+        val ci = if (format == LiveStreamFormat.L16) "1" else "0"
+        return buildString {
+            append("HTTP/1.1 200 OK\r\n")
+            append("Content-Type: $contentType\r\n")
             append("transferMode.dlna.org: Streaming\r\n")
-            append("contentFeatures.dlna.org: DLNA.ORG_PN=MP3;DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000\r\n")
-            append("Connection: close\r\n\r\n")
-        }
-        output.write(header.toByteArray(Charsets.UTF_8))
-        output.flush()
-
-        if (method == "HEAD") return
-
-        try {
-            RandomAccessFile(file, "r").use { raf ->
-                raf.seek(start)
-                val buffer = ByteArray(16 * 1024)
-                var remaining = contentLength
-                while (remaining > 0) {
-                    val toRead = minOf(buffer.size.toLong(), remaining).toInt()
-                    val read = raf.read(buffer, 0, toRead)
-                    if (read <= 0) break
-                    output.write(buffer, 0, read)
-                    output.flush()
-                    remaining -= read
-                }
-                output.flush()
-            }
-        } catch (_: IOException) {
-            // Client renderers often close probe connections before starting range streaming.
+            append("contentFeatures.dlna.org: DLNA.ORG_OP=00;DLNA.ORG_CI=$ci;DLNA.ORG_FLAGS=01700000000000000000000000000000\r\n")
+            append("Accept-Ranges: none\r\n")
+            append("Cache-Control: no-store, no-cache\r\n")
+            append("Connection: close\r\n")
+            append("\r\n")
         }
     }
 
-    private fun serveRemoteProxy(
-        source: CastMediaSource.RemoteHttpProxy,
-        method: String,
-        rangeHeader: String?,
-        output: OutputStream,
-    ) {
-        val reqBuilder = Request.Builder().url(source.upstreamUrl)
-        if (!rangeHeader.isNullOrBlank()) {
-            reqBuilder.header("Range", rangeHeader)
-        }
-        if (method == "HEAD") {
-            reqBuilder.head()
-        } else {
-            reqBuilder.get()
-        }
-
-        try {
-            streamClient.newCall(reqBuilder.build()).execute().use { response ->
-                val contentType = response.header("Content-Type") ?: source.contentType
-                val contentRange = response.header("Content-Range")
-                val acceptRanges = response.header("Accept-Ranges") ?: "bytes"
-                val contentLengthHeader = response.header("Content-Length")
-                    ?: response.body?.contentLength()?.takeIf { it >= 0 }?.toString()
-
-                val statusText = when (response.code) {
-                    200 -> "OK"
-                    206 -> "Partial Content"
-                    416 -> "Range Not Satisfiable"
-                    else -> response.message.ifBlank { "Error" }
-                }
-
-                val header = buildString {
-                    append("HTTP/1.1 ${response.code} $statusText\r\n")
-                    append("Content-Type: $contentType\r\n")
-                    if (contentLengthHeader != null) {
-                        append("Content-Length: $contentLengthHeader\r\n")
-                    }
-                    if (!contentRange.isNullOrBlank()) {
-                        append("Content-Range: $contentRange\r\n")
-                    }
-                    append("Accept-Ranges: $acceptRanges\r\n")
-                    append("transferMode.dlna.org: Streaming\r\n")
-                    append("contentFeatures.dlna.org: DLNA.ORG_OP=01;DLNA.ORG_FLAGS=01700000000000000000000000000000\r\n")
-                    append("Connection: close\r\n\r\n")
-                }
-                output.write(header.toByteArray(Charsets.UTF_8))
-                output.flush()
-
-                if (method == "HEAD" || !response.isSuccessful) return
-
-                val bodyStream = response.body?.byteStream() ?: return
-                val buffer = ByteArray(16 * 1024)
-                while (true) {
-                    val read = bodyStream.read(buffer)
-                    if (read <= 0) break
-                    output.write(buffer, 0, read)
-                    output.flush()
-                }
-                output.flush()
-            }
-        } catch (_: IOException) {
-            // Upstream or downstream closed mid-stream.
-        }
-    }
-
-    private fun writeStatusResponse(
-        output: OutputStream,
-        code: Int,
-        reason: String,
-        body: String,
-    ) {
-        val bytes = body.toByteArray(Charsets.UTF_8)
-        val response = buildString {
+    private fun writeStatusResponse(output: OutputStream, code: Int, reason: String) {
+        val body = "$code $reason".toByteArray(Charsets.UTF_8)
+        val headers = buildString {
             append("HTTP/1.1 $code $reason\r\n")
             append("Content-Type: text/plain; charset=utf-8\r\n")
-            append("Content-Length: ${bytes.size}\r\n")
-            append("Connection: close\r\n\r\n")
+            append("Content-Length: ${body.size}\r\n")
+            append("Connection: close\r\n")
+            append("\r\n")
         }
         runCatching {
-            output.write(response.toByteArray(Charsets.UTF_8))
-            output.write(bytes)
+            output.write(headers.toByteArray(Charsets.US_ASCII))
+            output.write(body)
             output.flush()
         }
     }
 
     private fun readLine(input: BufferedInputStream): String? {
-        val bytes = ArrayList<Byte>(64)
+        val sb = StringBuilder()
         while (true) {
-            val next = input.read()
-            if (next == -1) {
-                return if (bytes.isEmpty()) null else String(bytes.toByteArray(), Charsets.ISO_8859_1)
+            val b = input.read()
+            if (b == -1) {
+                return if (sb.isEmpty()) null else sb.toString()
             }
-            if (next == '\n'.code) break
-            if (next != '\r'.code) {
-                bytes.add(next.toByte())
+            if (b == '\n'.code) {
+                val s = sb.toString()
+                return if (s.endsWith("\r")) s.dropLast(1) else s
             }
+            sb.append(b.toChar())
+            if (sb.length > 8192) return sb.toString()
         }
-        return String(bytes.toByteArray(), Charsets.ISO_8859_1)
     }
 
-    internal fun parseByteRange(rangeHeader: String, totalLength: Long): Pair<Long, Long>? {
-        val trimmed = rangeHeader.trim()
-        if (!trimmed.startsWith("bytes=", ignoreCase = true)) return null
-        val spec = trimmed.substring(6).substringBefore(',').trim()
-        val dashIdx = spec.indexOf('-')
-        if (dashIdx < 0) return null
+    private fun swapPairsInPlace(buf: ByteArray, len: Int) {
+        var i = 0
+        while (i + 1 < len) {
+            val b0 = buf[i]
+            buf[i] = buf[i + 1]
+            buf[i + 1] = b0
+            i += 2
+        }
+    }
 
-        val startPart = spec.substring(0, dashIdx).trim()
-        val endPart = spec.substring(dashIdx + 1).trim()
+    companion object {
+        private const val STREAM_DATA_SIZE = 0x7FFFFF00
+        private const val STREAM_RIFF_SIZE = STREAM_DATA_SIZE + 36
 
-        return if (startPart.isEmpty()) {
-            val suffix = endPart.toLongOrNull() ?: return null
-            if (suffix <= 0) return null
-            val start = (totalLength - suffix).coerceAtLeast(0L)
-            start to (totalLength - 1L)
-        } else {
-            val start = startPart.toLongOrNull() ?: return null
-            val end = if (endPart.isEmpty()) totalLength - 1L else endPart.toLongOrNull() ?: return null
-            if (start < 0 || start >= totalLength || end < start) return null
-            start to end.coerceAtMost(totalLength - 1L)
+        fun buildStreamingWavHeader(): ByteArray {
+            val header = ByteArray(44)
+            fun putAscii(offset: Int, text: String) {
+                for (i in text.indices) header[offset + i] = text[i].code.toByte()
+            }
+            fun putIntLe(offset: Int, v: Int) {
+                header[offset] = (v and 0xFF).toByte()
+                header[offset + 1] = ((v ushr 8) and 0xFF).toByte()
+                header[offset + 2] = ((v ushr 16) and 0xFF).toByte()
+                header[offset + 3] = ((v ushr 24) and 0xFF).toByte()
+            }
+            fun putShortLe(offset: Int, v: Int) {
+                header[offset] = (v and 0xFF).toByte()
+                header[offset + 1] = ((v ushr 8) and 0xFF).toByte()
+            }
+
+            val sampleRate = PcmStreamHub.SAMPLE_RATE_HZ
+            val channels = PcmStreamHub.CHANNEL_COUNT
+            val bitsPerSample = PcmStreamHub.BITS_PER_SAMPLE
+            val byteRate = sampleRate * channels * (bitsPerSample / 8)
+            val blockAlign = channels * (bitsPerSample / 8)
+
+            putAscii(0, "RIFF")
+            putIntLe(4, STREAM_RIFF_SIZE)
+            putAscii(8, "WAVE")
+            putAscii(12, "fmt ")
+            putIntLe(16, 16)
+            putShortLe(20, 1)
+            putShortLe(22, channels)
+            putIntLe(24, sampleRate)
+            putIntLe(28, byteRate)
+            putShortLe(32, blockAlign)
+            putShortLe(34, bitsPerSample)
+            putAscii(36, "data")
+            putIntLe(40, STREAM_DATA_SIZE)
+            return header
         }
     }
 }

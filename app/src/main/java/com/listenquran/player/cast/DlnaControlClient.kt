@@ -225,15 +225,19 @@ class DlnaControlClient @Inject constructor(
                 val body = response.body?.string().orEmpty()
                 val parsed = DlnaXmlParser.parseSoapResponse(body)
                 if (!response.isSuccessful) {
+                    val code = parsed["errorCode"]?.takeIf { it.isNotBlank() }
                     val errDesc = parsed["errorDescription"] ?: parsed["faultstring"] ?: "HTTP ${response.code}"
+                    val detail = if (code != null) "$errDesc [code $code]" else errDesc
                     return@withContext Result.failure(
-                        IllegalStateException("DLNA $action failed ($errDesc)")
+                        IllegalStateException("DLNA $action failed ($detail)")
                     )
                 }
                 if (parsed.containsKey("faultcode") || parsed.containsKey("errorCode")) {
+                    val code = parsed["errorCode"]?.takeIf { it.isNotBlank() }
                     val errDesc = parsed["errorDescription"] ?: parsed["faultstring"] ?: "UPnP Fault"
+                    val detail = if (code != null) "$errDesc [code $code]" else errDesc
                     return@withContext Result.failure(
-                        IllegalStateException("DLNA $action fault: $errDesc")
+                        IllegalStateException("DLNA $action fault: $detail")
                     )
                 }
                 Result.success(parsed)

@@ -6,7 +6,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionToken
@@ -17,13 +20,18 @@ import com.listenquran.player.QuranForwardingPlayer
 import com.listenquran.player.QuranLibrarySessionCallback
 import com.listenquran.player.cast.DeviceDiscoveryClient
 import com.listenquran.player.cast.DlnaControlClient
+import com.listenquran.player.cast.FadeGainAudioProcessor
+import com.listenquran.player.cast.OutputDeviceManager
+import com.listenquran.player.cast.PcmStreamHub
 import com.listenquran.player.cast.RemoteControlClient
 import com.listenquran.player.cast.SsdpDiscoveryClient
+import com.listenquran.player.cast.StreamingAudioProcessorChain
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
 import javax.inject.Provider
 import javax.inject.Singleton
 
@@ -35,10 +43,14 @@ object MediaModule {
     @Singleton
     fun provideAudioAttributes(): AudioAttributes {
         return AudioAttributes.Builder()
-            .setContentType(C.AUDIO_CONTENT_TYPE_SPEECH)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
             .build()
     }
+
+    @Provides
+    @Singleton
+    fun provideMainFadeGainAudioProcessor(): FadeGainAudioProcessor = FadeGainAudioProcessor()
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Provides
@@ -73,22 +85,81 @@ object MediaModule {
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun buildStreamingExoPlayer(
+        context: Context,
+        audioAttributes: AudioAttributes,
+        handleAudioFocus: Boolean,
+        handleBecomingNoisy: Boolean,
+        cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
+        fadeGainAudioProcessor: FadeGainAudioProcessor,
+        pcmStreamHub: PcmStreamHub,
+    ): ExoPlayer {
+        val processorChain = StreamingAudioProcessorChain(
+            fadeGainAudioProcessor = fadeGainAudioProcessor,
+            pcmStreamHub = pcmStreamHub,
+        )
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setAudioProcessorChain(processorChain)
+                    .build()
+            }
+        }
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(cacheDataSourceFactory)
+
+        return ExoPlayer.Builder(context, renderersFactory)
+            .setAudioAttributes(audioAttributes, handleAudioFocus)
+            .setHandleAudioBecomingNoisy(handleBecomingNoisy)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build()
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     @Provides
     @Singleton
     fun provideExoPlayer(
         @ApplicationContext context: Context,
         audioAttributes: AudioAttributes,
         cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
+        fadeGainAudioProcessor: FadeGainAudioProcessor,
+        pcmStreamHub: PcmStreamHub,
     ): ExoPlayer {
-        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(cacheDataSourceFactory)
+        return buildStreamingExoPlayer(
+            context = context,
+            audioAttributes = audioAttributes,
+            handleAudioFocus = true,
+            handleBecomingNoisy = true,
+            cacheDataSourceFactory = cacheDataSourceFactory,
+            fadeGainAudioProcessor = fadeGainAudioProcessor,
+            pcmStreamHub = pcmStreamHub,
+        )
+    }
 
-        return ExoPlayer.Builder(context)
-            .setAudioAttributes(audioAttributes, true)
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build()
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    @Provides
+    @Singleton
+    @Named("cue")
+    fun provideCueExoPlayer(
+        @ApplicationContext context: Context,
+        audioAttributes: AudioAttributes,
+        cacheDataSourceFactory: androidx.media3.datasource.cache.CacheDataSource.Factory,
+        pcmStreamHub: PcmStreamHub,
+    ): ExoPlayer {
+        return buildStreamingExoPlayer(
+            context = context,
+            audioAttributes = audioAttributes,
+            handleAudioFocus = false,
+            handleBecomingNoisy = false,
+            cacheDataSourceFactory = cacheDataSourceFactory,
+            fadeGainAudioProcessor = FadeGainAudioProcessor(),
+            pcmStreamHub = pcmStreamHub,
+        )
     }
 
     @Provides
@@ -97,6 +168,7 @@ object MediaModule {
         @ApplicationContext context: Context,
         player: ExoPlayer,
         playerManagerProvider: Provider<AudioPlayerManager>,
+        outputDeviceManager: OutputDeviceManager,
         callback: QuranLibrarySessionCallback,
     ): MediaLibrarySession {
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -109,7 +181,7 @@ object MediaModule {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val forwardingPlayer = QuranForwardingPlayer(player, playerManagerProvider)
+        val forwardingPlayer = QuranForwardingPlayer(player, playerManagerProvider, outputDeviceManager)
 
         return MediaLibrarySession.Builder(context, forwardingPlayer, callback)
             .setSessionActivity(pendingIntent)

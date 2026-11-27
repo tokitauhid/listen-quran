@@ -8,118 +8,171 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.io.File
 import java.net.InetAddress
-import java.net.ServerSocket
+import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class LocalMediaHttpServerTest {
 
+    private lateinit var hub: PcmStreamHub
     private lateinit var server: LocalMediaHttpServer
-    private lateinit var tempFile: File
-    private val sampleBytes = ByteArray(1024) { idx -> (idx % 251).toByte() }
+    private lateinit var client: OkHttpClient
 
     @Before
     fun setup() {
-        server = LocalMediaHttpServer(OkHttpClient())
-        tempFile = File.createTempFile("surah_test", ".mp3").apply {
-            writeBytes(sampleBytes)
-            deleteOnExit()
-        }
+        hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 80L)
+        server = LocalMediaHttpServer(hub)
         server.start(InetAddress.getLoopbackAddress())
+        client = OkHttpClient.Builder()
+            .readTimeout(2, TimeUnit.SECONDS)
+            .build()
     }
 
     @After
     fun tearDown() {
+        hub.closeSession()
         server.stop()
-        tempFile.delete()
     }
 
     @Test
-    fun `serves local file GET, HEAD, and RFC 7233 206 Partial Content byte ranges`() {
-        val url = server.registerMedia("surah_36", CastMediaSource.LocalFile(tempFile))
-        val client = OkHttpClient()
+    fun `serves HEAD and live WAV stream with 44-byte RIFF header and DLNA headers`() {
+        val token = hub.openSession()
+        server.setSessionToken(token)
+        val url = server.buildLiveStreamUrl(token, LiveStreamFormat.WAV)
 
-        // HEAD check
+        val connected = AtomicBoolean(false)
+        server.onRendererConnected = { connected.set(true) }
+
         client.newCall(Request.Builder().url(url).head().build()).execute().use { resp ->
             assertEquals(200, resp.code)
-            assertEquals("audio/mpeg", resp.header("Content-Type"))
-            assertEquals("1024", resp.header("Content-Length"))
-            assertEquals("bytes", resp.header("Accept-Ranges"))
+            assertEquals("audio/wav", resp.header("Content-Type"))
             assertEquals("Streaming", resp.header("transferMode.dlna.org"))
+            assertTrue(resp.header("contentFeatures.dlna.org")!!.contains("DLNA.ORG_OP=00"))
         }
 
-        // Full GET
+        val samplePcm = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
+        hub.handleBuffer(ByteBuffer.wrap(samplePcm))
+
+        val closer = thread {
+            Thread.sleep(80)
+            hub.closeSession()
+        }
+
         client.newCall(Request.Builder().url(url).get().build()).execute().use { resp ->
             assertEquals(200, resp.code)
-            assertArrayEquals(sampleBytes, resp.body!!.bytes())
-        }
+            val stream = resp.body!!.byteStream()
+            val header = ByteArray(44)
+            var total = 0
+            while (total < 44) {
+                val n = stream.read(header, total, 44 - total)
+                if (n < 0) break
+                total += n
+            }
+            assertEquals(44, total)
+            assertEquals("RIFF", String(header, 0, 4))
+            assertEquals("WAVE", String(header, 8, 4))
+            assertEquals("fmt ", String(header, 12, 4))
+            assertEquals("data", String(header, 36, 4))
 
-        // 206 Partial Content
-        val rangeReq = Request.Builder().url(url).header("Range", "bytes=100-199").get().build()
-        client.newCall(rangeReq).execute().use { resp ->
-            assertEquals(206, resp.code)
-            assertEquals("bytes 100-199/1024", resp.header("Content-Range"))
-            assertEquals("100", resp.header("Content-Length"))
-            assertArrayEquals(sampleBytes.copyOfRange(100, 200), resp.body!!.bytes())
+            val pcmOut = ByteArray(8)
+            var pcmRead = 0
+            while (pcmRead < 8) {
+                val n = stream.read(pcmOut, pcmRead, 8 - pcmRead)
+                if (n < 0) break
+                pcmRead += n
+            }
+            assertEquals(8, pcmRead)
+            assertArrayEquals(samplePcm, pcmOut)
         }
+        closer.join(1000)
+        assertTrue(connected.get())
     }
 
     @Test
-    fun `rejects invalid session token with 403 and unknown media key with 404`() {
-        val url = server.registerMedia("surah_1", CastMediaSource.LocalFile(tempFile))
-        val badTokenUrl = url.replace(Regex("/stream/[^/]+/"), "/stream/wrong-token/")
-        val missingKeyUrl = url.replace("surah_1.mp3", "surah_999.mp3")
-        val client = OkHttpClient()
+    fun `swaps bytes to big-endian for L16 fallback and rejects invalid token with 403`() {
+        val token = hub.openSession()
+        server.setSessionToken(token)
+        val badUrl = server.buildLiveStreamUrl("wrong_token", LiveStreamFormat.WAV)
 
-        client.newCall(Request.Builder().url(badTokenUrl).get().build()).execute().use { resp ->
+        client.newCall(Request.Builder().url(badUrl).get().build()).execute().use { resp ->
             assertEquals(403, resp.code)
         }
-        client.newCall(Request.Builder().url(missingKeyUrl).get().build()).execute().use { resp ->
-            assertEquals(404, resp.code)
+
+        val l16Url = server.buildLiveStreamUrl(token, LiveStreamFormat.L16)
+        hub.handleBuffer(ByteBuffer.wrap(byteArrayOf(0x11, 0x22, 0x33, 0x44)))
+        val closer = thread {
+            Thread.sleep(60)
+            hub.closeSession()
         }
+        client.newCall(Request.Builder().url(l16Url).get().build()).execute().use { resp ->
+            assertEquals(200, resp.code)
+            assertEquals("audio/L16;rate=44100;channels=2", resp.header("Content-Type"))
+            val firstFour = ByteArray(4)
+            var read = 0
+            val s = resp.body!!.byteStream()
+            while (read < 4) {
+                val n = s.read(firstFour, read, 4 - read)
+                if (n < 0) break
+                read += n
+            }
+            assertEquals(4, read)
+            assertArrayEquals(byteArrayOf(0x22, 0x11, 0x44, 0x33), firstFour)
+        }
+        closer.join(1000)
     }
 
     @Test
-    fun `proxies remote http stream including byte range header forwarding`() {
-        val upstreamSocket = ServerSocket(0, 4, InetAddress.getLoopbackAddress())
-        var capturedRangeHeader: String? = null
-        val upstreamThread = thread {
-            upstreamSocket.use { ss ->
-                ss.accept().use { sock ->
-                    val reader = sock.getInputStream().bufferedReader()
-                    while (true) {
-                        val line = reader.readLine() ?: break
-                        if (line.isEmpty()) break
-                        if (line.startsWith("Range:", ignoreCase = true)) {
-                            capturedRangeHeader = line.substringAfter(':').trim()
-                        }
+    fun `second GET client supersedes first reader so streams never steal frames`() {
+        val token = hub.openSession()
+        server.setSessionToken(token)
+        val l16Url = server.buildLiveStreamUrl(token, LiveStreamFormat.L16)
+
+        val stream1Connected = java.util.concurrent.CountDownLatch(1)
+        val stream1Ended = AtomicBoolean(false)
+        val t1 = thread {
+            runCatching {
+                client.newCall(Request.Builder().url(l16Url).get().build()).execute().use { resp ->
+                    stream1Connected.countDown()
+                    val buf = ByteArray(1024)
+                    val s = resp.body!!.byteStream()
+                    while (s.read(buf) >= 0) {
+                        // Consume until superseded by second client
                     }
-                    val slice = "hello-quran-audio".toByteArray()
-                    val header = buildString {
-                        append("HTTP/1.1 206 Partial Content\r\n")
-                        append("Content-Type: audio/mpeg\r\n")
-                        append("Content-Range: bytes 0-${slice.size - 1}/${slice.size}\r\n")
-                        append("Content-Length: ${slice.size}\r\n")
-                        append("Connection: close\r\n\r\n")
-                    }
-                    sock.getOutputStream().write(header.toByteArray())
-                    sock.getOutputStream().write(slice)
-                    sock.getOutputStream().flush()
                 }
             }
+            stream1Ended.set(true)
         }
 
-        val upstreamUrl = "http://127.0.0.1:${upstreamSocket.localPort}/audio/036.mp3"
-        val proxyUrl = server.registerMedia("proxy_36", CastMediaSource.RemoteHttpProxy(upstreamUrl))
-        val client = OkHttpClient()
+        assertTrue(stream1Connected.await(2, TimeUnit.SECONDS))
 
-        client.newCall(Request.Builder().url(proxyUrl).header("Range", "bytes=0-16").get().build()).execute().use { resp ->
-            assertEquals(206, resp.code)
-            assertEquals("hello-quran-audio", resp.body!!.string())
+        val payload = byteArrayOf(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x01)
+        client.newCall(Request.Builder().url(l16Url).get().build()).execute().use { resp2 ->
+            assertEquals(200, resp2.code)
+            t1.join(1500)
+            assertTrue("First stream should close immediately when superseded", stream1Ended.get())
+
+            hub.handleBuffer(ByteBuffer.wrap(payload))
+            val closer = thread {
+                Thread.sleep(60)
+                hub.closeSession()
+            }
+
+            val got = ByteArray(8)
+            var total = 0
+            val s2 = resp2.body!!.byteStream()
+            while (total < 8) {
+                val n = s2.read(got, total, 8 - total)
+                if (n < 0) break
+                total += n
+            }
+            assertEquals(8, total)
+            assertArrayEquals(
+                byteArrayOf(0x22, 0x11, 0x44, 0x33, 0x66, 0x55, 0x01, 0x77),
+                got,
+            )
+            closer.join(1000)
         }
-        upstreamThread.join(2000)
-        assertEquals("bytes=0-16", capturedRangeHeader)
-        assertTrue(server.isRunning)
     }
 }

@@ -123,6 +123,39 @@ object DlnaXmlParser {
         }
     }
 
+    fun buildLiveDidlLiteMetadata(
+        metadata: LiveTrackMetadata,
+        streamUrl: String,
+        format: LiveStreamFormat = LiveStreamFormat.WAV,
+    ): String {
+        val protocolInfo = when (format) {
+            LiveStreamFormat.WAV ->
+                "http-get:*:audio/wav:DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000"
+            LiveStreamFormat.L16 ->
+                "http-get:*:audio/L16;rate=44100;channels=2:DLNA.ORG_OP=00;DLNA.ORG_CI=1;DLNA.ORG_FLAGS=01700000000000000000000000000000"
+        }
+        val artworkElement = if (!metadata.artworkUrl.isNullOrBlank()) {
+            "<upnp:albumArtURI>${escapeXml(metadata.artworkUrl)}</upnp:albumArtURI>"
+        } else {
+            ""
+        }
+        return buildString {
+            append("""<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" """)
+            append("""xmlns:dc="http://purl.org/dc/elements/1.1/" """)
+            append("""xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">""")
+            append("""<item id="0" parentID="-1" restricted="1">""")
+            append("<dc:title>${escapeXml(metadata.title)}</dc:title>")
+            append("<dc:creator>${escapeXml(metadata.artist)}</dc:creator>")
+            append("<upnp:artist>${escapeXml(metadata.artist)}</upnp:artist>")
+            append("<upnp:album>${escapeXml(metadata.album)}</upnp:album>")
+            append(artworkElement)
+            append("<upnp:class>object.item.audioItem.musicTrack</upnp:class>")
+            append("""<res protocolInfo="${escapeXml(protocolInfo)}">${escapeXml(streamUrl)}</res>""")
+            append("</item>")
+            append("</DIDL-Lite>")
+        }
+    }
+
     fun buildDidlLiteMetadata(
         title: String,
         artist: String,

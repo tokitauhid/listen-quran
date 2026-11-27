@@ -9,6 +9,8 @@ enum class CastProtocol {
 
 enum class OutputDeviceType {
     PHONE,
+    BLUETOOTH,
+    WIRED,
     TV,
     SPEAKER,
     RECEIVER,
@@ -20,6 +22,11 @@ enum class CastConnectionState {
     CONNECTING,
     CONNECTED,
     ERROR
+}
+
+enum class LiveStreamFormat {
+    WAV,
+    L16
 }
 
 @Immutable
@@ -38,7 +45,7 @@ data class OutputDevice(
     companion object {
         val LOCAL_PHONE = OutputDevice(
             id = "local_phone",
-            name = "This Phone",
+            name = "This phone",
             protocol = CastProtocol.LOCAL,
             deviceType = OutputDeviceType.PHONE,
         )
@@ -54,6 +61,7 @@ data class OutputRouteState(
     val remoteVolume: Int = 50,
     val isRemoteMuted: Boolean = false,
     val errorMessage: String? = null,
+    val speakerDelayMs: Long = 0L,
 ) {
     val isCasting: Boolean
         get() = activeDevice.protocol != CastProtocol.LOCAL &&
@@ -64,15 +72,10 @@ data class OutputRouteState(
             connectionState == CastConnectionState.CONNECTING
 }
 
-data class RemoteTrackDescriptor(
-    val mediaKey: String,
+data class LiveTrackMetadata(
     val title: String,
     val artist: String,
-    val album: String,
-    val streamUrl: String?,
-    val localFilePath: String?,
-    val durationMs: Long = 0L,
-    val startPositionMs: Long = 0L,
+    val album: String = "The Holy Quran",
     val artworkUrl: String? = null,
 )
 

@@ -1,11 +1,19 @@
 package com.listenquran.player.cast
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,34 +23,57 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Manages DLNA speaker discovery (background M-SEARCH + passive SSDP multicast + DataStore cache),
+ * live PCM/WAV/L16 streaming sessions over [LocalMediaHttpServer] + [PcmStreamHub],
+ * remote volume control, and renderer transport monitoring with latency estimation.
+ */
 @Singleton
 class OutputDeviceManager internal constructor(
     private val discoveryClient: DeviceDiscoveryClient,
     private val controlClient: RemoteControlClient,
     private val mediaServer: LocalMediaHttpServer,
-    private val pollIntervalMs: Long = 500L,
-    private val seekDelayMs: Long = 350L,
+    private val pcmStreamHub: PcmStreamHub,
+    private val deviceCache: CastDeviceCache? = null,
+    private val appContext: Context? = null,
+    private val pollIntervalMs: Long = 2000L,
+    private val connectPollIntervalMs: Long = 200L,
     private val connectTimeoutMs: Long = 10_000L,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     @Suppress("UNUSED_PARAMETER") testMarker: Any? = null,
 ) {
     @Inject
     constructor(
+        @ApplicationContext context: Context,
         discoveryClient: DeviceDiscoveryClient,
         controlClient: RemoteControlClient,
         mediaServer: LocalMediaHttpServer,
-    ) : this(discoveryClient, controlClient, mediaServer, 500L, 350L, 10_000L, Dispatchers.IO, null)
+        pcmStreamHub: PcmStreamHub,
+        deviceCache: CastDeviceCache,
+    ) : this(
+        discoveryClient = discoveryClient,
+        controlClient = controlClient,
+        mediaServer = mediaServer,
+        pcmStreamHub = pcmStreamHub,
+        deviceCache = deviceCache,
+        appContext = context,
+        pollIntervalMs = 2000L,
+        connectPollIntervalMs = 200L,
+        connectTimeoutMs = 10_000L,
+        ioDispatcher = Dispatchers.IO,
+        testMarker = null,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val opLock = Any()
     private val pollGeneration = AtomicLong(0L)
     private val sessionGeneration = AtomicLong(0L)
-    private val trackGeneration = AtomicLong(0L)
 
     private val _routeState = MutableStateFlow(OutputRouteState())
     val routeState: StateFlow<OutputRouteState> = _routeState.asStateFlow()
@@ -50,10 +81,15 @@ class OutputDeviceManager internal constructor(
     val isCasting: Boolean
         get() = _routeState.value.isCasting
 
-    var onRemotePositionUpdate: ((positionMs: Long, durationMs: Long) -> Unit)? = null
-    var onRemotePlayStateChanged: ((isPlaying: Boolean, isBuffering: Boolean) -> Unit)? = null
-    var onRemoteTrackEnded: ((advancedToNextUri: Boolean) -> Unit)? = null
+    val speakerDelayMs: Long
+        get() = _routeState.value.speakerDelayMs
+
+    var onRendererConnected: (() -> Unit)? = null
     var onRemoteConnectionLost: ((deviceName: String, reason: String) -> Unit)? = null
+    var onRemotePlayPauseRequested: ((isPlaying: Boolean) -> Unit)? = null
+
+    private val preferredFormats = ConcurrentHashMap<String, LiveStreamFormat>()
+    private val cacheLoaded = AtomicBoolean(false)
 
     @Volatile
     private var activeOpJob: Job? = null
@@ -62,45 +98,191 @@ class OutputDeviceManager internal constructor(
     private var pollJob: Job? = null
 
     @Volatile
-    private var lastKnownPositionMs: Long = 0L
+    private var discoveryLoopJob: Job? = null
 
     @Volatile
-    private var currentServedUri: String? = null
+    private var passiveListenerJob: Job? = null
 
     @Volatile
-    private var currentMediaKey: String? = null
+    private var scanJob: Job? = null
 
     @Volatile
-    private var nextServedUri: String? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     @Volatile
-    private var nextMediaKey: String? = null
+    private var intentionalPause: Boolean = false
 
     @Volatile
-    private var hasObservedPlayingForCurrentTrack: Boolean = false
+    private var currentLiveUrl: String? = null
+
+    @Volatile
+    private var currentDidlXml: String? = null
+
+    @Volatile
+    private var expectedFormat: LiveStreamFormat = LiveStreamFormat.WAV
+
+    @Volatile
+    private var lastMetadata: LiveTrackMetadata = LiveTrackMetadata(
+        title = "Listen Quran",
+        artist = "Quran Recitation",
+    )
+
+    init {
+        mediaServer.onRendererConnected = {
+            onRendererConnected?.invoke()
+        }
+    }
+
+    fun startBackgroundDiscovery() {
+        scope.launch {
+            ensureCacheLoaded()
+        }
+        synchronized(opLock) {
+            if (discoveryLoopJob?.isActive == true) return
+            discoveryLoopJob = scope.launch {
+                while (isActive) {
+                    scanForDevicesInternal(timeoutMs = 3000L)
+                    delay(30_000L)
+                }
+            }
+            if (passiveListenerJob?.isActive != true) {
+                passiveListenerJob = scope.launch {
+                    discoveryClient.passiveDiscoveryFlow().collect { event ->
+                        when (event) {
+                            is SsdpPassiveEvent.Alive -> mergeDiscoveredDevice(event.device)
+                            is SsdpPassiveEvent.ByeBye -> removeDiscoveredDeviceByKey(event.locationOrUsn)
+                        }
+                    }
+                }
+            }
+            registerWifiCallbackLocked()
+        }
+    }
+
+    fun stopBackgroundDiscovery() {
+        synchronized(opLock) {
+            discoveryLoopJob?.cancel()
+            discoveryLoopJob = null
+            passiveListenerJob?.cancel()
+            passiveListenerJob = null
+            scanJob?.cancel()
+            scanJob = null
+            unregisterWifiCallbackLocked()
+        }
+    }
 
     suspend fun scanForDevices() {
+        ensureCacheLoaded()
+        scanForDevicesInternal(timeoutMs = 3000L)
+    }
+
+    private suspend fun scanForDevicesInternal(timeoutMs: Long) {
         _routeState.update { it.copy(isScanning = true, errorMessage = null) }
-        val discovered = runCatching { discoveryClient.discoverDevices(3000L) }.getOrDefault(emptyList())
-        _routeState.update { state ->
-            val merged = if (state.activeDevice.protocol != CastProtocol.LOCAL &&
-                discovered.none { it.id == state.activeDevice.id }
-            ) {
-                (listOf(state.activeDevice) + discovered).distinctBy { it.id }
-            } else {
-                discovered
+        runCatching {
+            discoveryClient.discoverDevicesFlow(timeoutMs).collect { device ->
+                mergeDiscoveredDevice(device)
             }
+        }
+        _routeState.update { it.copy(isScanning = false) }
+        deviceCache?.save(_routeState.value.discoveredDevices, preferredFormats)
+    }
+
+    private suspend fun ensureCacheLoaded() {
+        if (!cacheLoaded.compareAndSet(false, true)) return
+        val cache = deviceCache ?: return
+        val (cachedDevices, cachedFormats) = cache.load()
+        preferredFormats.putAll(cachedFormats)
+        if (cachedDevices.isEmpty()) return
+
+        _routeState.update { state ->
+            val merged = (state.discoveredDevices + cachedDevices)
+                .distinctBy { it.id }
+                .sortedBy { it.name.lowercase() }
+            state.copy(discoveredDevices = merged)
+        }
+
+        scope.launch {
+            val verified = cachedDevices.map { dev ->
+                async {
+                    val loc = dev.locationUrl
+                    if (loc.isNullOrBlank()) dev else discoveryClient.verifyDevice(loc)
+                }
+            }.awaitAll().filterNotNull()
+            val verifiedIds = verified.map { it.id }.toSet()
+            _routeState.update { state ->
+                val updated = state.discoveredDevices.filter { existing ->
+                    val wasCachedOnly = cachedDevices.any { it.id == existing.id }
+                    !wasCachedOnly || existing.id in verifiedIds || existing.id == state.activeDevice.id
+                }.let { list ->
+                    (list + verified).distinctBy { it.id }.sortedBy { it.name.lowercase() }
+                }
+                state.copy(discoveredDevices = updated)
+            }
+        }
+    }
+
+    private fun mergeDiscoveredDevice(device: OutputDevice) {
+        if (device.protocol != CastProtocol.DLNA) return
+        _routeState.update { state ->
+            val filtered = state.discoveredDevices.filterNot { it.id == device.id }
+            val updated = (filtered + device).sortedBy { it.name.lowercase() }
+            val updatedActive = if (state.activeDevice.id == device.id) device else state.activeDevice
             state.copy(
-                discoveredDevices = merged.sortedBy { it.name.lowercase() },
-                isScanning = false,
+                activeDevice = updatedActive,
+                discoveredDevices = updated,
             )
         }
     }
 
+    private fun removeDiscoveredDeviceByKey(key: String) {
+        _routeState.update { state ->
+            val remaining = state.discoveredDevices.filterNot { dev ->
+                (dev.id == key || dev.locationUrl == key) && dev.id != state.activeDevice.id
+            }
+            state.copy(discoveredDevices = remaining)
+        }
+    }
+
+    private fun registerWifiCallbackLocked() {
+        val ctx = appContext ?: return
+        if (networkCallback != null) return
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                scanJob?.cancel()
+                scanJob = scope.launch {
+                    delay(400L)
+                    scanForDevicesInternal(3000L)
+                }
+            }
+
+            override fun onLost(network: Network) {
+                scanJob?.cancel()
+                scanJob = scope.launch {
+                    scanForDevicesInternal(1500L)
+                }
+            }
+        }
+        runCatching {
+            cm.registerNetworkCallback(request, cb)
+            networkCallback = cb
+        }
+    }
+
+    private fun unregisterWifiCallbackLocked() {
+        val ctx = appContext ?: return
+        val cb = networkCallback ?: return
+        networkCallback = null
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        runCatching { cm.unregisterNetworkCallback(cb) }
+    }
+
     suspend fun connectToDevice(
         device: OutputDevice,
-        currentTrack: RemoteTrackDescriptor?,
-        nextTrack: RemoteTrackDescriptor? = null,
+        metadata: LiveTrackMetadata? = null,
         autoPlay: Boolean = true,
     ): Result<Unit> {
         if (device.protocol == CastProtocol.LOCAL) {
@@ -110,10 +292,8 @@ class OutputDeviceManager internal constructor(
 
         val callerJob = currentCoroutineContext()[Job]
         val myGen: Long
-        val myTrackGen: Long
         synchronized(opLock) {
             myGen = sessionGeneration.incrementAndGet()
-            myTrackGen = trackGeneration.incrementAndGet()
             activeOpJob?.cancel()
             activeOpJob = callerJob
             stopPollingLocked()
@@ -121,7 +301,7 @@ class OutputDeviceManager internal constructor(
 
         val lanIp = discoveryClient.getLocalLanIpv4Address()
         if (lanIp == null) {
-            val msg = "Connect to Wi-Fi to cast to network speakers"
+            val msg = "Connect to Wi-Fi to play on network speakers"
             if (sessionGeneration.get() == myGen) {
                 _routeState.update {
                     it.copy(
@@ -134,20 +314,30 @@ class OutputDeviceManager internal constructor(
             return Result.failure(IllegalStateException(msg))
         }
 
+        if (metadata != null) {
+            lastMetadata = metadata
+        }
+        intentionalPause = !autoPlay
+
         _routeState.update {
             it.copy(
                 activeDevice = device,
                 connectionState = CastConnectionState.CONNECTING,
                 errorMessage = null,
+                speakerDelayMs = 0L,
             )
         }
 
+        val token = pcmStreamHub.openSession()
+        pcmStreamHub.paused = false
+
         try {
             mediaServer.start(lanIp, forceRestart = true)
-            mediaServer.clearMedia()
+            mediaServer.setSessionToken(token)
         } catch (e: Exception) {
+            pcmStreamHub.closeSession()
             if (sessionGeneration.get() == myGen) {
-                val msg = "Failed to start local cast stream server: ${e.message}"
+                val msg = "Failed to start audio stream server: ${e.message}"
                 _routeState.update {
                     it.copy(
                         activeDevice = OutputDevice.LOCAL_PHONE,
@@ -159,48 +349,38 @@ class OutputDeviceManager internal constructor(
             return Result.failure(e)
         }
 
-        lastKnownPositionMs = currentTrack?.startPositionMs?.coerceAtLeast(0L) ?: 0L
-        hasObservedPlayingForCurrentTrack = false
-        currentServedUri = null
-        currentMediaKey = null
-        nextServedUri = null
-        nextMediaKey = null
+        val initialFormat = preferredFormats[device.id] ?: LiveStreamFormat.WAV
 
         try {
-            val handshakeOk: Result<Unit>? = withTimeoutOrNull(connectTimeoutMs) {
-                if (currentTrack != null) {
-                    val loadRes = pushTrackInternal(device, currentTrack, nextTrack, autoPlay, myGen, myTrackGen)
-                    if (loadRes.isFailure) return@withTimeoutOrNull loadRes
+            var res = startStreamOnRenderer(device, token, initialFormat, myGen)
+            if (res.isFailure && initialFormat == LiveStreamFormat.WAV && isOperationCurrent(myGen)) {
+                val msg = res.exceptionOrNull()?.message.orEmpty()
+                val isFormatReject = msg.contains("714") ||
+                    msg.contains("Illegal MIME", ignoreCase = true) ||
+                    msg.contains("Timed out", ignoreCase = true)
+                if (isFormatReject) {
+                    pcmStreamHub.clearBuffer()
+                    res = startStreamOnRenderer(device, token, LiveStreamFormat.L16, myGen)
+                    if (res.isSuccess) {
+                        preferredFormats[device.id] = LiveStreamFormat.L16
+                        deviceCache?.save(_routeState.value.discoveredDevices, preferredFormats)
+                    }
                 }
-                Result.success(Unit)
+            } else if (res.isSuccess) {
+                preferredFormats[device.id] = initialFormat
             }
 
-            if (!isOperationCurrent(myGen, myTrackGen)) {
+            if (!isOperationCurrent(myGen)) {
                 synchronized(opLock) {
                     if (activeOpJob == callerJob) activeOpJob = null
                 }
                 return Result.failure(CancellationException("Cast connection superseded or cancelled"))
             }
 
-            if (handshakeOk == null) {
+            if (res.isFailure) {
+                pcmStreamHub.closeSession()
                 mediaServer.stop()
-                val timeoutMsg = "Timed out connecting to ${device.name}"
-                synchronized(opLock) {
-                    if (activeOpJob == callerJob) activeOpJob = null
-                }
-                _routeState.update {
-                    it.copy(
-                        activeDevice = OutputDevice.LOCAL_PHONE,
-                        connectionState = CastConnectionState.ERROR,
-                        errorMessage = timeoutMsg,
-                    )
-                }
-                return Result.failure(IllegalStateException(timeoutMsg))
-            }
-
-            if (handshakeOk.isFailure) {
-                mediaServer.stop()
-                val errMsg = handshakeOk.exceptionOrNull()?.message ?: "Failed to start playback on ${device.name}"
+                val errMsg = res.exceptionOrNull()?.message ?: "Could not connect to ${device.name}"
                 synchronized(opLock) {
                     if (activeOpJob == callerJob) activeOpJob = null
                 }
@@ -211,11 +391,11 @@ class OutputDeviceManager internal constructor(
                         errorMessage = errMsg,
                     )
                 }
-                return handshakeOk
+                return res
             }
 
             val initialVolume = controlClient.getVolume(device).getOrNull() ?: _routeState.value.remoteVolume
-            if (!isOperationCurrent(myGen, myTrackGen)) {
+            if (!isOperationCurrent(myGen)) {
                 synchronized(opLock) {
                     if (activeOpJob == callerJob) activeOpJob = null
                 }
@@ -245,6 +425,7 @@ class OutputDeviceManager internal constructor(
                 if (activeOpJob == callerJob) activeOpJob = null
             }
             if (sessionGeneration.get() == myGen) {
+                pcmStreamHub.closeSession()
                 mediaServer.stop()
                 _routeState.update {
                     it.copy(
@@ -258,89 +439,50 @@ class OutputDeviceManager internal constructor(
         }
     }
 
-    suspend fun loadTrackOnActiveDevice(
-        currentTrack: RemoteTrackDescriptor,
-        nextTrack: RemoteTrackDescriptor? = null,
-        autoPlay: Boolean = true,
+    private suspend fun startStreamOnRenderer(
+        device: OutputDevice,
+        token: String,
+        format: LiveStreamFormat,
+        expectedGen: Long,
     ): Result<Unit> {
-        val callerJob = currentCoroutineContext()[Job]
-        val device: OutputDevice
-        val myGen: Long
-        val myTrackGen: Long
-        synchronized(opLock) {
-            val state = _routeState.value
-            if (!state.isCasting || state.activeDevice.protocol == CastProtocol.LOCAL) {
-                return Result.failure(IllegalStateException("Not connected to a remote output device"))
-            }
-            device = state.activeDevice
-            myGen = sessionGeneration.get()
-            myTrackGen = trackGeneration.incrementAndGet()
-            activeOpJob?.cancel()
-            activeOpJob = callerJob
-            stopPollingLocked()
-        }
+        val streamUrl = mediaServer.buildLiveStreamUrl(token, format)
+        val didl = DlnaXmlParser.buildLiveDidlLiteMetadata(lastMetadata, streamUrl, format)
+        expectedFormat = format
+        currentLiveUrl = streamUrl
+        currentDidlXml = didl
 
-        hasObservedPlayingForCurrentTrack = false
-        lastKnownPositionMs = currentTrack.startPositionMs.coerceAtLeast(0L)
+        val outcome = withTimeoutOrNull(connectTimeoutMs) {
+            if (!isOperationCurrent(expectedGen)) return@withTimeoutOrNull Result.failure<Unit>(CancellationException())
 
-        return try {
-            val res = withTimeoutOrNull(connectTimeoutMs) {
-                pushTrackInternal(device, currentTrack, nextTrack, autoPlay, myGen, myTrackGen)
-            } ?: Result.failure(IllegalStateException("Timed out loading track on ${device.name}"))
+            controlClient.stop(device)
+            if (!isOperationCurrent(expectedGen)) return@withTimeoutOrNull Result.failure<Unit>(CancellationException())
 
-            if (!isOperationCurrent(myGen, myTrackGen)) {
-                return Result.failure(CancellationException("Cast session or track superseded"))
-            }
+            val setUriRes = controlClient.setTransportUri(device, streamUrl, didl)
+            if (setUriRes.isFailure) return@withTimeoutOrNull setUriRes
+            if (!isOperationCurrent(expectedGen)) return@withTimeoutOrNull Result.failure<Unit>(CancellationException())
 
-            if (res.isSuccess) {
-                synchronized(opLock) {
-                    if (isOperationCurrent(myGen, myTrackGen)) {
-                        if (activeOpJob == callerJob) activeOpJob = null
-                        startPollingLocked(device, myGen)
-                    }
+            val playRes = controlClient.play(device)
+            if (playRes.isFailure) return@withTimeoutOrNull playRes
+
+            while (isOperationCurrent(expectedGen)) {
+                val state = controlClient.getTransportInfo(device).getOrNull()
+                if (state == RemoteTransportState.PLAYING) {
+                    return@withTimeoutOrNull Result.success(Unit)
                 }
-            } else {
-                synchronized(opLock) {
-                    if (activeOpJob == callerJob) activeOpJob = null
-                }
-                _routeState.update { it.copy(errorMessage = res.exceptionOrNull()?.message) }
+                delay(connectPollIntervalMs)
             }
-            res
-        } catch (ce: CancellationException) {
-            synchronized(opLock) {
-                if (activeOpJob == callerJob) activeOpJob = null
-            }
-            throw ce
+            Result.failure(CancellationException())
         }
-    }
 
-    suspend fun updateNextTrackOnActiveDevice(nextTrack: RemoteTrackDescriptor?): Result<Unit> {
-        val device = activeRemoteDeviceOrNull()
-            ?: return Result.failure(IllegalStateException("Not connected to a remote output device"))
-        if (nextTrack == null) {
-            nextServedUri = null
-            nextMediaKey = null
-            currentMediaKey?.let { mediaServer.retainOnly(setOf(it)) }
-            return Result.success(Unit)
-        }
-        val resolvedNext = resolveAndRegister(nextTrack)
-            ?: return Result.failure(IllegalStateException("No playable audio source for ${nextTrack.title}"))
-        val keepKeys = buildSet {
-            currentMediaKey?.let { add(it) }
-            add(nextTrack.mediaKey)
-        }
-        mediaServer.retainOnly(keepKeys)
-        nextServedUri = resolvedNext.first
-        nextMediaKey = nextTrack.mediaKey
-        return controlClient.setNextTransportUri(device, resolvedNext.first, resolvedNext.second)
+        return outcome ?: Result.failure(IllegalStateException("Timed out connecting to ${device.name}"))
     }
 
     suspend fun playRemote(): Result<Unit> {
         val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
+        intentionalPause = false
+        pcmStreamHub.paused = false
         val res = controlClient.play(device)
-        if (res.isSuccess) {
-            onRemotePlayStateChanged?.invoke(true, false)
-        } else {
+        if (res.isFailure) {
             _routeState.update { it.copy(errorMessage = res.exceptionOrNull()?.message) }
         }
         return res
@@ -348,20 +490,9 @@ class OutputDeviceManager internal constructor(
 
     suspend fun pauseRemote(): Result<Unit> {
         val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
+        intentionalPause = true
+        pcmStreamHub.paused = true
         val res = controlClient.pause(device)
-        if (res.isSuccess) {
-            onRemotePlayStateChanged?.invoke(false, false)
-        } else {
-            _routeState.update { it.copy(errorMessage = res.exceptionOrNull()?.message) }
-        }
-        return res
-    }
-
-    suspend fun seekRemote(positionMs: Long): Result<Unit> {
-        val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
-        val clamped = positionMs.coerceAtLeast(0L)
-        lastKnownPositionMs = clamped
-        val res = controlClient.seek(device, clamped)
         if (res.isFailure) {
             _routeState.update { it.copy(errorMessage = res.exceptionOrNull()?.message) }
         }
@@ -371,29 +502,27 @@ class OutputDeviceManager internal constructor(
     suspend fun setRemoteVolume(volume: Int): Result<Unit> {
         val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
         val clamped = volume.coerceIn(0, 100)
-        val res = controlClient.setVolume(device, clamped)
-        if (res.isSuccess) {
-            _routeState.update { it.copy(remoteVolume = clamped, isRemoteMuted = clamped == 0) }
-        }
-        return res
+        _routeState.update { it.copy(remoteVolume = clamped, isRemoteMuted = clamped == 0) }
+        return controlClient.setVolume(device, clamped)
+    }
+
+    suspend fun setRemoteMuted(mute: Boolean): Result<Unit> {
+        val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
+        _routeState.update { it.copy(isRemoteMuted = mute) }
+        return controlClient.setMute(device, mute)
     }
 
     suspend fun toggleRemoteMute(): Result<Unit> {
-        val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
-        val targetMute = !_routeState.value.isRemoteMuted
-        val res = controlClient.setMute(device, targetMute)
-        if (res.isSuccess) {
-            _routeState.update { it.copy(isRemoteMuted = targetMute) }
-        }
-        return res
+        return setRemoteMuted(!_routeState.value.isRemoteMuted)
     }
 
     /**
-     * Immediately cancels any pending connect/poll work, shuts down the local HTTP bridge,
-     * resets routing state to the phone, and sends Stop asynchronously to avoid freezing UI.
+     * Immediately stops streaming, shuts down the HTTP bridge, resets routing to the local device,
+     * sends Stop asynchronously, and returns the estimated [speakerDelayMs] so local playback
+     * can seek back to match what the listener actually heard on the speaker.
      */
-    suspend fun disconnect(): Long {
-        val lastPos = lastKnownPositionMs
+    suspend fun disconnect(sendStop: Boolean = true): Long {
+        val delayEstimate = _routeState.value.speakerDelayMs
         val prevDevice = _routeState.value.activeDevice
         synchronized(opLock) {
             sessionGeneration.incrementAndGet()
@@ -402,12 +531,11 @@ class OutputDeviceManager internal constructor(
             activeOpJob = null
         }
 
+        intentionalPause = false
+        currentLiveUrl = null
+        currentDidlXml = null
+        pcmStreamHub.closeSession()
         mediaServer.stop()
-        currentServedUri = null
-        currentMediaKey = null
-        nextServedUri = null
-        nextMediaKey = null
-        hasObservedPlayingForCurrentTrack = false
 
         _routeState.update { state ->
             state.copy(
@@ -415,142 +543,32 @@ class OutputDeviceManager internal constructor(
                 connectionState = CastConnectionState.DISCONNECTED,
                 isRemoteMuted = false,
                 errorMessage = null,
+                speakerDelayMs = 0L,
             )
         }
 
-        if (prevDevice.protocol != CastProtocol.LOCAL) {
+        if (sendStop && prevDevice.protocol != CastProtocol.LOCAL) {
             scope.launch {
                 withTimeoutOrNull(1500L) {
                     controlClient.stop(prevDevice)
                 }
             }
         }
-        return lastPos
+        return delayEstimate
     }
 
-    private fun isOperationCurrent(expectedSessionGen: Long, expectedTrackGen: Long): Boolean {
-        return sessionGeneration.get() == expectedSessionGen && trackGeneration.get() == expectedTrackGen
+    suspend fun disconnectAndAwaitStop() {
+        val prevDevice = _routeState.value.activeDevice
+        disconnect(sendStop = false)
+        if (prevDevice.protocol != CastProtocol.LOCAL) {
+            withTimeoutOrNull(1400L) {
+                controlClient.stop(prevDevice)
+            }
+        }
     }
 
-    private suspend fun pushTrackInternal(
-        device: OutputDevice,
-        currentTrack: RemoteTrackDescriptor,
-        nextTrack: RemoteTrackDescriptor?,
-        autoPlay: Boolean,
-        expectedSessionGen: Long,
-        expectedTrackGen: Long,
-    ): Result<Unit> {
-        val resolvedCurrent = resolveAndRegister(currentTrack)
-            ?: return Result.failure(IllegalStateException("No playable audio source for ${currentTrack.title}"))
-
-        if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-            return Result.failure(CancellationException("Cast session cancelled"))
-        }
-
-        // Reset renderer pipeline to STOPPED before setting a new URI so UPnP renderers
-        // (notably gmediarender) never treat Play() as a no-op or resume a paused/stalled stream.
-        // Ignore errors because idle renderers in NO_MEDIA_PRESENT legally return UPnP fault 701.
-        controlClient.stop(device)
-
-        if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-            return Result.failure(CancellationException("Cast session cancelled"))
-        }
-
-        val setUriRes = controlClient.setTransportUri(device, resolvedCurrent.first, resolvedCurrent.second)
-        if (setUriRes.isFailure) return setUriRes
-
-        if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-            return Result.failure(CancellationException("Cast session cancelled"))
-        }
-
-        currentServedUri = resolvedCurrent.first
-        currentMediaKey = currentTrack.mediaKey
-        nextServedUri = null
-        nextMediaKey = null
-        mediaServer.retainOnly(setOf(currentTrack.mediaKey))
-
-        if (autoPlay) {
-            val shouldSeek = currentTrack.startPositionMs > 1500L &&
-                (currentTrack.durationMs <= 0L ||
-                    currentTrack.durationMs <= currentTrack.startPositionMs ||
-                    currentTrack.startPositionMs < currentTrack.durationMs - 2000L)
-            val prePlayPos = if (shouldSeek) controlClient.getPositionInfo(device).getOrNull() else null
-
-            val playRes = controlClient.play(device)
-            if (playRes.isFailure) return playRes
-
-            if (shouldSeek) {
-                val hasStalePrePlay = prePlayPos != null &&
-                    (prePlayPos.trackDurationMs > 0L || prePlayPos.relTimeMs > 0L)
-                var sought = false
-                for (attempt in 0 until 12) {
-                    if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-                        return Result.failure(CancellationException("Cast session cancelled"))
-                    }
-                    if (seekDelayMs > 0L) delay(seekDelayMs)
-                    if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-                        return Result.failure(CancellationException("Cast session cancelled"))
-                    }
-                    val tState = controlClient.getTransportInfo(device).getOrNull()
-                    if (tState == RemoteTransportState.PLAYING) {
-                        val pos = controlClient.getPositionInfo(device).getOrNull()
-                        val readyForSeek = pos != null &&
-                            (pos.trackDurationMs > 0L || pos.relTimeMs > 0L) &&
-                            (!hasStalePrePlay || pos.relTimeMs != prePlayPos?.relTimeMs || pos.trackDurationMs != prePlayPos?.trackDurationMs)
-                        if (readyForSeek) {
-                            controlClient.seek(device, currentTrack.startPositionMs)
-                            sought = true
-                            break
-                        }
-                    }
-                }
-                if (!sought && isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-                    controlClient.seek(device, currentTrack.startPositionMs)
-                }
-            }
-        }
-
-        if (!isOperationCurrent(expectedSessionGen, expectedTrackGen)) {
-            return Result.failure(CancellationException("Cast session cancelled"))
-        }
-
-        if (nextTrack != null) {
-            val resolvedNext = resolveAndRegister(nextTrack)
-            if (resolvedNext != null) {
-                nextServedUri = resolvedNext.first
-                nextMediaKey = nextTrack.mediaKey
-                controlClient.setNextTransportUri(device, resolvedNext.first, resolvedNext.second)
-            }
-        } else {
-            nextServedUri = null
-            nextMediaKey = null
-        }
-
-        return Result.success(Unit)
-    }
-
-    private fun resolveAndRegister(track: RemoteTrackDescriptor): Pair<String, String>? {
-        val localFile = track.localFilePath?.let { File(it) }?.takeIf { it.exists() && it.isFile }
-        val source: CastMediaSource = when {
-            localFile != null -> CastMediaSource.LocalFile(localFile)
-            !track.streamUrl.isNullOrBlank() && track.streamUrl.startsWith("file://") -> {
-                val f = File(track.streamUrl.removePrefix("file://"))
-                if (f.exists()) CastMediaSource.LocalFile(f) else return null
-            }
-            !track.streamUrl.isNullOrBlank() -> CastMediaSource.RemoteHttpProxy(track.streamUrl)
-            else -> return null
-        }
-
-        val servedUrl = mediaServer.registerMedia(track.mediaKey, source)
-        val didl = DlnaXmlParser.buildDidlLiteMetadata(
-            title = track.title,
-            artist = track.artist,
-            album = track.album,
-            streamUrl = servedUrl,
-            durationMs = track.durationMs.takeIf { it > 0L },
-            artworkUrl = track.artworkUrl,
-        )
-        return servedUrl to didl
+    private fun isOperationCurrent(expectedSessionGen: Long): Boolean {
+        return sessionGeneration.get() == expectedSessionGen
     }
 
     private fun stopPollingLocked() {
@@ -563,6 +581,7 @@ class OutputDeviceManager internal constructor(
         val gen = pollGeneration.incrementAndGet()
         pollJob = scope.launch {
             var consecutiveFailures = 0
+            var recoveryAttempted = false
             while (isActive && pollGeneration.get() == gen && sessionGeneration.get() == expectedSessionGen) {
                 delay(pollIntervalMs)
                 if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
@@ -580,55 +599,56 @@ class OutputDeviceManager internal constructor(
                     continue
                 }
 
-                val posRes = controlClient.getPositionInfo(device)
-                if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
-
                 consecutiveFailures = 0
                 val transport = transportRes.getOrNull() ?: RemoteTransportState.UNKNOWN
-                val pos = posRes.getOrNull()
 
-                val expectedNextUri = nextServedUri
-                if (expectedNextUri != null && pos?.trackUri == expectedNextUri) {
-                    currentServedUri = expectedNextUri
-                    currentMediaKey = nextMediaKey
-                    nextServedUri = null
-                    nextMediaKey = null
-                    hasObservedPlayingForCurrentTrack = true
-                    onRemoteTrackEnded?.invoke(true)
-                    continue
-                }
+                val posRes = controlClient.getPositionInfo(device)
+                if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
+                val pos = posRes.getOrNull()
 
                 when (transport) {
                     RemoteTransportState.PLAYING -> {
-                        hasObservedPlayingForCurrentTrack = true
-                        onRemotePlayStateChanged?.invoke(true, false)
-                        if (pos != null) {
-                            lastKnownPositionMs = pos.relTimeMs
-                            onRemotePositionUpdate?.invoke(pos.relTimeMs, pos.trackDurationMs)
+                        recoveryAttempted = false
+                        if (pos != null && pos.relTimeMs > 0L) {
+                            val writtenMs = pcmStreamHub.streamMsWritten
+                            if (writtenMs >= pos.relTimeMs) {
+                                val sampleDelay = (writtenMs - pos.relTimeMs).coerceIn(0L, 5000L)
+                                _routeState.update { state ->
+                                    val prev = state.speakerDelayMs
+                                    val ema = if (prev <= 0L) sampleDelay else ((prev * 7 + sampleDelay * 3) / 10)
+                                    state.copy(speakerDelayMs = ema.coerceIn(0L, 5000L))
+                                }
+                            }
                         }
                     }
-                    RemoteTransportState.TRANSITIONING -> {
-                        onRemotePlayStateChanged?.invoke(true, true)
-                    }
                     RemoteTransportState.PAUSED -> {
-                        onRemotePlayStateChanged?.invoke(false, false)
-                        if (pos != null) {
-                            lastKnownPositionMs = pos.relTimeMs
-                            onRemotePositionUpdate?.invoke(pos.relTimeMs, pos.trackDurationMs)
+                        if (!intentionalPause) {
+                            intentionalPause = true
+                            pcmStreamHub.paused = true
+                            onRemotePlayPauseRequested?.invoke(false)
                         }
                     }
                     RemoteTransportState.STOPPED, RemoteTransportState.NO_MEDIA -> {
-                        onRemotePlayStateChanged?.invoke(false, false)
-                        val dur = pos?.trackDurationMs ?: 0L
-                        val rel = pos?.relTimeMs ?: lastKnownPositionMs
-                        val reachedEnd = hasObservedPlayingForCurrentTrack &&
-                            (dur <= 0L || rel >= (dur - 3000L).coerceAtLeast(0L) || rel == 0L)
-                        if (reachedEnd) {
-                            hasObservedPlayingForCurrentTrack = false
-                            onRemoteTrackEnded?.invoke(false)
+                        if (!intentionalPause) {
+                            if (!recoveryAttempted) {
+                                recoveryAttempted = true
+                                val url = currentLiveUrl
+                                val didl = currentDidlXml
+                                if (url != null && didl != null) {
+                                    val setRes = controlClient.setTransportUri(device, url, didl)
+                                    val playRes = if (setRes.isSuccess) controlClient.play(device) else setRes
+                                    if (playRes.isFailure) {
+                                        handleConnectionLost(device.name, "Playback stopped on speaker", expectedSessionGen)
+                                        break
+                                    }
+                                }
+                            } else {
+                                handleConnectionLost(device.name, "Speaker stopped playback", expectedSessionGen)
+                                break
+                            }
                         }
                     }
-                    RemoteTransportState.UNKNOWN -> Unit
+                    RemoteTransportState.TRANSITIONING, RemoteTransportState.UNKNOWN -> Unit
                 }
             }
         }
@@ -641,18 +661,18 @@ class OutputDeviceManager internal constructor(
             stopPollingLocked()
             activeOpJob = null
         }
+        intentionalPause = false
+        currentLiveUrl = null
+        currentDidlXml = null
+        pcmStreamHub.closeSession()
         mediaServer.stop()
-        currentServedUri = null
-        currentMediaKey = null
-        nextServedUri = null
-        nextMediaKey = null
-        hasObservedPlayingForCurrentTrack = false
         _routeState.update { state ->
             state.copy(
                 activeDevice = OutputDevice.LOCAL_PHONE,
                 connectionState = CastConnectionState.DISCONNECTED,
                 isRemoteMuted = false,
-                errorMessage = "Connection to $deviceName lost",
+                errorMessage = "Lost connection to $deviceName",
+                speakerDelayMs = 0L,
             )
         }
         onRemoteConnectionLost?.invoke(deviceName, reason)

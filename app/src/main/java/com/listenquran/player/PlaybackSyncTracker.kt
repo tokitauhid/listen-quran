@@ -61,6 +61,12 @@ class PlaybackSyncTracker internal constructor(
     var isHifzActive: Boolean = false
     var isRadio: Boolean = false
 
+    @Volatile
+    var outputLatencyMs: Long = 0L
+
+    @Volatile
+    var playbackSpeedProvider: () -> Float = { 1.0f }
+
     /**
      * Resets timing data immediately when a media item transition starts,
      * ensuring stale timings from the previous Surah are never matched.
@@ -147,7 +153,9 @@ class PlaybackSyncTracker internal constructor(
                 while (isActive) {
                     val player = playerProvider()
                     if (player != null && player.isPlaying) {
-                        val pos = player.currentPosition
+                        val rawPos = player.currentPosition
+                        val delayOffset = (outputLatencyMs * playbackSpeedProvider()).toLong().coerceAtLeast(0L)
+                        val pos = (rawPos - delayOffset).coerceAtLeast(0L)
                         _currentPositionMs.value = pos
                         processPosition(pos)
                     }
