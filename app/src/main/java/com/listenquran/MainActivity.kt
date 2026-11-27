@@ -38,6 +38,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         viewModel.startBackgroundDiscovery()
+        viewModel.autoCheckForUpdatesIfDue()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.onResumeCheckInstallPermission(this)
     }
 
     override fun onStop() {

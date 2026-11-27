@@ -69,6 +69,8 @@ fun ListenQuranNavHost(
                 val currentPositionMs by viewModel.currentPositionMs.collectAsStateWithLifecycle()
                 val surahProgressList by viewModel.surahProgressList.collectAsStateWithLifecycle()
                 val defaultReciter by viewModel.defaultReciter.collectAsStateWithLifecycle()
+                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                val dismissedUpdateTag by viewModel.dismissedUpdateTag.collectAsStateWithLifecycle()
 
                 HomeScreen(
                     surahs = surahs,
@@ -112,6 +114,10 @@ fun ListenQuranNavHost(
                     onSaveCategoryAsPlaylist = { category, entries ->
                         viewModel.saveCategoryAsPlaylist(category, entries)
                     },
+                    updateState = updateState,
+                    dismissedUpdateTag = dismissedUpdateTag,
+                    onOpenUpdateSheet = { viewModel.openUpdateSheet() },
+                    onDismissUpdateBanner = { viewModel.dismissUpdateBanner(it) },
                     resetTrigger = homeResetTrigger,
                 )
             }
@@ -189,6 +195,9 @@ fun ListenQuranNavHost(
                 val totalDownloadedBytes by viewModel.totalDownloadedBytes.collectAsStateWithLifecycle()
                 val allReciters by viewModel.reciters.collectAsStateWithLifecycle()
                 val dynamicColorEnabled by viewModel.dynamicColorEnabled.collectAsStateWithLifecycle()
+                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                val autoCheckUpdates by viewModel.autoCheckUpdates.collectAsStateWithLifecycle()
+                val lastUpdateCheckMs by viewModel.lastUpdateCheckMs.collectAsStateWithLifecycle()
 
                 SettingsScreen(
                     currentTheme = themeMode,
@@ -222,6 +231,12 @@ fun ListenQuranNavHost(
                     onSetTransitionFadeSeconds = { viewModel.setTransitionFadeSeconds(it) },
                     onSetTransitionGapMs = { viewModel.setTransitionGapMs(it) },
                     onToggleBismillahBetweenSurahs = { viewModel.setBismillahBetweenSurahs(it) },
+                    updateState = updateState,
+                    autoCheckUpdates = autoCheckUpdates,
+                    lastUpdateCheckMs = lastUpdateCheckMs,
+                    onCheckForUpdates = { viewModel.checkForUpdates(openSheet = true) },
+                    onToggleAutoCheckUpdates = { viewModel.setAutoCheckUpdates(it) },
+                    onOpenUpdateSheet = { viewModel.openUpdateSheet() },
                     onBack = { navController.popBackStack() },
                 )
             }

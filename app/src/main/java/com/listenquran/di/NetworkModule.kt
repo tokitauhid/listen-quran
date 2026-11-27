@@ -1,5 +1,6 @@
 package com.listenquran.di
 
+import com.listenquran.data.remote.GithubUpdateService
 import com.listenquran.data.remote.QuranApiService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -50,5 +51,16 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(QuranApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGithubUpdateService(okHttpClient: OkHttpClient, moshi: Moshi): GithubUpdateService {
+        return Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(GithubUpdateService::class.java)
     }
 }

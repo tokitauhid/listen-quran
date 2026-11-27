@@ -14,6 +14,9 @@ import com.listenquran.player.SleepTimerMode
 import com.listenquran.player.cast.LocalAudioOutput
 import com.listenquran.player.cast.OutputDevice
 import com.listenquran.player.cast.OutputRouteState
+import com.listenquran.update.AppUpdateManager
+import com.listenquran.update.AppUpdateState
+import com.listenquran.update.UpdateReleaseInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +79,7 @@ class MainViewModel @Inject constructor(
     private val repetitionPresetRepository: com.listenquran.data.repository.RepetitionPresetRepository,
     private val likedRepository: com.listenquran.data.repository.LikedRepository,
     private val backupManager: com.listenquran.data.backup.BackupManager,
+    private val appUpdateManager: AppUpdateManager,
     val playerManager: AudioPlayerManager,
 ) : ViewModel() {
 
@@ -1199,5 +1203,60 @@ class MainViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    // ── In-App Updates (GitHub Releases OTA) ────────────────────────────────
+
+    val updateState: StateFlow<AppUpdateState> = appUpdateManager.updateState
+    val showUpdateSheet: StateFlow<Boolean> = appUpdateManager.showUpdateSheet
+    val autoCheckUpdates: StateFlow<Boolean> = appUpdateManager.autoCheckEnabled
+    val dismissedUpdateTag: StateFlow<String?> = appUpdateManager.dismissedTag
+    val lastUpdateCheckMs: StateFlow<Long> = appUpdateManager.lastCheckedAtMs
+
+    fun autoCheckForUpdatesIfDue() {
+        appUpdateManager.autoCheckIfDue()
+    }
+
+    fun checkForUpdates(openSheet: Boolean = false) {
+        appUpdateManager.checkForUpdates(manual = true)
+        if (openSheet) {
+            appUpdateManager.openUpdateSheet()
+        }
+    }
+
+    fun openUpdateSheet() {
+        appUpdateManager.openUpdateSheet()
+    }
+
+    fun closeUpdateSheet() {
+        appUpdateManager.closeUpdateSheet()
+    }
+
+    fun downloadUpdate(release: UpdateReleaseInfo) {
+        appUpdateManager.downloadUpdate(release)
+    }
+
+    fun cancelUpdateDownload() {
+        appUpdateManager.cancelDownload()
+    }
+
+    fun dismissUpdateBanner(tagName: String) {
+        appUpdateManager.dismissBannerForTag(tagName)
+    }
+
+    fun setAutoCheckUpdates(enabled: Boolean) {
+        appUpdateManager.setAutoCheckEnabled(enabled)
+    }
+
+    fun buildUnknownSourcesIntent(hostContext: Context): android.content.Intent {
+        return appUpdateManager.buildUnknownSourcesIntent(hostContext)
+    }
+
+    fun onResumeCheckInstallPermission(hostContext: Context) {
+        appUpdateManager.onResumeCheckInstallPermission(hostContext)
+    }
+
+    fun launchUpdateInstall(hostContext: Context) {
+        appUpdateManager.launchInstall(hostContext)
     }
 }

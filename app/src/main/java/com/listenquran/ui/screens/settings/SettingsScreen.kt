@@ -52,6 +52,7 @@ import com.listenquran.domain.model.ListeningStatsSummary
 import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.ThemeMode
 import com.listenquran.ui.components.LocalMiniPlayerInset
+import com.listenquran.update.AppUpdateState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -90,6 +91,12 @@ fun SettingsScreen(
     onSetTransitionFadeSeconds: (Int) -> Unit = {},
     onSetTransitionGapMs: (Int) -> Unit = {},
     onToggleBismillahBetweenSurahs: (Boolean) -> Unit = {},
+    updateState: AppUpdateState = AppUpdateState.Idle,
+    autoCheckUpdates: Boolean = true,
+    lastUpdateCheckMs: Long = 0L,
+    onCheckForUpdates: () -> Unit = {},
+    onToggleAutoCheckUpdates: (Boolean) -> Unit = {},
+    onOpenUpdateSheet: () -> Unit = {},
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -299,7 +306,14 @@ fun SettingsScreen(
 
             // 9. ABOUT SECTION
             item(key = "section_about") {
-                AboutSection()
+                AboutSection(
+                    updateState = updateState,
+                    autoCheckUpdates = autoCheckUpdates,
+                    lastCheckedAtMs = lastUpdateCheckMs,
+                    onCheckForUpdates = onCheckForUpdates,
+                    onToggleAutoCheckUpdates = onToggleAutoCheckUpdates,
+                    onOpenUpdateSheet = onOpenUpdateSheet,
+                )
             }
         }
     }
@@ -1726,6 +1740,12 @@ private fun BackupRestoreSection(
 
 @Composable
 private fun AboutSection(
+    updateState: AppUpdateState = AppUpdateState.Idle,
+    autoCheckUpdates: Boolean = true,
+    lastCheckedAtMs: Long = 0L,
+    onCheckForUpdates: () -> Unit = {},
+    onToggleAutoCheckUpdates: (Boolean) -> Unit = {},
+    onOpenUpdateSheet: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showWhatsNewDialog by remember { mutableStateOf(false) }
@@ -1817,6 +1837,118 @@ private fun AboutSection(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+
+            // Check for Updates row
+            val updateSubtitle = when (updateState) {
+                AppUpdateState.Checking -> "Checking GitHub Releases…"
+                is AppUpdateState.UpToDate -> {
+                    val timeLabel = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+                        .format(Date(updateState.checkedAtMs))
+                    "Up to date · Checked $timeLabel"
+                }
+                is AppUpdateState.UpdateAvailable -> "Update available: v${updateState.release.versionName}"
+                is AppUpdateState.Downloading -> "Downloading v${updateState.release.versionName}…"
+                is AppUpdateState.Verifying -> "Verifying v${updateState.release.versionName}…"
+                is AppUpdateState.NeedsInstallPermission -> "Tap to allow install permission"
+                is AppUpdateState.ReadyToInstall -> "Ready to install v${updateState.release.versionName}"
+                is AppUpdateState.SignatureConflict -> "Signature conflict · Tap for details"
+                is AppUpdateState.Error -> updateState.message
+                AppUpdateState.Idle -> {
+                    if (lastCheckedAtMs > 0L) {
+                        val timeLabel = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+                            .format(Date(lastCheckedAtMs))
+                        "Last checked $timeLabel"
+                    } else {
+                        "Tap to check GitHub Releases"
+                    }
+                }
+            }
+            val hasActionableUpdate = updateState is AppUpdateState.UpdateAvailable ||
+                updateState is AppUpdateState.Downloading ||
+                updateState is AppUpdateState.Verifying ||
+                updateState is AppUpdateState.NeedsInstallPermission ||
+                updateState is AppUpdateState.ReadyToInstall ||
+                updateState is AppUpdateState.SignatureConflict
+            Surface(
+                onClick = {
+                    if (hasActionableUpdate) onOpenUpdateSheet() else onCheckForUpdates()
+                },
+                shape = RoundedCornerShape(10.dp),
+                color = if (hasActionableUpdate) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.SystemUpdate,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                "Check for Updates",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = updateSubtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (hasActionableUpdate) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Auto-check for updates",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        "Quietly check GitHub Releases every 12 hours",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = autoCheckUpdates,
+                    onCheckedChange = onToggleAutoCheckUpdates,
+                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)

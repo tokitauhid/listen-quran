@@ -50,6 +50,7 @@ import com.listenquran.domain.model.Reciter
 import com.listenquran.domain.model.Surah
 import com.listenquran.ui.components.LocalMiniPlayerInset
 import com.listenquran.ui.components.MiniPlayer
+import com.listenquran.ui.components.UpdateBottomSheet
 import com.listenquran.ui.navigation.ListenQuranNavHost
 import com.listenquran.ui.navigation.TopLevelDestination
 import com.listenquran.ui.navigation.navigateToTab
@@ -103,6 +104,8 @@ fun ListenQuranApp(
     val defaultReciterId by viewModel.defaultReciterId.collectAsStateWithLifecycle()
     val sleepTimerState by viewModel.sleepTimerState.collectAsStateWithLifecycle()
     val customSleepTimerMinutes by viewModel.customSleepTimerMinutes.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val showUpdateSheet by viewModel.showUpdateSheet.collectAsStateWithLifecycle()
 
     var showFullPlayer by remember { mutableStateOf(false) }
     var showVersesSheet by remember { mutableStateOf(false) }
@@ -716,6 +719,29 @@ fun ListenQuranApp(
                 onSetVolume = { vol -> viewModel.setRemoteVolume(vol) },
                 onToggleMute = { viewModel.toggleRemoteMute() },
                 onDismiss = { showOutputPickerSheet = false }
+            )
+        }
+
+        if (showUpdateSheet) {
+            UpdateBottomSheet(
+                state = updateState,
+                onDownload = { release -> viewModel.downloadUpdate(release) },
+                onCancelDownload = { viewModel.cancelUpdateDownload() },
+                onInstall = { viewModel.launchUpdateInstall(context) },
+                onRequestPermission = {
+                    runCatching {
+                        context.startActivity(viewModel.buildUnknownSourcesIntent(context))
+                    }
+                },
+                onOpenBrowser = { url ->
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        )
+                    }
+                },
+                onRetryCheck = { viewModel.checkForUpdates(openSheet = true) },
+                onDismiss = { viewModel.closeUpdateSheet() },
             )
         }
 

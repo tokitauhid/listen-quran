@@ -53,7 +53,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.listenquran.domain.model.*
 import com.listenquran.player.SleepTimerMode
+import com.listenquran.ui.components.HomeUpdateBanner
 import com.listenquran.ui.components.PlaylistArtworkMosaic
+import com.listenquran.update.AppUpdateState
 import com.listenquran.ui.screens.categories.CategoryCard
 import com.listenquran.ui.screens.categories.CategoryDetailSheet
 import com.listenquran.ui.screens.categories.FeaturedCategoryBanner
@@ -103,6 +105,10 @@ fun HomeScreen(
     onOpenFullPlayer: () -> Unit = {},
     onNavigateToRadio: (() -> Unit)? = null,
     onOpenKhatam: (() -> Unit)? = null,
+    updateState: AppUpdateState = AppUpdateState.Idle,
+    dismissedUpdateTag: String? = null,
+    onOpenUpdateSheet: () -> Unit = {},
+    onDismissUpdateBanner: (String) -> Unit = {},
     resetTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
@@ -625,6 +631,24 @@ fun HomeScreen(
                         surahs = surahs,
                         onSurahClick = onSurahClick,
                     )
+                }
+
+                // 0a. Optional Subtle Update Banner (never interrupts playback)
+                val bannerRelease = when (updateState) {
+                    is AppUpdateState.UpdateAvailable -> updateState.release
+                    is AppUpdateState.ReadyToInstall -> updateState.release
+                    is AppUpdateState.NeedsInstallPermission -> updateState.release
+                    is AppUpdateState.Downloading -> updateState.release
+                    else -> null
+                }
+                if (bannerRelease != null && bannerRelease.tagName != dismissedUpdateTag) {
+                    item(key = "home_update_banner") {
+                        HomeUpdateBanner(
+                            release = bannerRelease,
+                            onViewUpdate = onOpenUpdateSheet,
+                            onDismiss = { onDismissUpdateBanner(bannerRelease.tagName) },
+                        )
+                    }
                 }
 
                 // 0b. Jump Back In Hero Card
