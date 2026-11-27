@@ -11,6 +11,7 @@ import com.listenquran.domain.model.*
 import com.listenquran.player.AudioPlayerManager
 import com.listenquran.player.PlaybackState
 import com.listenquran.player.SleepTimerMode
+import com.listenquran.player.cast.LocalAudioOutput
 import com.listenquran.player.cast.OutputDevice
 import com.listenquran.player.cast.OutputRouteState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -187,6 +188,15 @@ class MainViewModel @Inject constructor(
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val outputRouteState: StateFlow<OutputRouteState> = playerManager.outputRouteState
+    val localOutputs: StateFlow<List<LocalAudioOutput>> = playerManager.localOutputs
+    val activeLocalOutput: StateFlow<LocalAudioOutput> = playerManager.activeLocalOutput
+    val surahProgressList: StateFlow<List<com.listenquran.player.SurahResumeProgress>> =
+        playerManager.surahProgressList.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    data class RemoteVolumeHudState(val deviceName: String, val volume: Int, val updatedAtMs: Long)
+    private val _remoteVolumeHud = MutableStateFlow<RemoteVolumeHudState?>(null)
+    val remoteVolumeHud: StateFlow<RemoteVolumeHudState?> = _remoteVolumeHud.asStateFlow()
+    private var remoteVolumeHudJob: kotlinx.coroutines.Job? = null
     val queueState: StateFlow<com.listenquran.player.PlaybackQueueState> = playerManager.queueState
     val currentPositionMs: StateFlow<Long> = playerManager.currentPositionMs
     val currentWordIndex: StateFlow<Int> = playerManager.currentWordIndex
@@ -194,9 +204,6 @@ class MainViewModel @Inject constructor(
     val sleepTimerState: StateFlow<com.listenquran.player.SleepTimerState> = playerManager.sleepTimerState
     val customSleepTimerMinutes: StateFlow<Int> = userPreferencesRepository.customSleepTimerMinutes
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 20)
-
-    private val _pendingHifzWhileCasting = MutableStateFlow<HifzLoopConfig?>(null)
-    val pendingHifzWhileCasting: StateFlow<HifzLoopConfig?> = _pendingHifzWhileCasting.asStateFlow()
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val isCurrentSurahLiked: StateFlow<Boolean> = combine(
@@ -312,6 +319,23 @@ class MainViewModel @Inject constructor(
         playerManager.playSurah(surah, targetReciter, startAyah)
     }
 
+    fun resumeSurahProgress(progress: com.listenquran.player.SurahResumeProgress) {
+        val currentState = playbackState.value
+        if (currentState.currentSurah?.id == progress.surahId &&
+            currentState.currentReciter?.id == progress.reciterId &&
+            !currentState.isRadio
+        ) {
+            playerManager.togglePlayPause()
+            return
+        }
+        val surah = surahs.value.find { it.id == progress.surahId } ?: return
+        val reciter = reciters.value.find { it.id == progress.reciterId }
+            ?: defaultReciter.value
+            ?: reciters.value.firstOrNull()
+            ?: return
+        playerManager.playSurahAtPosition(surah, reciter, progress.positionMs, queueTitle = "Continue Listening")
+    }
+
     fun playSurahById(surahId: Int, startAyah: Int = 1, reciterId: Int? = null) {
         viewModelScope.launch {
             val surah = quranRepository.getSurahById(surahId) ?: return@launch
@@ -399,8 +423,20 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    fun startBackgroundDiscovery() {
+        playerManager.startBackgroundDiscovery()
+    }
+
+    fun stopBackgroundDiscovery() {
+        playerManager.stopBackgroundDiscovery()
+    }
+
     fun scanOutputDevices() {
         playerManager.scanOutputDevices()
+    }
+
+    fun selectLocalOutput(output: LocalAudioOutput) {
+        playerManager.selectLocalOutput(output)
     }
 
     fun connectToOutputDevice(device: OutputDevice) {
@@ -415,33 +451,29 @@ class MainViewModel @Inject constructor(
         playerManager.setRemoteVolume(volume)
     }
 
+    fun adjustRemoteVolume(delta: Int) {
+        val route = outputRouteState.value
+        if (!route.isCasting) return
+        val target = (route.remoteVolume + delta).coerceIn(0, 100)
+        playerManager.setRemoteVolume(target)
+        _remoteVolumeHud.value = RemoteVolumeHudState(
+            deviceName = route.activeDevice.name,
+            volume = target,
+            updatedAtMs = System.currentTimeMillis(),
+        )
+        remoteVolumeHudJob?.cancel()
+        remoteVolumeHudJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(1600L)
+            _remoteVolumeHud.value = null
+        }
+    }
+
     fun toggleRemoteMute() {
         playerManager.toggleRemoteMute()
     }
 
     fun startHifzLoop(config: HifzLoopConfig) {
-        if (outputRouteState.value.isCasting) {
-            _pendingHifzWhileCasting.value = config
-            return
-        }
         startHifzLoopInternal(config)
-    }
-
-    fun confirmHifzSwitchToPhone() {
-        val config = _pendingHifzWhileCasting.value ?: return
-        _pendingHifzWhileCasting.value = null
-        playerManager.disconnectOutputDevice(resumeLocal = true)
-        startHifzLoopInternal(config)
-    }
-
-    fun confirmHifzContinueCasting() {
-        val config = _pendingHifzWhileCasting.value ?: return
-        _pendingHifzWhileCasting.value = null
-        startHifzLoopInternal(config)
-    }
-
-    fun dismissHifzCastingPrompt() {
-        _pendingHifzWhileCasting.value = null
     }
 
     private fun startHifzLoopInternal(config: HifzLoopConfig) {
@@ -625,6 +657,24 @@ class MainViewModel @Inject constructor(
     fun setHifzPreferences(repeatCount: Int, delaySeconds: Int) {
         viewModelScope.launch {
             userPreferencesRepository.setHifzLoop(repeatCount, delaySeconds)
+        }
+    }
+
+    fun setTransitionFadeSeconds(seconds: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setTransitionFadeSeconds(seconds)
+        }
+    }
+
+    fun setTransitionGapMs(gapMs: Int) {
+        viewModelScope.launch {
+            userPreferencesRepository.setTransitionGapMs(gapMs)
+        }
+    }
+
+    fun setBismillahBetweenSurahs(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setBismillahBetweenSurahs(enabled)
         }
     }
 

@@ -34,6 +34,9 @@ data class SettingsPreferences(
     val fridayReminderMinute: Int = 0,
     val statsDetailsExpanded: Boolean = false,
     val lastBackupTimestamp: Long = 0L,
+    val transitionFadeSeconds: Int = 2,
+    val transitionGapMs: Int = 600,
+    val bismillahBetweenSurahs: Boolean = true,
 )
 
 @Singleton
@@ -62,6 +65,9 @@ class UserPreferencesRepository @Inject constructor(
         val CUSTOM_SLEEP_TIMER_MINUTES = intPreferencesKey("custom_sleep_timer_minutes")
         val STATS_DETAILS_EXPANDED = booleanPreferencesKey("stats_details_expanded")
         val LAST_BACKUP_TIMESTAMP = longPreferencesKey("last_backup_timestamp")
+        val TRANSITION_FADE_SECONDS = intPreferencesKey("transition_fade_seconds")
+        val TRANSITION_GAP_MS = intPreferencesKey("transition_gap_ms")
+        val BISMILLAH_BETWEEN_SURAHS = booleanPreferencesKey("bismillah_between_surahs")
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data
@@ -186,6 +192,9 @@ class UserPreferencesRepository @Inject constructor(
                 fridayReminderMinute = preferences[PreferencesKeys.FRIDAY_REMINDER_MINUTE] ?: 0,
                 statsDetailsExpanded = preferences[PreferencesKeys.STATS_DETAILS_EXPANDED] ?: false,
                 lastBackupTimestamp = preferences[PreferencesKeys.LAST_BACKUP_TIMESTAMP] ?: 0L,
+                transitionFadeSeconds = (preferences[PreferencesKeys.TRANSITION_FADE_SECONDS] ?: 2).coerceIn(0, 6),
+                transitionGapMs = (preferences[PreferencesKeys.TRANSITION_GAP_MS] ?: 600).coerceIn(0, 3000),
+                bismillahBetweenSurahs = preferences[PreferencesKeys.BISMILLAH_BETWEEN_SURAHS] ?: true,
             )
         }
 
@@ -291,6 +300,24 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setLastBackupTimestamp(timestamp: Long) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.LAST_BACKUP_TIMESTAMP] = timestamp
+        }
+    }
+
+    suspend fun setTransitionFadeSeconds(seconds: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.TRANSITION_FADE_SECONDS] = seconds.coerceIn(0, 6)
+        }
+    }
+
+    suspend fun setTransitionGapMs(gapMs: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.TRANSITION_GAP_MS] = gapMs.coerceIn(0, 3000)
+        }
+    }
+
+    suspend fun setBismillahBetweenSurahs(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.BISMILLAH_BETWEEN_SURAHS] = enabled
         }
     }
 }

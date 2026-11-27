@@ -87,6 +87,9 @@ fun SettingsScreen(
     onDeleteDownloadedSurah: (Int, Int) -> Unit,
     onExportBackup: (Uri) -> Unit,
     onImportBackup: (Uri, Boolean) -> Unit,
+    onSetTransitionFadeSeconds: (Int) -> Unit = {},
+    onSetTransitionGapMs: (Int) -> Unit = {},
+    onToggleBismillahBetweenSurahs: (Boolean) -> Unit = {},
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -213,9 +216,15 @@ fun SettingsScreen(
                     defaultReciter = defaultReciter,
                     playbackSpeed = settingsPreferences.playbackSpeed,
                     customSleepTimerMinutes = settingsPreferences.customSleepTimerMinutes,
+                    transitionFadeSeconds = settingsPreferences.transitionFadeSeconds,
+                    transitionGapMs = settingsPreferences.transitionGapMs,
+                    bismillahBetweenSurahs = settingsPreferences.bismillahBetweenSurahs,
                     onChangeReciterClick = { showReciterPicker = true },
                     onSelectPlaybackSpeed = onSelectPlaybackSpeed,
-                    onSelectSleepTimer = onSelectCustomSleepTimerMinutes
+                    onSelectSleepTimer = onSelectCustomSleepTimerMinutes,
+                    onSetTransitionFadeSeconds = onSetTransitionFadeSeconds,
+                    onSetTransitionGapMs = onSetTransitionGapMs,
+                    onToggleBismillahBetweenSurahs = onToggleBismillahBetweenSurahs,
                 )
             }
 
@@ -803,9 +812,15 @@ private fun AudioPlaybackSection(
     defaultReciter: Reciter?,
     playbackSpeed: Float,
     customSleepTimerMinutes: Int,
+    transitionFadeSeconds: Int,
+    transitionGapMs: Int,
+    bismillahBetweenSurahs: Boolean,
     onChangeReciterClick: () -> Unit,
     onSelectPlaybackSpeed: (Float) -> Unit,
     onSelectSleepTimer: (Int) -> Unit,
+    onSetTransitionFadeSeconds: (Int) -> Unit,
+    onSetTransitionGapMs: (Int) -> Unit,
+    onToggleBismillahBetweenSurahs: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -928,6 +943,87 @@ private fun AudioPlaybackSection(
                         )
                     }
                 }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+            // Smooth Surah Transitions (fade length 0..6s)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Smooth Transitions",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (transitionFadeSeconds == 0) "Off" else "${transitionFadeSeconds}s",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Text(
+                    "Fade out at the end of each surah and fade in the next without overlap.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = transitionFadeSeconds.toFloat(),
+                    onValueChange = { onSetTransitionFadeSeconds(it.toInt().coerceIn(0, 6)) },
+                    valueRange = 0f..6f,
+                    steps = 5,
+                )
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+            // Pause Between Surahs
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Pause Between Surahs",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(0 to "Off", 600 to "0.6s", 1500 to "1.5s", 3000 to "3s").forEach { (ms, label) ->
+                        FilterChip(
+                            selected = transitionGapMs == ms,
+                            onClick = { onSetTransitionGapMs(ms) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+            // Bismillah Between Surahs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        "Bismillah Between Surahs",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Recite the reciter's Bismillah before a surah when the recording omits it (never before At-Tawbah).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = bismillahBetweenSurahs,
+                    onCheckedChange = onToggleBismillahBetweenSurahs,
+                )
             }
         }
     }
