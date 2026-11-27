@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.listenquran.domain.model.Playlist
 import com.listenquran.domain.model.Surah
@@ -159,12 +160,22 @@ fun AddToPlaylistSheet(
                         }
                     }
                 ) {
-                    Text("Create & Add")
+                    Text(
+                        text = "Create & Add",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )

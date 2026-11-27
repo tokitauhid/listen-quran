@@ -558,7 +558,14 @@ fun HomeScreen(
                                                 }
                                             }
                                         },
-                                        label = { Text(name) },
+                                        label = {
+                                            Text(
+                                                text = name,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        },
                                         colors = AssistChipDefaults.assistChipColors(
                                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                             labelColor = MaterialTheme.colorScheme.onSurface
@@ -627,15 +634,6 @@ fun HomeScreen(
                 contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 0. Greeting + Contextual Suggestion + Streak
-                item(key = "home_greeting_header") {
-                    HomeGreetingAndSuggestionHeader(
-                        statsSummary = statsSummary,
-                        surahs = surahs,
-                        onSurahClick = onSurahClick,
-                    )
-                }
-
                 // 0a. Optional Subtle Update Banner (never interrupts playback)
                 val bannerRelease = when (updateState) {
                     is AppUpdateState.UpdateAvailable -> updateState.release
@@ -658,25 +656,6 @@ fun HomeScreen(
                 val activeReciterId = playbackState.currentReciter?.id
                 val continueEntries = surahProgressList.filterNot {
                     activeSurahId != null && it.surahId == activeSurahId && it.reciterId == activeReciterId
-                }
-
-                // 0d. Because you listened to [Reciter]
-                val becauseReciter = playbackState.currentReciter
-                    ?: statsSummary.reciterShares.firstOrNull()?.let { share -> reciters.find { it.id == share.reciterId } }
-                    ?: defaultReciter
-                    ?: reciters.firstOrNull()
-                if (becauseReciter != null && surahs.isNotEmpty()) {
-                    item(key = "because_reciter_header", contentType = "section_header") {
-                        SectionHeader(title = "Because you listened to ${becauseReciter.englishName}")
-                    }
-                    item(key = "because_reciter_carousel", contentType = "horizontal_carousel") {
-                        BecauseYouListenedCarousel(
-                            reciter = becauseReciter,
-                            surahs = surahs,
-                            excludeSurahId = activeSurahId,
-                            onPlaySurahWithReciter = onPlaySurahWithReciter,
-                        )
-                    }
                 }
 
                 // 1. Playlists (Liked on Top, Custom Playlists Carousel)
@@ -1004,7 +983,12 @@ fun HomeScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Browse All 114 Surahs")
+                            Text(
+                                text = "Browse All 114 Surahs",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -1385,7 +1369,10 @@ fun SectionHeader(
                 Text(
                     text = "See all",
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

@@ -133,7 +133,14 @@ fun RadioScreen(
                         FilterChip(
                             selected = selectedFilter == filter,
                             onClick = { selectedFilter = filter },
-                            label = { Text(filter) },
+                            label = {
+                                Text(
+                                    text = filter,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             leadingIcon = if (selectedFilter == filter) {
                                 {
                                     Icon(
@@ -261,11 +268,17 @@ fun ActiveRadioCard(
                     Button(
                         onClick = onRetry,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Retry")
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(
+                            text = "Retry",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -274,11 +287,17 @@ fun ActiveRadioCard(
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
                     ),
-                    modifier = if (isError) Modifier.weight(1f) else Modifier.weight(1f)
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Stop Radio")
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        text = "Stop Radio",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 if (playbackState.lastSurahBeforeRadio != null) {
@@ -289,7 +308,8 @@ fun ActiveRadioCard(
                         Text(
                             text = "Resume ${playbackState.lastSurahBeforeRadio.nameSimple}",
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

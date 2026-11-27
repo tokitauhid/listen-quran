@@ -428,12 +428,22 @@ private fun CustomTimerDialog(
                 },
                 enabled = isValid
             ) {
-                Text("Start")
+                Text(
+                    text = "Start",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    text = "Cancel",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     )

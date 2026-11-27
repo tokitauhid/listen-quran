@@ -61,6 +61,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
+import kotlin.math.roundToInt
 
 
 private enum class SettingsAccordionSection {
@@ -87,7 +89,7 @@ fun SettingsScreen(
     cacheSizeBytes: Long,
     totalDownloadedBytes: Long,
     onSelectTheme: (ThemeMode) -> Unit,
-    dynamicColorEnabled: Boolean = false,
+    dynamicColorEnabled: Boolean = true,
     onToggleDynamicColor: ((Boolean) -> Unit)? = null,
     onSelectDefaultReciter: (Reciter) -> Unit,
     onSelectPlaybackSpeed: (Float) -> Unit,
@@ -476,12 +478,12 @@ fun SettingsScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Clear Stats")
+                    Text("Clear Stats", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearStatsDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -501,12 +503,12 @@ fun SettingsScreen(
                         showClearCacheDialog = false
                     }
                 ) {
-                    Text("Clear Cache")
+                    Text("Clear Cache", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearCacheDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -527,12 +529,12 @@ fun SettingsScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete All")
+                    Text("Delete All", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAllDownloadsDialog = false }) {
-                    Text("Cancel")
+                    Text("Cancel", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -553,12 +555,12 @@ fun SettingsScreen(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text("Delete", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { surahToDelete = null }) {
-                    Text("Cancel")
+                    Text("Cancel", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -584,7 +586,7 @@ fun SettingsScreen(
                         pendingRestoreUri = null
                     }
                 ) {
-                    Text("Merge (Recommended)")
+                    Text("Merge (Recommended)", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             },
             dismissButton = {
@@ -595,7 +597,7 @@ fun SettingsScreen(
                             pendingRestoreUri = null
                         }
                     ) {
-                        Text("Cancel")
+                        Text("Cancel", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.width(4.dp))
                     TextButton(
@@ -606,7 +608,7 @@ fun SettingsScreen(
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("Replace All")
+                        Text("Replace All", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -790,7 +792,10 @@ private fun StatisticsSection(
                 Text(
                     "Reset",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -862,7 +867,7 @@ private fun MetricCard(
 private fun AppearanceSection(
     currentTheme: ThemeMode,
     onSelectTheme: (ThemeMode) -> Unit,
-    dynamicColorEnabled: Boolean = false,
+    dynamicColorEnabled: Boolean = true,
     onToggleDynamicColor: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -896,6 +901,8 @@ private fun AppearanceSection(
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     )
@@ -969,7 +976,9 @@ private fun ThemeOptionChip(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -1048,7 +1057,7 @@ private fun AudioPlaybackSection(
                     onClick = onChangeReciterClick,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text("Change")
+                    Text("Change", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
 
@@ -1068,7 +1077,7 @@ private fun AudioPlaybackSection(
                         FilterChip(
                             selected = kotlin.math.abs(playbackSpeed - speed) < 0.05f,
                             onClick = { onSelectPlaybackSpeed(speed) },
-                            label = { Text("${speed}x") }
+                            label = { Text("${speed}x", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
@@ -1090,43 +1099,10 @@ private fun AudioPlaybackSection(
                         FilterChip(
                             selected = customSleepTimerMinutes == mins,
                             onClick = { onSelectSleepTimer(mins) },
-                            label = { Text("${mins}m") }
+                            label = { Text("${mins}m", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-
-            // Smooth Surah Transitions (fade length 0..6s)
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "Smooth Transitions",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = if (transitionFadeSeconds == 0) "Off" else "${transitionFadeSeconds}s",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                Text(
-                    "Fade out at the end of each surah and fade in the next without overlap.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Slider(
-                    value = transitionFadeSeconds.toFloat(),
-                    onValueChange = { onSetTransitionFadeSeconds(it.toInt().coerceIn(0, 6)) },
-                    valueRange = 0f..6f,
-                    steps = 5,
-                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -1145,10 +1121,56 @@ private fun AudioPlaybackSection(
                         FilterChip(
                             selected = transitionGapMs == ms,
                             onClick = { onSetTransitionGapMs(ms) },
-                            label = { Text(label) },
+                            label = {
+                                Text(
+                                    text = label,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                         )
                     }
                 }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+
+            // End-of-Surah Fade-Out (disabled when Pause Between Surahs is Off)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val isFadeEffective = transitionGapMs > 0
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "End-of-Surah Fade-Out",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (!isFadeEffective || transitionFadeSeconds == 0) "Off" else "${transitionFadeSeconds}s",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isFadeEffective) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = if (isFadeEffective) {
+                        "Fade out gently at the end of each surah. Next surah starts at full volume."
+                    } else {
+                        "Off while Pause Between Surahs is Off (true gapless playback)."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = if (isFadeEffective) transitionFadeSeconds.toFloat() else 0f,
+                    onValueChange = { onSetTransitionFadeSeconds(it.roundToInt().coerceIn(0, 6)) },
+                    enabled = isFadeEffective,
+                    valueRange = 0f..6f,
+                    steps = 5,
+                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -1281,7 +1303,14 @@ private fun HifzSection(
                         FilterChip(
                             selected = repeatCount == count,
                             onClick = { onSetLoop(count, delaySeconds) },
-                            label = { Text(if (count == 0) "Loop (∞)" else "${count}x") }
+                            label = {
+                                Text(
+                                    text = if (count == 0) "Loop (∞)" else "${count}x",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         )
                     }
                 }
@@ -1301,7 +1330,14 @@ private fun HifzSection(
                         FilterChip(
                             selected = delaySeconds == secs,
                             onClick = { onSetLoop(repeatCount, secs) },
-                            label = { Text(if (secs == 0) "None (0s)" else "${secs}s") }
+                            label = {
+                                Text(
+                                    text = if (secs == 0) "None (0s)" else "${secs}s",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         )
                     }
                 }
@@ -1369,15 +1405,21 @@ private fun StorageDownloadsSection(
                 OutlinedButton(
                     onClick = onClearCacheClick,
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
                 ) {
                     Icon(
                         Icons.Outlined.CleaningServices,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Clear Cache", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        "Clear Cache",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 OutlinedButton(
@@ -1387,15 +1429,21 @@ private fun StorageDownloadsSection(
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     ),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
                 ) {
                     Icon(
                         Icons.Outlined.DeleteForever,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Delete All", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        "Delete All",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
 
@@ -1534,7 +1582,14 @@ private fun RemindersSection(
                             )
                         }
                         TextButton(onClick = onRequestPermission) {
-                            Text("Grant", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Grant",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -1598,7 +1653,7 @@ private fun RemindersSection(
                         },
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
-                        Text("Set Time")
+                        Text("Set Time", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1663,7 +1718,7 @@ private fun RemindersSection(
                         },
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
-                        Text("Set Time")
+                        Text("Set Time", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1727,29 +1782,41 @@ private fun BackupRestoreSection(
                 FilledTonalButton(
                     onClick = onCreateBackupClick,
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
                 ) {
                     Icon(
                         Icons.Outlined.FileUpload,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Export Backup", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        "Export Backup",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 OutlinedButton(
                     onClick = onRestoreBackupClick,
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding
                 ) {
                     Icon(
                         Icons.Outlined.FileDownload,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Restore Backup", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        "Restore Backup",
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
     }
@@ -2047,7 +2114,7 @@ private fun AboutSection(
             },
             confirmButton = {
                 TextButton(onClick = { showWhatsNewDialog = false }) {
-                    Text("Got it")
+                    Text("Got it", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
             }
         )
@@ -2185,7 +2252,7 @@ private fun ReciterPickerDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text("Close", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
         }
     )

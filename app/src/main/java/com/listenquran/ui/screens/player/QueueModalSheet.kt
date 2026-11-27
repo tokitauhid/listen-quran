@@ -105,13 +105,21 @@ fun QueueModalSheet(
                     Text(
                         text = "Clear",
                         color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -194,7 +202,10 @@ fun QueueModalSheet(
                         Text(
                             text = "Clear Up Next",
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }

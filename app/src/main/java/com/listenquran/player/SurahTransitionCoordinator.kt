@@ -4,6 +4,7 @@ import androidx.media3.common.Player
 import com.listenquran.domain.model.VerseTiming
 import com.listenquran.player.cast.FadeGainAudioProcessor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -15,14 +16,32 @@ import javax.inject.Singleton
 
 /**
  * Coordinates smooth surah end fade-out, inter-surah silence gap, optional Bismillah cue,
- * fade-in, and soft local pause/play fades.
+ * and soft local pause fade-out. Never applies fade-in so the first word after Bismillah
+ * or at the start of a surah is always heard clearly at full gain.
  */
 @Singleton
-class SurahTransitionCoordinator @Inject constructor(
+class SurahTransitionCoordinator internal constructor(
     private val mainFadeGainProcessor: FadeGainAudioProcessor,
-    private val cuePlayer: CuePlayer,
+    private val playBismillahCue: suspend (reciterId: Int, playbackSpeed: Float, isCastMuted: Boolean) -> Boolean,
+    private val setCueMuted: suspend (Boolean) -> Unit,
+    private val stopCue: suspend () -> Unit,
+    dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    @Inject
+    constructor(
+        mainFadeGainProcessor: FadeGainAudioProcessor,
+        cuePlayer: CuePlayer,
+    ) : this(
+        mainFadeGainProcessor = mainFadeGainProcessor,
+        playBismillahCue = { reciterId, speed, isCastMuted ->
+            cuePlayer.playBismillah(reciterId, speed, isCastMuted)
+        },
+        setCueMuted = { cuePlayer.setMuted(it) },
+        stopCue = { cuePlayer.stop() },
+        dispatcher = Dispatchers.Main.immediate,
+    )
+
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
     @Volatile
     var isInTransition: Boolean = false
@@ -30,6 +49,16 @@ class SurahTransitionCoordinator @Inject constructor(
 
     private var transitionJob: Job? = null
     private var fadeOutTriggeredForMediaId: String? = null
+
+    fun prepareBoundaryTransition() {
+        isInTransition = true
+    }
+
+    fun clearBoundaryTransition() {
+        if (transitionJob?.isActive != true) {
+            isInTransition = false
+        }
+    }
 
     fun onMediaItemChanged(mediaId: String?) {
         fadeOutTriggeredForMediaId = null
@@ -43,8 +72,9 @@ class SurahTransitionCoordinator @Inject constructor(
         repeatMode: Int,
         isRadio: Boolean,
         fadeSeconds: Int,
+        gapMs: Int = 600,
     ) {
-        if (fadeSeconds <= 0 || isHifz || isRadio || repeatMode == Player.REPEAT_MODE_ONE) return
+        if (fadeSeconds <= 0 || gapMs <= 0 || isHifz || isRadio || repeatMode == Player.REPEAT_MODE_ONE) return
         if (durationMs <= 0L || mediaId == null || fadeOutTriggeredForMediaId == mediaId) return
 
         val fadeMs = fadeSeconds * 1000L
@@ -68,37 +98,63 @@ class SurahTransitionCoordinator @Inject constructor(
         pauseMain: () -> Unit,
         seekMainToZero: () -> Unit,
         playMain: () -> Unit,
+        wasPausedAtBoundary: Boolean = false,
+        emitCastSilenceMs: (suspend (Long) -> Unit)? = null,
+        beforePlayMain: (() -> Unit)? = null,
         onFinished: () -> Unit = {},
     ) {
         transitionJob?.cancel()
+        isInTransition = true
         transitionJob = scope.launch {
-            isInTransition = true
             try {
-                pauseMain()
+                val mightHandleTransition = gapMs > 0 ||
+                    (bismillahEnabled && targetSurahId != 1 && targetSurahId != 9)
+                var pausedBeforeLookup = false
+                if (mightHandleTransition) {
+                    pauseMain()
+                    pausedBeforeLookup = true
+                }
+
+                val shouldPlayBismillah = if (bismillahEnabled) {
+                    val timings = resolveTimings()
+                    BismillahRule.shouldPlayBismillah(targetSurahId, timings)
+                } else {
+                    false
+                }
+
+                // True gapless: when gapMs is 0 and no Bismillah cue is needed, do not pause or seek.
+                if (gapMs <= 0 && !shouldPlayBismillah) {
+                    mainFadeGainProcessor.setGainImmediate(1f)
+                    if (wasPausedAtBoundary || pausedBeforeLookup) {
+                        beforePlayMain?.invoke()
+                        playMain()
+                    }
+                    return@launch
+                }
+
+                if (!pausedBeforeLookup) {
+                    pauseMain()
+                }
                 seekMainToZero()
                 if (gapMs > 0) {
-                    delay(gapMs.toLong())
-                }
-                if (bismillahEnabled) {
-                    val timings = resolveTimings()
-                    if (BismillahRule.shouldPlayBismillah(targetSurahId, timings)) {
-                        cuePlayer.playBismillah(
-                            reciterId = targetReciterId,
-                            playbackSpeed = playbackSpeed,
-                            isCastMuted = isCastingProvider(),
-                        )
-                        delay(300L)
+                    if (isCastingProvider() && emitCastSilenceMs != null) {
+                        emitCastSilenceMs(gapMs.toLong())
+                    } else {
+                        delay(gapMs.toLong())
                     }
                 }
-                if (fadeSeconds > 0) {
-                    mainFadeGainProcessor.setGainImmediate(0f)
-                } else {
-                    mainFadeGainProcessor.setGainImmediate(1f)
+                if (shouldPlayBismillah) {
+                    playBismillahCue(targetReciterId, playbackSpeed, isCastingProvider())
+                    val breathMs = if (gapMs > 0) 150L else 100L
+                    if (isCastingProvider() && emitCastSilenceMs != null) {
+                        emitCastSilenceMs(breathMs)
+                    } else {
+                        delay(breathMs)
+                    }
                 }
+                beforePlayMain?.invoke()
+                mainFadeGainProcessor.setGainImmediate(1f)
                 playMain()
-                if (fadeSeconds > 0) {
-                    mainFadeGainProcessor.fadeTo(1f, fadeSeconds * 1000L)
-                }
             } catch (ce: CancellationException) {
                 mainFadeGainProcessor.setGainImmediate(1f)
                 throw ce
@@ -117,22 +173,27 @@ class SurahTransitionCoordinator @Inject constructor(
         isCastingProvider: () -> Boolean,
         pauseMain: () -> Unit,
         playMain: () -> Unit,
+        emitCastSilenceMs: (suspend (Long) -> Unit)? = null,
+        awaitMainPrepared: (suspend () -> Unit)? = null,
+        beforePlayMain: (() -> Unit)? = null,
         onFinished: () -> Unit = {},
     ) {
         transitionJob?.cancel()
+        isInTransition = true
         transitionJob = scope.launch {
-            isInTransition = true
             try {
+                pauseMain()
                 val timings = resolveTimings()
                 if (BismillahRule.shouldPlayBismillah(targetSurahId, timings)) {
-                    pauseMain()
-                    cuePlayer.playBismillah(
-                        reciterId = targetReciterId,
-                        playbackSpeed = playbackSpeed,
-                        isCastMuted = isCastingProvider(),
-                    )
-                    delay(250L)
+                    playBismillahCue(targetReciterId, playbackSpeed, isCastingProvider())
+                    if (isCastingProvider() && emitCastSilenceMs != null) {
+                        emitCastSilenceMs(150L)
+                    } else {
+                        delay(150L)
+                    }
                 }
+                awaitMainPrepared?.invoke()
+                beforePlayMain?.invoke()
                 mainFadeGainProcessor.setGainImmediate(1f)
                 playMain()
             } catch (ce: CancellationException) {
@@ -145,7 +206,7 @@ class SurahTransitionCoordinator @Inject constructor(
         }
     }
 
-    fun fadeOutAndPause(durationMs: Long = 300L, onPause: () -> Unit) {
+    fun fadeOutAndPause(durationMs: Long = 250L, onPause: () -> Unit) {
         transitionJob?.cancel()
         transitionJob = scope.launch {
             try {
@@ -158,16 +219,15 @@ class SurahTransitionCoordinator @Inject constructor(
         }
     }
 
-    fun fadeInAndPlay(durationMs: Long = 300L, onPlay: () -> Unit) {
+    fun fadeInAndPlay(durationMs: Long = 0L, onPlay: () -> Unit) {
         transitionJob?.cancel()
-        mainFadeGainProcessor.setGainImmediate(0f)
+        mainFadeGainProcessor.setGainImmediate(1f)
         onPlay()
-        mainFadeGainProcessor.fadeTo(1f, durationMs)
     }
 
     fun onCastMuteChanged(isCastMuted: Boolean) {
         scope.launch {
-            cuePlayer.setMuted(isCastMuted)
+            setCueMuted(isCastMuted)
         }
     }
 
@@ -177,7 +237,7 @@ class SurahTransitionCoordinator @Inject constructor(
         isInTransition = false
         mainFadeGainProcessor.setGainImmediate(1f)
         scope.launch {
-            cuePlayer.stop()
+            stopCue()
         }
     }
 }

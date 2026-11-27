@@ -350,7 +350,10 @@ fun ReciterCompareBottomSheet(
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(
                                             text = "Set as default reciter",
-                                            style = MaterialTheme.typography.labelSmall
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
                                         )
                                     }
                                 }

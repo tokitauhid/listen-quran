@@ -18,7 +18,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 data class SettingsPreferences(
     val themeMode: ThemeMode = ThemeMode.DARK,
-    val dynamicColorEnabled: Boolean = false,
+    val dynamicColorEnabled: Boolean = true,
     val defaultReciterId: Int = 7,
     val playbackSpeed: Float = 1.0f,
     val wordByWordEnabled: Boolean = false,
@@ -85,7 +85,7 @@ class UserPreferencesRepository @Inject constructor(
 
     val dynamicColorEnabled: Flow<Boolean> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
-        .map { preferences -> preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: false }
+        .map { preferences -> preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: true }
 
     val audioQuality: Flow<AudioQuality> = context.dataStore.data
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
@@ -176,7 +176,7 @@ class UserPreferencesRepository @Inject constructor(
             }
             SettingsPreferences(
                 themeMode = theme,
-                dynamicColorEnabled = preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: false,
+                dynamicColorEnabled = preferences[PreferencesKeys.DYNAMIC_COLOR_ENABLED] ?: true,
                 defaultReciterId = preferences[PreferencesKeys.DEFAULT_RECITER_ID] ?: preferences[PreferencesKeys.LAST_RECITER_ID] ?: 7,
                 playbackSpeed = preferences[PreferencesKeys.PLAYBACK_SPEED] ?: 1.0f,
                 wordByWordEnabled = preferences[PreferencesKeys.WORD_BY_WORD_ENABLED] ?: false,

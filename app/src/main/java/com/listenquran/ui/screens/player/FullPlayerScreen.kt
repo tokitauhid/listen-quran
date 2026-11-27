@@ -520,7 +520,13 @@ fun FullPlayerScreen(
 
                         if (playbackState.radioError != null && onRetryRadio != null) {
                             TextButton(onClick = onRetryRadio) {
-                                Text("Retry", style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    text = "Retry",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -603,7 +609,14 @@ fun FullPlayerScreen(
                             FilterChip(
                                 selected = playbackState.playbackSpeed != 1.0f,
                                 onClick = { showSpeedDialog = true },
-                                label = { Text("${playbackState.playbackSpeed}x") },
+                                label = {
+                                    Text(
+                                        text = "${playbackState.playbackSpeed}x",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                                     labelColor = MaterialTheme.colorScheme.onSurface,
@@ -625,7 +638,14 @@ fun FullPlayerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
                                 onClick = { onStopHifz?.invoke() },
-                                label = { Text(hifzText) },
+                                label = {
+                                    Text(
+                                        text = hifzText,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 icon = {
                                     Icon(
                                         imageVector = Icons.Default.Close,
@@ -644,7 +664,14 @@ fun FullPlayerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
                                 onClick = onOpenSleepTimer,
-                                label = { Text("End of Surah") },
+                                label = {
+                                    Text(
+                                        text = "End of Surah",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -654,7 +681,14 @@ fun FullPlayerScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             SuggestionChip(
                                 onClick = onOpenSleepTimer,
-                                label = { Text("End of Queue") },
+                                label = {
+                                    Text(
+                                        text = "End of Queue",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -666,7 +700,14 @@ fun FullPlayerScreen(
                             val secs = playbackState.sleepTimerRemainingSeconds % 60
                             SuggestionChip(
                                 onClick = onOpenSleepTimer,
-                                label = { Text("Timer: ${mins}:${String.format(Locale.getDefault(), "%02d", secs)}") },
+                                label = {
+                                    Text(
+                                        text = "Timer: ${mins}:${String.format(Locale.getDefault(), "%02d", secs)}",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -844,6 +885,7 @@ fun FullPlayerScreen(
                             Text(
                                 text = activeOutputName,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         },
@@ -873,6 +915,7 @@ fun FullPlayerScreen(
                     ) {
                         OutlinedButton(
                             onClick = { onStopRadio?.invoke() },
+                            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
@@ -880,8 +923,13 @@ fun FullPlayerScreen(
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Stop Radio")
+                            Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(
+                                text = "Stop Radio",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
 
                         if (playbackState.lastSurahBeforeRadio != null) {
@@ -892,7 +940,8 @@ fun FullPlayerScreen(
                                 Text(
                                     text = "Resume ${playbackState.lastSurahBeforeRadio.nameSimple}",
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -938,7 +987,12 @@ fun FullPlayerScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showSpeedDialog = false }) {
-                    Text("Close")
+                    Text(
+                        text = "Close",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )

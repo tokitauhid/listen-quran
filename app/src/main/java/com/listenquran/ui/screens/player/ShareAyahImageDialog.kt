@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -239,13 +240,23 @@ fun ShareAyahImageDialog(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Share Image")
+                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                Text(
+                    text = "Share Image",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    text = "Cancel",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     )

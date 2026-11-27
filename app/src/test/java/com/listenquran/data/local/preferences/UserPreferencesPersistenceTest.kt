@@ -31,16 +31,17 @@ class UserPreferencesPersistenceTest {
     )
 
     @Test
-    fun `default values for WBW and translation are false`() = runBlocking {
+    fun `default values for WBW and translation are false and dynamic color is true`() = runBlocking {
         val dataStore = createTestDataStore()
 
         val wbw = dataStore.data.map { it[WBW_KEY] ?: false }.first()
         val trans = dataStore.data.map { it[TRANSLATION_KEY] ?: false }.first()
-        val dynamicColor = dataStore.data.map { it[DYNAMIC_COLOR_KEY] ?: false }.first()
+        val dynamicColor = dataStore.data.map { it[DYNAMIC_COLOR_KEY] ?: true }.first()
 
         assertFalse(wbw)
         assertFalse(trans)
-        assertFalse(dynamicColor)
+        assertTrue(dynamicColor)
+        assertTrue(SettingsPreferences().dynamicColorEnabled)
     }
 
     @Test

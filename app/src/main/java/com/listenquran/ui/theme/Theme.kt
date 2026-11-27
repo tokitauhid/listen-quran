@@ -97,7 +97,7 @@ val AmoledColorScheme = DarkColorScheme.copy(
 @Composable
 fun ListenQuranTheme(
     themeMode: ThemeMode = ThemeMode.DARK,
-    dynamicColor: Boolean = false,
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

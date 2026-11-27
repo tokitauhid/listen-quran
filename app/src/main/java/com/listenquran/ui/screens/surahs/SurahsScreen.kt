@@ -249,7 +249,12 @@ fun SurahsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 OutlinedButton(onClick = { viewModel.onSearchQueryChange("") }) {
-                                    Text("Clear Filter")
+                                    Text(
+                                        text = "Clear Filter",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                 }
                             }
                         }

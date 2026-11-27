@@ -44,6 +44,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.data.repository.TranslationState
@@ -182,7 +183,15 @@ fun SyncedAyahsBottomSheet(
                     if (!playbackState.isSyncAvailable) {
                         AssistChip(
                             onClick = {},
-                            label = { Text("Sync unavailable", style = MaterialTheme.typography.labelSmall) },
+                            label = {
+                                Text(
+                                    text = "Sync unavailable",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Outlined.Info,
@@ -359,7 +368,10 @@ fun SyncedAyahsBottomSheet(
                                 Text(
                                     text = "Follow recitation",
                                     style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -400,12 +412,22 @@ fun SyncedAyahsBottomSheet(
                         selectedAyahForNote = null
                     }
                 ) {
-                    Text("Save Bookmark")
+                    Text(
+                        text = "Save Bookmark",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { selectedAyahForNote = null }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )

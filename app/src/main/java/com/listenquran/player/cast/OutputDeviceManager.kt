@@ -86,6 +86,25 @@ class OutputDeviceManager internal constructor(
     val speakerDelayMs: Long
         get() = _routeState.value.speakerDelayMs
 
+    @Volatile
+    var hasMeasuredDelay: Boolean = false
+        private set
+
+    @Volatile
+    var holdEosTailDelay: Boolean = true
+
+    val effectiveSpeakerDelayMs: Long
+        get() {
+            val state = _routeState.value
+            if (!state.isCasting) return 0L
+            if (hasMeasuredDelay) return state.speakerDelayMs
+            return pcmStreamHub.streamMsWritten.coerceIn(0L, 15_000L)
+        }
+
+    suspend fun writeCastSilenceMs(durationMs: Long) {
+        pcmStreamHub.writeSilenceMs(durationMs)
+    }
+
     var onRendererConnected: (() -> Unit)? = null
     var onRemoteConnectionLost: ((deviceName: String, reason: String) -> Unit)? = null
     var onRemotePlayPauseRequested: ((isPlaying: Boolean) -> Unit)? = null
@@ -113,6 +132,9 @@ class OutputDeviceManager internal constructor(
 
     @Volatile
     private var intentionalPause: Boolean = false
+
+    @Volatile
+    private var isRestartingStream: Boolean = false
 
     @Volatile
     private var currentLiveUrl: String? = null
@@ -320,6 +342,7 @@ class OutputDeviceManager internal constructor(
             lastMetadata = metadata
         }
         intentionalPause = !autoPlay
+        hasMeasuredDelay = false
 
         val token = pcmStreamHub.openSession()
         pcmStreamHub.paused = false
@@ -415,6 +438,10 @@ class OutputDeviceManager internal constructor(
                 )
             }
 
+            if (!autoPlay) {
+                pauseRemote()
+            }
+
             synchronized(opLock) {
                 if (sessionGeneration.get() == myGen) {
                     activeOpJob = null
@@ -477,6 +504,48 @@ class OutputDeviceManager internal constructor(
         }
 
         return outcome ?: Result.failure(IllegalStateException("Timed out connecting to ${device.name}"))
+    }
+
+    /**
+     * Flushes the DLNA renderer's downstream pre-roll buffer by opening a fresh HTTP live stream
+     * token and re-issuing `SetAVTransportURI` + `Play` so an explicitly selected track starts
+     * immediately without waiting behind stale buffered audio.
+     */
+    suspend fun restartStreamForNewTrack(metadata: LiveTrackMetadata? = null): Result<Unit> {
+        val device = activeRemoteDeviceOrNull() ?: return Result.failure(IllegalStateException("No remote device"))
+        val expectedGen = sessionGeneration.get()
+        if (metadata != null) {
+            lastMetadata = metadata
+        }
+        intentionalPause = false
+        isRestartingStream = true
+        return try {
+            hasMeasuredDelay = false
+            val token = pcmStreamHub.openSession()
+            pcmStreamHub.paused = false
+            mediaServer.setSessionToken(token)
+            val format = expectedFormat
+            val streamUrl = mediaServer.buildLiveStreamUrl(token, format)
+            val didl = DlnaXmlParser.buildLiveDidlLiteMetadata(lastMetadata, streamUrl, format)
+            currentLiveUrl = streamUrl
+            currentDidlXml = didl
+            _routeState.update { it.copy(speakerDelayMs = 0L) }
+
+            val setRes = controlClient.setTransportUri(device, streamUrl, didl)
+            val playRes = if (setRes.isSuccess) controlClient.play(device) else setRes
+            if (playRes.isSuccess && sessionGeneration.get() == expectedGen) {
+                synchronized(opLock) {
+                    if (sessionGeneration.get() == expectedGen) {
+                        stopPollingLocked()
+                        startPollingLocked(device, expectedGen)
+                    }
+                }
+            }
+            android.util.Log.d("CastSync", "restartStreamForNewTrack(${lastMetadata.title}): success=${playRes.isSuccess}")
+            playRes
+        } finally {
+            isRestartingStream = false
+        }
     }
 
     suspend fun playRemote(): Result<Unit> {
@@ -547,6 +616,7 @@ class OutputDeviceManager internal constructor(
         }
 
         intentionalPause = false
+        hasMeasuredDelay = false
         currentLiveUrl = null
         currentDidlXml = null
         pcmStreamHub.closeSession()
@@ -598,8 +668,14 @@ class OutputDeviceManager internal constructor(
             var consecutiveFailures = 0
             var recoveryAttempted = false
             var steadyPlayingPolls = 0
+            val delaySamples = ArrayDeque<Long>(3)
+            val fastPollIntervalMs = minOf(400L, pollIntervalMs)
+            val responsivePollMs = minOf(1200L, steadyPollIntervalMs)
             while (isActive && pollGeneration.get() == gen && sessionGeneration.get() == expectedSessionGen) {
-                val intervalMs = if (steadyPlayingPolls >= 5) steadyPollIntervalMs else pollIntervalMs
+                val intervalMs = when {
+                    !hasMeasuredDelay || steadyPlayingPolls < 8 -> fastPollIntervalMs
+                    else -> responsivePollMs
+                }
                 delay(intervalMs)
                 if (pollGeneration.get() != gen || sessionGeneration.get() != expectedSessionGen) break
 
@@ -628,27 +704,46 @@ class OutputDeviceManager internal constructor(
                     RemoteTransportState.PLAYING -> {
                         recoveryAttempted = false
                         steadyPlayingPolls++
-                        if (pos != null && pos.relTimeMs > 0L) {
+                        if (pos != null && pos.relTimeMs >= 0L) {
                             val writtenMs = pcmStreamHub.streamMsWritten
                             if (writtenMs >= pos.relTimeMs) {
-                                val sampleDelay = (writtenMs - pos.relTimeMs).coerceIn(0L, 5000L)
+                                val rawBias = if (pos.relTimeMs % 1000L == 0L) 400L else 0L
+                                val quantizedBias = if (writtenMs >= pos.relTimeMs + rawBias) rawBias else 0L
+                                val rawSample = (writtenMs - pos.relTimeMs - quantizedBias).coerceIn(0L, 15_000L)
+                                if (delaySamples.size >= 3) delaySamples.removeFirst()
+                                delaySamples.addLast(rawSample)
+                                val sorted = delaySamples.sorted()
+                                val median = sorted[sorted.size / 2]
+                                val useImmediateLock = !hasMeasuredDelay || steadyPlayingPolls <= 4
                                 _routeState.update { state ->
                                     val prev = state.speakerDelayMs
-                                    val ema = if (prev <= 0L) sampleDelay else ((prev * 7 + sampleDelay * 3) / 10)
-                                    state.copy(speakerDelayMs = ema.coerceIn(0L, 5000L))
+                                    val next = if (useImmediateLock) {
+                                        median
+                                    } else {
+                                        val delta = (median - prev).coerceIn(-600L, 600L)
+                                        (prev + delta).coerceIn(0L, 15_000L)
+                                    }
+                                    if (!hasMeasuredDelay || kotlin.math.abs(next - prev) >= 150L) {
+                                        android.util.Log.d(
+                                            "CastSync",
+                                            "delay sample=${rawSample}ms median=${median}ms smoothed=${next}ms (written=${writtenMs}ms rel=${pos.relTimeMs}ms)"
+                                        )
+                                    }
+                                    state.copy(speakerDelayMs = next)
                                 }
+                                hasMeasuredDelay = true
                             }
                         }
                     }
                     RemoteTransportState.PAUSED -> {
-                        if (!intentionalPause) {
+                        if (!intentionalPause && !isRestartingStream) {
                             intentionalPause = true
                             pcmStreamHub.paused = true
                             onRemotePlayPauseRequested?.invoke(false)
                         }
                     }
                     RemoteTransportState.STOPPED, RemoteTransportState.NO_MEDIA -> {
-                        if (!intentionalPause) {
+                        if (!intentionalPause && !isRestartingStream) {
                             if (!recoveryAttempted) {
                                 recoveryAttempted = true
                                 val url = currentLiveUrl
@@ -681,6 +776,7 @@ class OutputDeviceManager internal constructor(
             activeOpJob = null
         }
         intentionalPause = false
+        hasMeasuredDelay = false
         currentLiveUrl = null
         currentDidlXml = null
         pcmStreamHub.closeSession()

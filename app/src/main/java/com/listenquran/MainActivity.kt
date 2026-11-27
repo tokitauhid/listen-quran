@@ -2,7 +2,10 @@ package com.listenquran
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -31,8 +34,21 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
-            ListenQuranApp()
+            ListenQuranApp(viewModel = viewModel)
         }
+
+        val splashDeadlineMs = SystemClock.elapsedRealtime() + 450L
+        val contentView = findViewById<View>(android.R.id.content)
+        contentView.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                return if (viewModel.isInitialStartupReady.value || SystemClock.elapsedRealtime() >= splashDeadlineMs) {
+                    contentView.viewTreeObserver.removeOnPreDrawListener(this)
+                    true
+                } else {
+                    false
+                }
+            }
+        })
     }
 
     override fun onStart() {

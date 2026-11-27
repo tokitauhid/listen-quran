@@ -602,12 +602,22 @@ fun LibraryScreen(
                         }
                     }
                 ) {
-                    Text("Create")
+                    Text(
+                        text = "Create",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showCreatePlaylistDialog = false }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -638,12 +648,22 @@ fun LibraryScreen(
                         }
                     }
                 ) {
-                    Text("Rename")
+                    Text(
+                        text = "Rename",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { playlistToRename = null }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -664,12 +684,22 @@ fun LibraryScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Delete")
+                    Text(
+                        text = "Delete",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { playlistToDelete = null }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -699,12 +729,22 @@ fun LibraryScreen(
                         bookmarkToEditNote = null
                     }
                 ) {
-                    Text("Save")
+                    Text(
+                        text = "Save",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { bookmarkToEditNote = null }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -759,7 +799,10 @@ private fun SectionHeader(
                     text = actionText,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -812,7 +855,13 @@ private fun EmptyStateCard(
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
-                    Text(text = actionLabel, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        text = actionLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
@@ -1556,7 +1605,14 @@ internal fun RepetitionEditorContent(
                 if (validation.endError?.contains("≥ start") == true && startAyahText.isNotBlank()) {
                     SuggestionChip(
                         onClick = { endAyahText = startAyahText },
-                        label = { Text("Set end = start ($startAyahText)") },
+                        label = {
+                            Text(
+                                text = "Set end = start ($startAyahText)",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         colors = SuggestionChipDefaults.suggestionChipColors(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             labelColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1603,7 +1659,14 @@ internal fun RepetitionEditorContent(
                                     repeatCountText = "$count"
                                 }
                             },
-                            label = { Text(if (count == 0) "∞" else "${count}x") },
+                            label = {
+                                Text(
+                                    text = if (count == 0) "∞" else "${count}x",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1675,7 +1738,14 @@ internal fun RepetitionEditorContent(
                         FilterChip(
                             selected = delaySeconds == delay,
                             onClick = { delaySeconds = delay },
-                            label = { Text("${delay}s") },
+                            label = {
+                                Text(
+                                    text = "${delay}s",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
@@ -1719,7 +1789,12 @@ internal fun RepetitionEditorContent(
                 enabled = validation.isValid,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save Preset")
+                Text(
+                    text = "Save Preset",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
 }

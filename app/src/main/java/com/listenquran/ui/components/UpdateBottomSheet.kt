@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -98,7 +99,12 @@ fun HomeUpdateBanner(
                 onClick = onViewUpdate,
                 shape = RoundedCornerShape(12.dp),
             ) {
-                Text("Update")
+                Text(
+                    text = "Update",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             IconButton(
                 onClick = onDismiss,
@@ -238,7 +244,12 @@ fun UpdateBottomSheet(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Close")
+                        Text(
+                            text = "Close",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -265,23 +276,35 @@ fun UpdateBottomSheet(
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         OutlinedButton(
                             onClick = { onOpenBrowser(state.release.htmlUrl) },
                             modifier = Modifier.weight(1f),
+                            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                         ) {
                             Icon(Icons.Outlined.OpenInBrowser, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("GitHub")
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(
+                                text = "GitHub",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         Button(
                             onClick = { onDownload(state.release) },
-                            modifier = Modifier.weight(1.4f),
+                            modifier = Modifier.weight(1.5f),
+                            contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                         ) {
                             Icon(Icons.Outlined.Download, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Download & Install")
+                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                            Text(
+                                text = "Download & Install",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -313,7 +336,12 @@ fun UpdateBottomSheet(
                         onClick = onCancelDownload,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Cancel Download")
+                        Text(
+                            text = "Cancel Download",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -337,10 +365,20 @@ fun UpdateBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                            Text("Later")
+                            Text(
+                                text = "Later",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         Button(onClick = onRequestPermission, modifier = Modifier.weight(1.4f)) {
-                            Text("Allow & Install")
+                            Text(
+                                text = "Allow & Install",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -367,7 +405,12 @@ fun UpdateBottomSheet(
                         onClick = onInstall,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Install v${state.release.versionName}")
+                        Text(
+                            text = "Install v${state.release.versionName}",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -393,10 +436,16 @@ fun UpdateBottomSheet(
                     OutlinedButton(
                         onClick = { onOpenBrowser(state.release.htmlUrl) },
                         modifier = Modifier.fillMaxWidth(),
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                     ) {
                         Icon(Icons.Outlined.OpenInBrowser, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Open Release on GitHub")
+                        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                        Text(
+                            text = "Open Release on GitHub",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -415,7 +464,12 @@ fun UpdateBottomSheet(
                                 onClick = { onOpenBrowser(state.release.htmlUrl) },
                                 modifier = Modifier.weight(1f),
                             ) {
-                                Text("Open GitHub")
+                                Text(
+                                    text = "Open GitHub",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                         Button(
@@ -424,7 +478,12 @@ fun UpdateBottomSheet(
                             },
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("Retry")
+                            Text(
+                                text = "Retry",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }

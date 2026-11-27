@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -187,91 +188,6 @@ fun CategoryDetailSheet(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-
-            if (category.kind == CategoryKind.LENGTH_AND_REVELATION) {
-                Spacer(modifier = Modifier.height(12.dp))
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(LengthRevelationFilter.entries, key = { it.name }) { filter ->
-                        val selected = selectedLengthFilter == filter
-                        FilterChip(
-                            selected = selected,
-                            onClick = { selectedLengthFilter = filter },
-                            label = { Text(filter.label) },
-                            leadingIcon = if (selected) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(FilterChipDefaults.IconSize),
-                                    )
-                                }
-                            } else null,
-                            shape = MaterialTheme.shapes.small,
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Primary actions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = {
-                        onPlayAll(displayedEntries)
-                        onDismiss()
-                    },
-                    enabled = displayedEntries.isNotEmpty(),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.PlayArrow,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Play All")
-                }
-
-                FilledTonalButton(
-                    onClick = {
-                        onShuffle(displayedEntries)
-                        onDismiss()
-                    },
-                    enabled = displayedEntries.isNotEmpty(),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Shuffle,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Shuffle")
-                }
-
-                FilledTonalIconButton(
-                    onClick = { onSaveAsPlaylist(displayedEntries) },
-                    enabled = displayedEntries.isNotEmpty(),
-                    modifier = Modifier.size(48.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                        contentDescription = "Save as Playlist",
-                    )
-                }
 
                 if (onOpenOutputPicker != null) {
                     FilledTonalIconButton(
@@ -294,6 +210,110 @@ fun CategoryDetailSheet(
                 }
             }
 
+            if (category.kind == CategoryKind.LENGTH_AND_REVELATION) {
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(LengthRevelationFilter.entries, key = { it.name }) { filter ->
+                        val selected = selectedLengthFilter == filter
+                        FilterChip(
+                            selected = selected,
+                            onClick = { selectedLengthFilter = filter },
+                            label = {
+                                Text(
+                                    text = filter.label,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            leadingIcon = if (selected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                    )
+                                }
+                            } else null,
+                            shape = MaterialTheme.shapes.small,
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Primary actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        onPlayAll(displayedEntries)
+                        onDismiss()
+                    },
+                    enabled = displayedEntries.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        text = "Play All",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                FilledTonalButton(
+                    onClick = {
+                        onShuffle(displayedEntries)
+                        onDismiss()
+                    },
+                    enabled = displayedEntries.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Shuffle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        text = "Shuffle",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                FilledTonalIconButton(
+                    onClick = { onSaveAsPlaylist(displayedEntries) },
+                    enabled = displayedEntries.isNotEmpty(),
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                        contentDescription = "Save as Playlist",
+                    )
+                }
+            }
+
             if (category.showSleepTimerShortcut && onPlayWithSleepTimer != null && displayedEntries.isNotEmpty()) {
                 val timerMins = defaultSleepTimerMinutes.coerceAtLeast(1)
                 Spacer(modifier = Modifier.height(8.dp))
@@ -313,6 +333,7 @@ fun CategoryDetailSheet(
                                     text = "Play with ${timerMins}m timer",
                                     maxLines = 1,
                                     softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             },
                             leadingIcon = {
@@ -335,6 +356,7 @@ fun CategoryDetailSheet(
                                     text = "Play till end of queue",
                                     maxLines = 1,
                                     softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             },
                             leadingIcon = {

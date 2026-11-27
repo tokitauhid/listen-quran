@@ -99,6 +99,7 @@ object MediaModule {
         pcmStreamHub: PcmStreamHub,
         pcmSource: PcmSource,
         castAudioModeController: CastAudioModeController,
+        speakerDelayMsProvider: () -> Long,
     ): ExoPlayer {
         val bufferSizeProvider = DefaultAudioTrackBufferSizeProvider.Builder()
             .setMinPcmBufferDurationUs(120_000)
@@ -113,6 +114,7 @@ object MediaModule {
             fadeGainAudioProcessor = fadeGainAudioProcessor,
             pcmStreamHub = pcmStreamHub,
             source = pcmSource,
+            speakerDelayMsProvider = speakerDelayMsProvider,
         )
         val routingSink = RoutingAudioSink(
             localSink = localSink,
@@ -159,6 +161,7 @@ object MediaModule {
         fadeGainAudioProcessor: FadeGainAudioProcessor,
         pcmStreamHub: PcmStreamHub,
         castAudioModeController: CastAudioModeController,
+        outputDeviceManager: OutputDeviceManager,
     ): ExoPlayer {
         return buildStreamingExoPlayer(
             context = context,
@@ -170,6 +173,13 @@ object MediaModule {
             pcmStreamHub = pcmStreamHub,
             pcmSource = PcmSource.MAIN,
             castAudioModeController = castAudioModeController,
+            speakerDelayMsProvider = {
+                if (outputDeviceManager.isCasting && outputDeviceManager.holdEosTailDelay) {
+                    outputDeviceManager.effectiveSpeakerDelayMs
+                } else {
+                    0L
+                }
+            },
         )
     }
 
@@ -194,6 +204,7 @@ object MediaModule {
             pcmStreamHub = pcmStreamHub,
             pcmSource = PcmSource.CUE,
             castAudioModeController = castAudioModeController,
+            speakerDelayMsProvider = { 0L },
         )
     }
 

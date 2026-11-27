@@ -221,7 +221,10 @@ fun ReciterProfileScreen(
                                             Text(
                                                 text = styleLabel,
                                                 style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
                                             )
                                         },
                                         leadingIcon = if (isSelected) {
@@ -267,21 +270,33 @@ fun ReciterProfileScreen(
                             Button(
                                 onClick = { onPlayAll(currentReciter) },
                                 shape = RoundedCornerShape(12.dp),
+                                contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Play All")
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                                Text(
+                                    text = "Play All",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
 
                             FilledTonalButton(
                                 onClick = { onStartRadio?.invoke(currentReciter) },
                                 shape = RoundedCornerShape(12.dp),
+                                contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Rounded.Radio, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Radio")
+                                Icon(Icons.Rounded.Radio, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                                Text(
+                                    text = "Radio",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
 
@@ -321,6 +336,7 @@ fun ReciterProfileScreen(
                                 onClick = { onSetDefaultReciter?.invoke(currentReciter) },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.fillMaxWidth(),
+                                contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.onSurface
                                 ),
@@ -332,11 +348,14 @@ fun ReciterProfileScreen(
                                     modifier = Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                                 Text(
                                     text = "Set as Default Reciter",
                                     style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }

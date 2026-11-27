@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.listenquran.domain.model.BrowseCategory
 import com.listenquran.domain.model.BrowseCategoryCatalog
@@ -132,7 +133,14 @@ fun CategoriesScreen(
                     FilterChip(
                         selected = selected,
                         onClick = { selectedGroupName = null },
-                        label = { Text("All (${BrowseCategoryCatalog.allCategories.size})") },
+                        label = {
+                            Text(
+                                text = "All (${BrowseCategoryCatalog.allCategories.size})",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         leadingIcon = if (selected) {
                             {
                                 Icon(
@@ -150,7 +158,14 @@ fun CategoriesScreen(
                     FilterChip(
                         selected = selected,
                         onClick = { selectedGroupName = group.name },
-                        label = { Text(group.label) },
+                        label = {
+                            Text(
+                                text = group.label,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         leadingIcon = if (selected) {
                             {
                                 Icon(

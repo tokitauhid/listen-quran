@@ -329,7 +329,14 @@ fun KhatamScreen(
                     FilterChip(
                         selected = false,
                         onClick = { showRangeDialog = true },
-                        label = { Text("Mark Range") },
+                        label = {
+                            Text(
+                                text = "Mark Range",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         leadingIcon = { Icon(Icons.Default.BookmarkAdd, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                     FilterChip(
@@ -340,7 +347,14 @@ fun KhatamScreen(
                                 largeRangeConfirmStartEnd = 1 to (next - 1)
                             }
                         },
-                        label = { Text("I read up to here") },
+                        label = {
+                            Text(
+                                text = "I read up to here",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
                         leadingIcon = { Icon(Icons.Default.Checklist, contentDescription = null, modifier = Modifier.size(16.dp)) }
                     )
                 }
@@ -455,12 +469,22 @@ fun KhatamScreen(
                         largeRangeConfirmStartEnd = null
                     }
                 ) {
-                    Text("Confirm")
+                    Text(
+                        text = "Confirm",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { largeRangeConfirmStartEnd = null }) {
-                    Text("Cancel")
+                    Text(
+                        text = "Cancel",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         )
@@ -531,6 +555,7 @@ private fun HeroProgressCard(
                 Button(
                     onClick = onContinue,
                     shape = RoundedCornerShape(14.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -542,10 +567,13 @@ private fun HeroProgressCard(
                         contentDescription = null,
                         modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                     Text(
                         text = "Continue: $surahName, Ayah $ayah",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             } else {
@@ -709,24 +737,36 @@ private fun JuzDetailBottomSheet(
                 Button(
                     onClick = onMarkJuz,
                     shape = RoundedCornerShape(12.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Mark Entire Juz as Completed")
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        text = "Mark Entire Juz as Completed",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             } else {
                 OutlinedButton(
                     onClick = onUnmarkJuz,
                     shape = RoundedCornerShape(12.dp),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(imageVector = Icons.Default.RemoveCircleOutline, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Unmark Juz (Undo)")
+                    Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                    Text(
+                        text = "Unmark Juz (Undo)",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
 
@@ -797,7 +837,14 @@ private fun GoalSettingDialog(
                         FilterChip(
                             selected = selectedDays == days,
                             onClick = { selectedDays = days },
-                            label = { Text("$days Days") }
+                            label = {
+                                Text(
+                                    text = "$days Days",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         )
                     }
                 }
@@ -805,12 +852,22 @@ private fun GoalSettingDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(selectedDays) }) {
-                Text("Save")
+                Text(
+                    text = "Save",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    text = "Cancel",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     )
@@ -847,7 +904,14 @@ private fun NewKhatamDialog(
                         FilterChip(
                             selected = selectedDays == days,
                             onClick = { selectedDays = days },
-                            label = { Text("$days d") }
+                            label = {
+                                Text(
+                                    text = "$days d",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         )
                     }
                 }
@@ -861,12 +925,22 @@ private fun NewKhatamDialog(
                     }
                 }
             ) {
-                Text("Start")
+                Text(
+                    text = "Start",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    text = "Cancel",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     )
@@ -914,12 +988,22 @@ private fun MarkRangeDialog(
                     }
                 }
             ) {
-                Text("Mark Complete")
+                Text(
+                    text = "Mark Complete",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    text = "Cancel",
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     )

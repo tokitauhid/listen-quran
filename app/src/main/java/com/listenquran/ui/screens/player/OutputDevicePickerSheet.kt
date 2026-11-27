@@ -147,7 +147,12 @@ fun OutputDevicePickerSheet(
                             modifier = Modifier.weight(1f),
                         )
                         FilledTonalButton(onClick = onRequestNearbyWifiPermission) {
-                            Text("Allow")
+                            Text(
+                                text = "Allow",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }

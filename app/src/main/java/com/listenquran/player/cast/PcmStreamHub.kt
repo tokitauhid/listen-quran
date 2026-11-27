@@ -29,12 +29,16 @@ enum class PcmSource { MAIN, CUE }
 class PcmStreamHub internal constructor(
     private val initialPrebufferMs: Long = DEFAULT_INITIAL_PREBUFFER_MS,
     private val defaultIdleSilenceThresholdMs: Long = DEFAULT_IDLE_SILENCE_THRESHOLD_MS,
+    private val maxBurstAheadMs: Long = DEFAULT_MAX_BURST_AHEAD_MS,
+    private val paceRealAudio: Boolean = false,
 ) : TeeAudioProcessor.AudioBufferSink {
 
     @Inject
     constructor() : this(
         initialPrebufferMs = DEFAULT_INITIAL_PREBUFFER_MS,
         defaultIdleSilenceThresholdMs = DEFAULT_IDLE_SILENCE_THRESHOLD_MS,
+        maxBurstAheadMs = DEFAULT_MAX_BURST_AHEAD_MS,
+        paceRealAudio = false,
     )
 
     companion object {
@@ -47,6 +51,8 @@ class PcmStreamHub internal constructor(
         const val DEFAULT_CAPACITY_BYTES = BYTES_PER_SECOND * 8 // 8 seconds ring buffer
         const val DEFAULT_INITIAL_PREBUFFER_MS = 250L
         const val DEFAULT_IDLE_SILENCE_THRESHOLD_MS = 1600L
+        const val DEFAULT_MAX_BURST_AHEAD_MS = 350L
+        const val MAX_PACED_CHUNK_BYTES = 7056 // ~40 ms at 44.1 kHz stereo PCM-16
         const val SILENCE_SLICE_MS = 20L
         const val SILENCE_SLICE_BYTES = ((SAMPLE_RATE_HZ / 50) * FRAME_SIZE_BYTES) // 3528 bytes (20 ms)
         const val DECLICK_FRAMES = 352 // ~8 ms at 44.1 kHz
@@ -80,9 +86,13 @@ class PcmStreamHub internal constructor(
     var paused: Boolean = false
         set(value) {
             synchronized(lock) {
+                val wasPaused = field
                 field = value
                 if (!value) {
                     lastPcmWriteNs = System.nanoTime()
+                    if (wasPaused) {
+                        resetPacerLocked()
+                    }
                 }
                 lock.notifyAll()
             }
@@ -116,6 +126,8 @@ class PcmStreamHub internal constructor(
     private var lastLeftSample: Int = 0
     private var lastRightSample: Int = 0
     private var nextSilenceDueNs: Long = 0L
+    private var pacingAnchorNs: Long = 0L
+    private var pacedBytesEmitted: Long = 0L
 
     val streamMsWritten: Long
         get() = (bytesWrittenToStream * 1000L) / BYTES_PER_SECOND
@@ -148,6 +160,7 @@ class PcmStreamHub internal constructor(
             lastPcmWriteNs = System.nanoTime()
             prebufferSilenceRemainingBytes = 0
             resetDeclickLocked()
+            resetPacerLocked()
             lock.notifyAll()
         }
         return token
@@ -165,6 +178,7 @@ class PcmStreamHub internal constructor(
             resetLedgerLocked()
             prebufferSilenceRemainingBytes = 0
             resetDeclickLocked()
+            resetPacerLocked()
             lock.notifyAll()
         }
     }
@@ -175,6 +189,7 @@ class PcmStreamHub internal constructor(
             writePos = 0
             availableBytes = 0
             resetLedgerLocked()
+            resetPacerLocked()
             lastPcmWriteNs = System.nanoTime()
             lock.notifyAll()
         }
@@ -182,14 +197,52 @@ class PcmStreamHub internal constructor(
 
     fun clearSourceBuffer(source: PcmSource) {
         synchronized(lock) {
-            val onlyThisSource = segments.all { it.source == source }
-            if (activeSource == source || onlyThisSource || availableBytes == 0) {
+            if (availableBytes == 0 || segments.all { it.source == source }) {
                 readPos = 0
                 writePos = 0
                 availableBytes = 0
                 resetLedgerLocked()
+                resetPacerLocked()
                 lastPcmWriteNs = System.nanoTime()
                 lock.notifyAll()
+            }
+        }
+    }
+
+    suspend fun writeSilenceMs(durationMs: Long) {
+        val clampedMs = durationMs.coerceIn(0L, 10_000L)
+        if (clampedMs <= 0L) return
+        var remainingBytes = (((clampedMs * SAMPLE_RATE_HZ) / 1000L).toInt()) * FRAME_SIZE_BYTES
+        val maxChunkBytes = (BYTES_PER_SECOND / 4 / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+        while (remainingBytes > 0 && isSessionOpen) {
+            if (paused) {
+                kotlinx.coroutines.delay(30L)
+                continue
+            }
+            var wrote = 0
+            synchronized(lock) {
+                if (activeToken == null) return
+                val ringRoom = ((capacityBytes - availableBytes) / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+                val toWrite = minOf(remainingBytes, maxChunkBytes, ringRoom)
+                if (toWrite > 0) {
+                    val firstFill = minOf(toWrite, capacityBytes - writePos)
+                    ringBuffer.fill(0, writePos, writePos + firstFill)
+                    val secondFill = toWrite - firstFill
+                    if (secondFill > 0) {
+                        ringBuffer.fill(0, 0, secondFill)
+                    }
+                    writePos = (writePos + toWrite) % capacityBytes
+                    availableBytes += toWrite
+                    recordAppendLocked(activeSource, toWrite)
+                    lastPcmWriteNs = System.nanoTime()
+                    lock.notifyAll()
+                    wrote = toWrite
+                }
+            }
+            if (wrote > 0) {
+                remainingBytes -= wrote
+            } else {
+                kotlinx.coroutines.delay(30L)
             }
         }
     }
@@ -250,6 +303,7 @@ class PcmStreamHub internal constructor(
             underrunSilenceTransitions = 0
             lastPcmWriteNs = System.nanoTime()
             resetDeclickLocked()
+            resetPacerLocked()
 
             val prebufferMs = initialPrebufferMs.coerceAtLeast(0L)
             val targetPrebufferBytes =
@@ -276,6 +330,11 @@ class PcmStreamHub internal constructor(
         lastLeftSample = 0
         lastRightSample = 0
         nextSilenceDueNs = 0L
+    }
+
+    private fun resetPacerLocked() {
+        pacingAnchorNs = 0L
+        pacedBytesEmitted = 0L
     }
 
     /**
@@ -475,8 +534,12 @@ class PcmStreamHub internal constructor(
             }
 
             val thresholdNs = idleSilenceThresholdMs.coerceAtLeast(1L) * 1_000_000L
+            val burstBytes =
+                (((maxBurstAheadMs.coerceAtLeast(20L) * SAMPLE_RATE_HZ) / 1000L).toLong() * FRAME_SIZE_BYTES)
+            var pacedBudgetBytes = Int.MAX_VALUE
+            var emitIdleSilence = false
 
-            while (isReaderCurrentLocked(token, clientId) && (paused || availableBytes < FRAME_SIZE_BYTES)) {
+            while (isReaderCurrentLocked(token, clientId)) {
                 if (paused) {
                     // Wait while paused without inflating stream time with silence.
                     lock.wait(250L)
@@ -484,34 +547,72 @@ class PcmStreamHub internal constructor(
                 }
 
                 val nowNs = System.nanoTime()
-                val elapsedIdleNs = (nowNs - lastPcmWriteNs).coerceAtLeast(0L)
-                if (!wasEmittingSilence && elapsedIdleNs < thresholdNs) {
-                    val waitMs = (((thresholdNs - elapsedIdleNs) + 999_999L) / 1_000_000L).coerceAtLeast(1L)
-                    lock.wait(waitMs)
-                } else {
-                    if (!wasEmittingSilence) {
-                        wasEmittingSilence = true
-                        nextSilenceDueNs = nowNs + (SILENCE_SLICE_MS * 1_000_000L)
-                        if (hasEmittedRealAudio) {
-                            underrunSilenceTransitions++
-                        }
-                        break
-                    }
-                    if (nowNs < nextSilenceDueNs) {
-                        val waitMs = (((nextSilenceDueNs - nowNs) + 999_999L) / 1_000_000L).coerceAtLeast(1L)
+                if (availableBytes < FRAME_SIZE_BYTES) {
+                    val elapsedIdleNs = (nowNs - lastPcmWriteNs).coerceAtLeast(0L)
+                    if (!wasEmittingSilence && elapsedIdleNs < thresholdNs) {
+                        val waitMs = (((thresholdNs - elapsedIdleNs) + 999_999L) / 1_000_000L).coerceAtLeast(1L)
                         lock.wait(waitMs)
                     } else {
-                        val sliceNs = SILENCE_SLICE_MS * 1_000_000L
-                        nextSilenceDueNs = maxOf(nextSilenceDueNs + sliceNs, nowNs)
-                        break
+                        if (!wasEmittingSilence) {
+                            wasEmittingSilence = true
+                            nextSilenceDueNs = nowNs + (SILENCE_SLICE_MS * 1_000_000L)
+                            if (hasEmittedRealAudio) {
+                                underrunSilenceTransitions++
+                            }
+                            resetPacerLocked()
+                            emitIdleSilence = true
+                            break
+                        }
+                        if (nowNs < nextSilenceDueNs) {
+                            val waitMs = (((nextSilenceDueNs - nowNs) + 999_999L) / 1_000_000L).coerceAtLeast(1L)
+                            lock.wait(waitMs)
+                        } else {
+                            val sliceNs = SILENCE_SLICE_MS * 1_000_000L
+                            nextSilenceDueNs = maxOf(nextSilenceDueNs + sliceNs, nowNs)
+                            resetPacerLocked()
+                            emitIdleSilence = true
+                            break
+                        }
                     }
+                    continue
                 }
+
+                if (!paceRealAudio) {
+                    pacedBudgetBytes = Int.MAX_VALUE
+                    break
+                }
+
+                if (pacingAnchorNs == 0L) {
+                    pacingAnchorNs = nowNs
+                    pacedBytesEmitted = 0L
+                }
+                val elapsedNs = (nowNs - pacingAnchorNs).coerceAtLeast(0L)
+                var allowedTotalBytes = ((elapsedNs * BYTES_PER_SECOND) / 1_000_000_000L) + burstBytes
+                // Guard against multi-second burst credit after a network or decoder stall.
+                if (allowedTotalBytes - pacedBytesEmitted > burstBytes + BYTES_PER_SECOND) {
+                    pacingAnchorNs = nowNs
+                    pacedBytesEmitted = 0L
+                    allowedTotalBytes = burstBytes
+                }
+                val rawBudget = (allowedTotalBytes - pacedBytesEmitted).coerceAtLeast(0L)
+                val alignedBudget = (rawBudget / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+                if (alignedBudget >= FRAME_SIZE_BYTES) {
+                    pacedBudgetBytes = alignedBudget.coerceAtMost(MAX_PACED_CHUNK_BYTES.toLong()).toInt()
+                    break
+                }
+
+                val targetBytes = minOf(availableBytes, SILENCE_SLICE_BYTES).coerceAtLeast(FRAME_SIZE_BYTES)
+                val deficitBytes = (targetBytes - rawBudget).coerceAtLeast(FRAME_SIZE_BYTES.toLong())
+                val waitNs = (deficitBytes * 1_000_000_000L) / BYTES_PER_SECOND
+                val waitMs = ((waitNs + 999_999L) / 1_000_000L).coerceIn(1L, 25L)
+                lock.wait(waitMs)
             }
 
             if (!isReaderCurrentLocked(token, clientId)) return -1
 
-            if (!paused && availableBytes >= FRAME_SIZE_BYTES) {
-                val toRead = minOf(alignedMax, (availableBytes / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES)
+            if (!emitIdleSilence && !paused && availableBytes >= FRAME_SIZE_BYTES) {
+                val availAligned = (availableBytes / FRAME_SIZE_BYTES) * FRAME_SIZE_BYTES
+                val toRead = minOf(alignedMax, availAligned, pacedBudgetBytes)
                 val firstCopy = minOf(toRead, capacityBytes - readPos)
                 System.arraycopy(ringBuffer, readPos, dst, offset, firstCopy)
                 val secondCopy = toRead - firstCopy
@@ -521,6 +622,9 @@ class PcmStreamHub internal constructor(
                 readPos = (readPos + toRead) % capacityBytes
                 availableBytes -= toRead
                 consumeSegmentsLocked(toRead)
+                if (paceRealAudio) {
+                    pacedBytesEmitted += toRead
+                }
 
                 if (wasEmittingSilence && hasEmittedRealAudio) {
                     declickFadeInRemainingFrames = DECLICK_FRAMES
@@ -539,7 +643,7 @@ class PcmStreamHub internal constructor(
                 return toRead
             }
 
-            if (!paused) {
+            if (emitIdleSilence && !paused) {
                 val sliceBytes = minOf(alignedMax, SILENCE_SLICE_BYTES)
                 dst.fill(0, offset, offset + sliceBytes)
                 if (hasEmittedRealAudio && (lastLeftSample != 0 || lastRightSample != 0)) {

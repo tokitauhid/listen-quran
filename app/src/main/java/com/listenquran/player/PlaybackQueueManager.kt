@@ -207,6 +207,7 @@ class PlaybackQueueManager @Inject constructor(
         startPositionMsOverride: Long? = null,
         queueTitle: String? = null,
         autoPlay: Boolean = true,
+        onPrepared: (() -> Unit)? = null,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         if (surahs.isEmpty()) return
@@ -248,6 +249,7 @@ class PlaybackQueueManager @Inject constructor(
                 if (autoPlay) {
                     controller.play()
                 }
+                onPrepared?.invoke()
 
                 rebuildQueueState(controller)
                 persistQueueAsync(surahs, reciter, clampedIndex, queueTitle, false)
@@ -263,6 +265,7 @@ class PlaybackQueueManager @Inject constructor(
         queueTitle: String? = null,
         shuffle: Boolean = false,
         autoPlay: Boolean = true,
+        onPrepared: (() -> Unit)? = null,
         withController: ((MediaBrowser) -> Unit) -> Unit
     ) {
         if (items.isEmpty()) return
@@ -393,6 +396,7 @@ class PlaybackQueueManager @Inject constructor(
                 if (autoPlay) {
                     controller.play()
                 }
+                onPrepared?.invoke()
 
                 rebuildQueueState(controller)
                 persistQueueAsync(queuedSurahs, queuedReciters.getOrNull(clampedIndex) ?: defaultReciter, clampedIndex, queueTitle, shuffle)

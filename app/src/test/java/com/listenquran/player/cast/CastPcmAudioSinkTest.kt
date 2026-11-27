@@ -1,9 +1,13 @@
 package com.listenquran.player.cast
 
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.util.Clock
+import androidx.media3.common.util.HandlerWrapper
 import androidx.media3.exoplayer.audio.AudioSink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,7 +37,7 @@ class CastPcmAudioSinkTest {
 
     @Test
     fun `applies backpressure at high-water mark without dropping bytes and resumes once drained`() {
-        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
         val token = hub.openSession()
         val clientId = hub.beginClientStream(token)
 
@@ -77,7 +81,7 @@ class CastPcmAudioSinkTest {
 
     @Test
     fun `tracks current position monotonically across consumption and 1_5x playback speed`() {
-        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
         val token = hub.openSession()
         val clientId = hub.beginClientStream(token)
 
@@ -126,7 +130,7 @@ class CastPcmAudioSinkTest {
 
     @Test
     fun `isEnded waits until hub drains all buffered frames for that source`() {
-        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
         val token = hub.openSession()
         val clientId = hub.beginClientStream(token)
 
@@ -157,7 +161,7 @@ class CastPcmAudioSinkTest {
 
     @Test
     fun `upmixes mono input frames to stereo pcm16`() {
-        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
         val token = hub.openSession()
         val clientId = hub.beginClientStream(token)
 
@@ -181,5 +185,136 @@ class CastPcmAudioSinkTest {
         assertEquals(1234.toShort(), outShorts.get(0))
         assertEquals(1234.toShort(), outShorts.get(1))
         hub.closeSession()
+    }
+
+    @Test
+    fun `getCurrentPositionUs interpolates smoothly between hub drains and caps extrapolation at 200ms`() {
+        val fakeClock = FakeClock(initialMs = 1_000L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+
+        val sink = CastPcmAudioSink(
+            fadeGainAudioProcessor = FadeGainAudioProcessor(),
+            pcmStreamHub = hub,
+            source = PcmSource.MAIN,
+            highWaterMs = 1000L,
+        )
+        sink.setClock(fakeClock)
+        sink.configure(pcmFormat(44100, 2), 0, null)
+        sink.play()
+
+        // Submit 500ms of audio and drain 100ms
+        assertTrue(sink.handleBuffer(pcmBuffer(22050), presentationTimeUs = 0L, encodedAccessUnitCount = 1))
+        val drain100Ms = ByteArray(4410 * 4)
+        assertEquals(drain100Ms.size, hub.read(token, drain100Ms, maxLen = drain100Ms.size, clientId = clientId))
+
+        // At t=1000ms: drained = 100ms
+        val p0 = sink.getCurrentPositionUs(false)
+        assertTrue("Expected ~100ms, got $p0", p0 in 98_000L..102_000L)
+
+        // Advance clock 80ms without another hub drain -> smoothly interpolates to ~180ms
+        fakeClock.nowMs = 1_080L
+        val p80 = sink.getCurrentPositionUs(false)
+        assertTrue("Expected ~180ms interpolated, got $p80", p80 in 175_000L..185_000L)
+
+        // Advance clock 500ms without draining -> capped at drained (100ms) + 200ms = ~300ms (never runs away to 500ms)
+        fakeClock.nowMs = 1_500L
+        val pCapped = sink.getCurrentPositionUs(false)
+        assertTrue("Expected capped ~300ms, got $pCapped", pCapped in 295_000L..305_000L)
+
+        hub.closeSession()
+    }
+
+    @Test
+    fun `isEnded waits for speakerDelayMsProvider tail drain after hub empties`() {
+        val fakeClock = FakeClock(initialMs = 5_000L)
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+
+        var speakerDelayMs = 1_200L
+        val sink = CastPcmAudioSink(
+            fadeGainAudioProcessor = FadeGainAudioProcessor(),
+            pcmStreamHub = hub,
+            source = PcmSource.MAIN,
+            highWaterMs = 1000L,
+            speakerDelayMsProvider = { speakerDelayMs },
+        )
+        sink.setClock(fakeClock)
+        sink.configure(pcmFormat(44100, 2), 0, null)
+        sink.play()
+
+        assertTrue(sink.handleBuffer(pcmBuffer(4410), presentationTimeUs = 0L, encodedAccessUnitCount = 1))
+        sink.playToEndOfStream()
+
+        // Drain the hub completely
+        val out = ByteArray(4410 * 4)
+        assertEquals(out.size, hub.read(token, out, clientId = clientId))
+
+        // First check at t=5000ms: hub drained, starts 1200ms speaker tail timer
+        assertFalse(sink.isEnded())
+        assertTrue(sink.hasPendingData())
+
+        // At t=5900ms (900ms elapsed < 1200ms): still playing on speaker
+        fakeClock.nowMs = 5_900L
+        assertFalse(sink.isEnded())
+        assertTrue(sink.hasPendingData())
+
+        // At t=6200ms (1200ms elapsed): speaker finished -> ended!
+        fakeClock.nowMs = 6_200L
+        assertTrue(sink.isEnded())
+        assertFalse(sink.hasPendingData())
+
+        hub.closeSession()
+    }
+
+    @Test
+    fun `backpressures MAIN sink without dropping opening bytes while CUE owns stream`() {
+        val hub = PcmStreamHub(initialPrebufferMs = 0L, defaultIdleSilenceThresholdMs = 500L, paceRealAudio = false)
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+        hub.activeSource = PcmSource.CUE
+
+        val mainSink = CastPcmAudioSink(
+            fadeGainAudioProcessor = FadeGainAudioProcessor(),
+            pcmStreamHub = hub,
+            source = PcmSource.MAIN,
+            highWaterMs = 800L,
+        )
+        mainSink.configure(pcmFormat(44100, 2), 0, null)
+        mainSink.play()
+
+        // First word frames arrive while CUE Bismillah still owns PcmStreamHub
+        val openingFrames = pcmBuffer(numFrames = 1000, fillValue = 4321)
+        val initialRemaining = openingFrames.remaining()
+        assertFalse(mainSink.handleBuffer(openingFrames, presentationTimeUs = 0L, encodedAccessUnitCount = 1))
+        assertEquals("Opening PCM bytes must not be discarded while CUE is active", initialRemaining, openingFrames.remaining())
+        assertEquals(0, hub.bufferedBytes(PcmSource.MAIN))
+
+        // Hand control back to MAIN -> intact opening frames are written starting from sample 0
+        hub.activeSource = PcmSource.MAIN
+        assertTrue(mainSink.handleBuffer(openingFrames, presentationTimeUs = 0L, encodedAccessUnitCount = 1))
+        assertEquals(0, openingFrames.remaining())
+        assertEquals(1000 * 4, hub.bufferedBytes(PcmSource.MAIN))
+
+        val out = ByteArray(1000 * 4)
+        assertEquals(out.size, hub.read(token, out, clientId = clientId))
+        val outShorts = ByteBuffer.wrap(out).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        assertEquals(4321.toShort(), outShorts.get(0))
+
+        hub.closeSession()
+    }
+
+    private class FakeClock(initialMs: Long = 0L) : Clock {
+        var nowMs: Long = initialMs
+        override fun currentTimeMillis(): Long = nowMs
+        override fun elapsedRealtime(): Long = nowMs
+        override fun uptimeMillis(): Long = nowMs
+        override fun nanoTime(): Long = nowMs * 1_000_000L
+        override fun createHandler(looper: Looper, callback: Handler.Callback?): HandlerWrapper {
+            return Clock.DEFAULT.createHandler(looper, callback)
+        }
+        override fun onThreadBlocked() = Unit
     }
 }

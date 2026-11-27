@@ -40,10 +40,13 @@ class CastPcmAudioSink(
     private val pcmStreamHub: PcmStreamHub,
     private val source: PcmSource,
     private val highWaterMs: Long = DEFAULT_HIGH_WATER_MS,
+    private val speakerDelayMsProvider: () -> Long = { 0L },
 ) : AudioSink {
 
     companion object {
         const val DEFAULT_HIGH_WATER_MS = 800L
+        private const val MAX_INTERPOLATION_EXTRAPOLATION_MS = 200L
+        private const val MAX_EOS_TAIL_DELAY_MS = 15_000L
         private val EMPTY_BUFFER: ByteBuffer = ByteBuffer.allocate(0).order(ByteOrder.nativeOrder())
     }
 
@@ -117,6 +120,9 @@ class CastPcmAudioSink(
     private var previousSpeed: Float = 1.0f
     private var lastReportedPositionUs: Long = 0L
     private var notifiedAdvancing: Boolean = false
+    private var lastObservedDrainedFrames: Long = 0L
+    private var lastObservedDrainElapsedMs: Long = C.TIME_UNSET
+    private var eosHubDrainedAtElapsedMs: Long = C.TIME_UNSET
 
     override fun setListener(listener: AudioSink.Listener) {
         this.listener = listener
@@ -178,6 +184,9 @@ class CastPcmAudioSink(
 
     override fun play() {
         playing = true
+        if (lastObservedDrainedFrames > 0L) {
+            lastObservedDrainElapsedMs = clock.elapsedRealtime()
+        }
     }
 
     override fun handleDiscontinuity() {
@@ -244,14 +253,43 @@ class CastPcmAudioSink(
         val hubDrained = !pcmStreamHub.isSessionOpen ||
             pcmStreamHub.activeSource != source ||
             pcmStreamHub.bufferedBytes(source) == 0
-        return endOfStreamQueued && !pendingOutput.hasRemaining() && pipelineDone && hubDrained
+        if (!(endOfStreamQueued && !pendingOutput.hasRemaining() && pipelineDone && hubDrained)) {
+            eosHubDrainedAtElapsedMs = C.TIME_UNSET
+            return false
+        }
+        if (source != PcmSource.MAIN) {
+            return true
+        }
+        val tailDelayMs = speakerDelayMsProvider().coerceIn(0L, MAX_EOS_TAIL_DELAY_MS)
+        if (tailDelayMs <= 0L) {
+            return true
+        }
+        val nowMs = clock.elapsedRealtime()
+        if (eosHubDrainedAtElapsedMs == C.TIME_UNSET) {
+            eosHubDrainedAtElapsedMs = nowMs
+            return false
+        }
+        return (nowMs - eosHubDrainedAtElapsedMs) >= tailDelayMs
     }
 
     override fun hasPendingData(): Boolean {
         if (pendingOutput.hasRemaining()) return true
-        return pcmStreamHub.isSessionOpen &&
+        if (pcmStreamHub.isSessionOpen &&
             pcmStreamHub.activeSource == source &&
             pcmStreamHub.bufferedBytes(source) > 0
+        ) {
+            return true
+        }
+        if (source == PcmSource.MAIN && endOfStreamQueued) {
+            val tailDelayMs = speakerDelayMsProvider().coerceIn(0L, MAX_EOS_TAIL_DELAY_MS)
+            if (tailDelayMs > 0L) {
+                val drainedAt = eosHubDrainedAtElapsedMs
+                if (drainedAt == C.TIME_UNSET || (clock.elapsedRealtime() - drainedAt) < tailDelayMs) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     override fun getCurrentPositionUs(sourceEnded: Boolean): Long {
@@ -264,7 +302,23 @@ class CastPcmAudioSink(
         } else {
             0L
         }
-        val playedFrames = (writtenOutputFrames - hubBufferedFrames).coerceAtLeast(0L)
+        val drainedFrames = (writtenOutputFrames - hubBufferedFrames).coerceAtLeast(0L)
+        val nowMs = clock.elapsedRealtime()
+        if (drainedFrames > lastObservedDrainedFrames) {
+            lastObservedDrainedFrames = drainedFrames
+            lastObservedDrainElapsedMs = nowMs
+        }
+        val playedFrames = if (playing && drainedFrames > 0L && lastObservedDrainElapsedMs != C.TIME_UNSET) {
+            val elapsedSinceDrainMs = (nowMs - lastObservedDrainElapsedMs).coerceAtLeast(0L)
+            val maxExtraFrames = (MAX_INTERPOLATION_EXTRAPOLATION_MS * PcmStreamHub.SAMPLE_RATE_HZ) / 1000L
+            val extrapolatedFrames = (lastObservedDrainedFrames +
+                ((elapsedSinceDrainMs * PcmStreamHub.SAMPLE_RATE_HZ) / 1000L))
+                .coerceAtMost(drainedFrames + maxExtraFrames)
+                .coerceAtMost(writtenOutputFrames)
+            maxOf(drainedFrames, extrapolatedFrames)
+        } else {
+            drainedFrames
+        }
         val mediaElapsedUs = if (playedFrames >= checkpointOutputFrames) {
             checkpointMediaDurationUs + framesToMediaUs(playedFrames - checkpointOutputFrames, checkpointSpeed)
         } else {
@@ -354,6 +408,7 @@ class CastPcmAudioSink(
 
     override fun pause() {
         playing = false
+        lastObservedDrainElapsedMs = C.TIME_UNSET
     }
 
     override fun flush() {
@@ -386,12 +441,15 @@ class CastPcmAudioSink(
         previousSpeed = checkpointSpeed
         lastReportedPositionUs = 0L
         notifiedAdvancing = false
+        lastObservedDrainedFrames = 0L
+        lastObservedDrainElapsedMs = C.TIME_UNSET
+        eosHubDrainedAtElapsedMs = C.TIME_UNSET
     }
 
     private fun isBackpressuredInHub(): Boolean {
-        return pcmStreamHub.isSessionOpen &&
-            pcmStreamHub.activeSource == source &&
-            pcmStreamHub.bufferedBytes(source) >= highWaterBytes
+        if (!pcmStreamHub.isSessionOpen) return false
+        if (pcmStreamHub.activeSource != source) return true
+        return pcmStreamHub.bufferedBytes(source) >= highWaterBytes
     }
 
     private fun anchorOrSyncMediaClock(presentationTimeUs: Long) {
@@ -418,7 +476,7 @@ class CastPcmAudioSink(
         val written = pcmStreamHub.writeFromByteBufferWithLimit(source, pendingOutput, highWaterBytes)
         when {
             written > 0 -> recordWrittenBytes(written)
-            written < 0 -> pendingOutput.position(pendingOutput.limit())
+            written < 0 && !pcmStreamHub.isSessionOpen -> pendingOutput.position(pendingOutput.limit())
         }
         val drained = !pendingOutput.hasRemaining()
         if (drained) {
@@ -434,7 +492,7 @@ class CastPcmAudioSink(
             val written = pcmStreamHub.writeFromByteBufferWithLimit(source, out, highWaterBytes)
             when {
                 written > 0 -> recordWrittenBytes(written)
-                written < 0 -> out.position(out.limit())
+                written < 0 && !pcmStreamHub.isSessionOpen -> out.position(out.limit())
             }
             if (out.hasRemaining()) {
                 val copy = ByteArray(out.remaining())
@@ -449,7 +507,7 @@ class CastPcmAudioSink(
         val written = pcmStreamHub.writeFromByteBufferWithLimit(source, buffer, highWaterBytes)
         when {
             written > 0 -> recordWrittenBytes(written)
-            written < 0 -> buffer.position(buffer.limit())
+            written < 0 && !pcmStreamHub.isSessionOpen -> buffer.position(buffer.limit())
         }
     }
 

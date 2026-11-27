@@ -138,7 +138,7 @@ class MainViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), KhatmaProgress())
 
     val statsSummary: StateFlow<ListeningStatsSummary> = statsRepository.getSummary()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ListeningStatsSummary())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ListeningStatsSummary())
 
     val recentSurahs: StateFlow<List<Surah>> = combine(
         statsRepository.getRecentSurahNumbers(),
@@ -149,10 +149,10 @@ class MainViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val themeMode: StateFlow<ThemeMode> = userPreferencesRepository.themeMode
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.DARK)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.DARK)
 
     val dynamicColorEnabled: StateFlow<Boolean> = userPreferencesRepository.dynamicColorEnabled
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     val audioQuality: StateFlow<AudioQuality> = userPreferencesRepository.audioQuality
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AudioQuality.STANDARD)
@@ -165,7 +165,10 @@ class MainViewModel @Inject constructor(
 
     val settingsPreferences: StateFlow<com.listenquran.data.local.preferences.SettingsPreferences> =
         userPreferencesRepository.settingsPreferences
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.listenquran.data.local.preferences.SettingsPreferences())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, com.listenquran.data.local.preferences.SettingsPreferences())
+
+    private val _isInitialStartupReady = MutableStateFlow(false)
+    val isInitialStartupReady: StateFlow<Boolean> = _isInitialStartupReady.asStateFlow()
 
     private val _snackbarEvent = MutableSharedFlow<String>()
     val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
@@ -278,6 +281,16 @@ class MainViewModel @Inject constructor(
     }
 
     init {
+        viewModelScope.launch {
+            kotlinx.coroutines.withTimeoutOrNull(350L) {
+                val prefsJob = launch { userPreferencesRepository.settingsPreferences.first() }
+                val statsJob = launch { statsRepository.getSummary().first() }
+                prefsJob.join()
+                statsJob.join()
+            }
+            kotlinx.coroutines.yield()
+            _isInitialStartupReady.value = true
+        }
         viewModelScope.launch {
             playerManager.castMessageEvent.collect { msg ->
                 _snackbarEvent.emit(msg)

@@ -67,6 +67,9 @@ class PlaybackSyncTracker internal constructor(
     @Volatile
     var playbackSpeedProvider: () -> Float = { 1.0f }
 
+    @Volatile
+    var externalPositionProvider: (() -> Long?)? = null
+
     /**
      * Resets timing data immediately when a media item transition starts,
      * ensuring stale timings from the previous Surah are never matched.
@@ -151,13 +154,20 @@ class PlaybackSyncTracker internal constructor(
         if (isPlaying) {
             pollJob = scope.launch {
                 while (isActive) {
-                    val player = playerProvider()
-                    if (player != null && player.isPlaying) {
-                        val rawPos = player.currentPosition
-                        val delayOffset = (outputLatencyMs * playbackSpeedProvider()).toLong().coerceAtLeast(0L)
-                        val pos = (rawPos - delayOffset).coerceAtLeast(0L)
-                        _currentPositionMs.value = pos
-                        processPosition(pos)
+                    val extPos = externalPositionProvider?.invoke()
+                    if (extPos != null) {
+                        val clamped = extPos.coerceAtLeast(0L)
+                        _currentPositionMs.value = clamped
+                        processPosition(clamped)
+                    } else {
+                        val player = playerProvider()
+                        if (player != null && player.isPlaying) {
+                            val rawPos = player.currentPosition
+                            val delayOffset = (outputLatencyMs * playbackSpeedProvider()).toLong().coerceAtLeast(0L)
+                            val pos = (rawPos - delayOffset).coerceAtLeast(0L)
+                            _currentPositionMs.value = pos
+                            processPosition(pos)
+                        }
                     }
                     delay(75L) // Poll every 75ms for responsive word-by-word sync
                 }

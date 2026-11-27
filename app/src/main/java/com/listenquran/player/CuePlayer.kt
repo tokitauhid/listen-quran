@@ -40,8 +40,15 @@ class CuePlayer @Inject constructor(
     ): Boolean {
         val timings = quranRepository.getVerseTimings(reciterId, 1)
         val v1 = timings.firstOrNull { it.verseKey == "1:1" } ?: timings.firstOrNull() ?: return false
-        val v1EndMs = v1.timestampTo
-        if (v1EndMs !in 1200L..20_000L) return false
+        val v2FirstSegMs = timings.firstOrNull { it.verseKey == "1:2" }
+            ?.segments
+            ?.minOfOrNull { it.startMs }
+        val rawEndMs = if (v2FirstSegMs != null && v2FirstSegMs > 1250L) {
+            minOf(v1.timestampTo, v2FirstSegMs - 30L)
+        } else {
+            v1.timestampTo
+        }
+        if (rawEndMs !in 1200L..20_000L) return false
 
         val localFile = downloadRepository.getDownloadedSurah(1, reciterId)?.localFilePath
             ?.takeIf { File(it).exists() }
@@ -58,12 +65,12 @@ class CuePlayer @Inject constructor(
             .setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder()
                     .setStartPositionMs(0L)
-                    .setEndPositionMs(v1EndMs)
+                    .setEndPositionMs(rawEndMs)
                     .build()
             )
             .build()
 
-        val maxWaitMs = ((v1EndMs / playbackSpeed.coerceAtLeast(0.5f)).toLong() + 5_000L)
+        val maxWaitMs = ((rawEndMs / playbackSpeed.coerceAtLeast(0.5f)).toLong() + 5_000L)
 
         return withContext(Dispatchers.Main) {
             val player = cuePlayerProvider.get()

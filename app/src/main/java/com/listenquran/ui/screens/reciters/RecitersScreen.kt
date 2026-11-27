@@ -234,7 +234,12 @@ fun RecitersScreen(
                             },
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Retry")
+                            Text(
+                                text = "Retry",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -276,7 +281,12 @@ fun RecitersScreen(
                             TextButton(onClick = {
                                 onSearchQueryChange("")
                             }) {
-                                Text("Clear Search")
+                                Text(
+                                    text = "Clear Search",
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -356,7 +366,12 @@ fun RecitersScreen(
                                         color = MaterialTheme.colorScheme.error
                                     )
                                     TextButton(onClick = { lazyPagingItems.retry() }) {
-                                        Text("Retry")
+                                        Text(
+                                            text = "Retry",
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
                                     }
                                 }
                             }

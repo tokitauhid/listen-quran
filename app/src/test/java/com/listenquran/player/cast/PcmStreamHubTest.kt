@@ -174,4 +174,38 @@ class PcmStreamHubTest {
         assertEquals(0, hub.bufferedBytes(PcmSource.MAIN))
         hub.closeSession()
     }
+
+    @Test
+    fun `paceRealAudio bounds burst reads to wall-clock playback rate`() {
+        val hub = PcmStreamHub(
+            initialPrebufferMs = 0L,
+            defaultIdleSilenceThresholdMs = 500L,
+            maxBurstAheadMs = 100L,
+            paceRealAudio = true,
+        )
+        hub.flush(44100, 2, C.ENCODING_PCM_16BIT)
+        val token = hub.openSession()
+        val clientId = hub.beginClientStream(token)
+
+        // Queue 0.8 seconds of real PCM
+        val totalBytes = (PcmStreamHub.BYTES_PER_SECOND * 8) / 10
+        val payload = ByteArray(totalBytes) { 33 }
+        hub.writePcmBytes(payload, 0, payload.size)
+
+        val out = ByteArray(32768)
+        var readTotal = 0
+        val t0Ns = System.nanoTime()
+        while (readTotal < totalBytes) {
+            val n = hub.read(token, out, clientId = clientId)
+            assertTrue("Expected positive paced read, got $n", n > 0)
+            assertTrue("Paced chunk $n exceeded MAX_PACED_CHUNK_BYTES", n <= PcmStreamHub.MAX_PACED_CHUNK_BYTES)
+            readTotal += n
+        }
+        val elapsedMs = (System.nanoTime() - t0Ns) / 1_000_000L
+
+        assertEquals(totalBytes, readTotal)
+        // 800ms audio with 100ms initial burst cushion should take ~700ms (allow generous 450ms lower bound)
+        assertTrue("Expected paced drain >= 450ms, took ${elapsedMs}ms", elapsedMs >= 450L)
+        hub.closeSession()
+    }
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
@@ -178,7 +179,14 @@ fun SearchScreen(
                         FilterChip(
                             selected = searchFilter == filter,
                             onClick = { searchFilter = filter },
-                            label = { Text(filter) },
+                            label = {
+                                Text(
+                                    text = filter,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
                             leadingIcon = if (searchFilter == filter) {
                                 {
                                     Icon(
@@ -350,7 +358,14 @@ fun SearchScreen(
                                             }
                                         }
                                     },
-                                    label = { Text(name) },
+                                    label = {
+                                        Text(
+                                            text = name,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    },
                                     colors = AssistChipDefaults.assistChipColors(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                         labelColor = MaterialTheme.colorScheme.onSurface

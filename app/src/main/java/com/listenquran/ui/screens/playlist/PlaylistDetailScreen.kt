@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.listenquran.domain.model.Playlist
@@ -167,17 +168,27 @@ fun PlaylistDetailScreen(
                                 if (localItems.isNotEmpty()) {
                                     Button(
                                         onClick = onPlayAll,
-                                        shape = RoundedCornerShape(12.dp)
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                                     ) {
-                                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Play All")
+                                        Icon(
+                                            Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                                        Text(
+                                            text = "Play All",
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
                                     }
                                 }
                                 if (onOpenOutputPicker != null) {
                                     FilledTonalIconButton(
                                         onClick = onOpenOutputPicker,
-                                        modifier = Modifier.size(44.dp),
+                                        modifier = Modifier.size(48.dp),
                                         colors = if (outputRouteState.isCasting) {
                                             IconButtonDefaults.filledTonalIconButtonColors(
                                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
