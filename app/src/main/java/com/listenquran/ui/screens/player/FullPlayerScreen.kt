@@ -40,6 +40,8 @@ import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.listenquran.domain.model.RadioStationType
 import com.listenquran.player.PlaybackQueueState
+import com.listenquran.player.cast.LocalAudioOutput
+import com.listenquran.player.cast.OutputDeviceType
 import com.listenquran.player.cast.OutputRouteState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
@@ -49,6 +51,7 @@ fun FullPlayerScreen(
     isLiked: Boolean,
     queueState: PlaybackQueueState? = null,
     outputRouteState: OutputRouteState = OutputRouteState(),
+    activeLocalOutput: LocalAudioOutput = LocalAudioOutput.FALLBACK_PHONE,
     currentPositionMsFlow: StateFlow<Long>? = null,
     onCollapse: () -> Unit,
     onTogglePlayPause: () -> Unit,
@@ -240,11 +243,18 @@ fun FullPlayerScreen(
                         playbackState.sleepTimerMode !is com.listenquran.player.SleepTimerMode.Off
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val isExternalOutput = outputRouteState.isCasting || activeLocalOutput.type != OutputDeviceType.PHONE
+                    val outputIcon = when {
+                        outputRouteState.isCasting -> Icons.Rounded.CastConnected
+                        activeLocalOutput.type == OutputDeviceType.BLUETOOTH -> Icons.Rounded.BluetoothAudio
+                        activeLocalOutput.type == OutputDeviceType.WIRED -> Icons.Rounded.Headphones
+                        else -> Icons.Rounded.Cast
+                    }
                     IconButton(onClick = onOpenOutputPicker) {
                         Icon(
-                            imageVector = if (outputRouteState.isCasting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
-                            contentDescription = "Connect to a device",
-                            tint = if (outputRouteState.isCasting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            imageVector = outputIcon,
+                            contentDescription = "Listening on",
+                            tint = if (isExternalOutput) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     IconButton(onClick = onOpenSleepTimer) {
@@ -815,21 +825,31 @@ fun FullPlayerScreen(
                     }
                 }
 
-                // Active remote output pill
-                if (outputRouteState.isCasting) {
+                // Active output pill (shows speaker or connected Bluetooth/wired device name)
+                val activeOutputName = when {
+                    outputRouteState.isCasting -> outputRouteState.activeDevice.name
+                    activeLocalOutput.type != OutputDeviceType.PHONE -> activeLocalOutput.name
+                    else -> null
+                }
+                if (activeOutputName != null) {
+                    val pillIcon = when {
+                        outputRouteState.isCasting -> Icons.Rounded.CastConnected
+                        activeLocalOutput.type == OutputDeviceType.BLUETOOTH -> Icons.Rounded.BluetoothAudio
+                        else -> Icons.Rounded.Headphones
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     AssistChip(
                         onClick = onOpenOutputPicker,
                         label = {
                             Text(
-                                text = "Playing on ${outputRouteState.activeDevice.name}",
+                                text = activeOutputName,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         },
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Rounded.CastConnected,
+                                imageVector = pillIcon,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
                             )

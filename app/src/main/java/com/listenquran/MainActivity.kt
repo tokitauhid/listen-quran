@@ -2,6 +2,7 @@ package com.listenquran
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,6 +33,29 @@ class MainActivity : ComponentActivity() {
         setContent {
             ListenQuranApp()
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.startBackgroundDiscovery()
+    }
+
+    override fun onStop() {
+        viewModel.stopBackgroundDiscovery()
+        super.onStop()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (viewModel.outputRouteState.value.isCasting &&
+            (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN)
+        ) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val delta = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) 5 else -5
+                viewModel.adjustRemoteVolume(delta)
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onNewIntent(intent: Intent) {

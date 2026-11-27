@@ -16,6 +16,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.RecordVoiceOver
@@ -27,11 +28,15 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,7 +94,9 @@ fun ListenQuranApp(
     val notificationsEnabled by viewModel.notificationsEnabled.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val outputRouteState by viewModel.outputRouteState.collectAsStateWithLifecycle()
-    val pendingHifzWhileCasting by viewModel.pendingHifzWhileCasting.collectAsStateWithLifecycle()
+    val localOutputs by viewModel.localOutputs.collectAsStateWithLifecycle()
+    val activeLocalOutput by viewModel.activeLocalOutput.collectAsStateWithLifecycle()
+    val remoteVolumeHud by viewModel.remoteVolumeHud.collectAsStateWithLifecycle()
     val queueState by viewModel.queueState.collectAsStateWithLifecycle()
     val isCurrentSurahLiked by viewModel.isCurrentSurahLiked.collectAsStateWithLifecycle()
     val currentVerses by viewModel.currentVerses.collectAsStateWithLifecycle()
@@ -120,6 +127,7 @@ fun ListenQuranApp(
     ) { granted ->
         hasNearbyWifiPermission = granted
         if (granted) {
+            viewModel.startBackgroundDiscovery()
             viewModel.scanOutputDevices()
         }
     }
@@ -390,6 +398,7 @@ fun ListenQuranApp(
                             onOpenPlaylistDetail = { selectedPlaylistForDetail = it },
                             onOpenReciterProfile = { selectedReciterForProfile = it },
                             onAddToPlaylist = { surahToAddToPlaylist = it },
+                            onOpenFullPlayer = { showFullPlayer = true },
                             homeResetTrigger = homeResetTrigger,
                             libraryResetTrigger = libraryResetTrigger,
                             modifier = Modifier.fillMaxSize(),
@@ -464,6 +473,7 @@ fun ListenQuranApp(
                     isLiked = isCurrentSurahLiked,
                     queueState = queueState,
                     outputRouteState = outputRouteState,
+                    activeLocalOutput = activeLocalOutput,
                     currentPositionMsFlow = viewModel.currentPositionMs,
                     onCollapse = { showFullPlayer = false },
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -688,44 +698,93 @@ fun ListenQuranApp(
         if (showOutputPickerSheet) {
             OutputDevicePickerSheet(
                 outputRouteState = outputRouteState,
+                localOutputs = localOutputs,
+                activeLocalOutput = activeLocalOutput,
+                isPlaying = playbackState.isPlaying,
                 hasNearbyWifiPermission = hasNearbyWifiPermission,
                 onRequestNearbyWifiPermission = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         nearbyWifiPermissionLauncher.launch(Manifest.permission.NEARBY_WIFI_DEVICES)
                     }
                 },
-                onScanDevices = { viewModel.scanOutputDevices() },
-                onSelectDevice = { device ->
+                onSelectLocalOutput = { local ->
+                    viewModel.selectLocalOutput(local)
+                },
+                onSelectSpeaker = { device ->
                     viewModel.connectToOutputDevice(device)
                 },
-                onDisconnect = { viewModel.disconnectOutputDevice() },
                 onSetVolume = { vol -> viewModel.setRemoteVolume(vol) },
                 onToggleMute = { viewModel.toggleRemoteMute() },
                 onDismiss = { showOutputPickerSheet = false }
             )
         }
 
-        // Recommend local phone playback for Hifz repetition when casting, while allowing user choice
-        if (pendingHifzWhileCasting != null) {
-            AlertDialog(
-                onDismissRequest = { viewModel.dismissHifzCastingPrompt() },
-                title = { Text("Switch to Phone for Hifz Mode?") },
-                text = {
-                    Text(
-                        "Network speakers buffer 1–3 seconds of audio, so quick Ayah repetition loops and pause delays are more accurate on your phone. You can still continue on the speaker if you prefer."
-                    )
-                },
-                confirmButton = {
-                    Button(onClick = { viewModel.confirmHifzSwitchToPhone() }) {
-                        Text("Switch to This Phone")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.confirmHifzContinueCasting() }) {
-                        Text("Continue on Speaker")
+        // Floating Speaker Volume HUD when hardware volume buttons adjust active speaker
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = remoteVolumeHud != null,
+                enter = fadeIn(tween(150)) + slideInVertically(tween(180)) { -it },
+                exit = fadeOut(tween(220)) + slideOutVertically(tween(220)) { -it },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 12.dp, start = 24.dp, end = 24.dp),
+            ) {
+                remoteVolumeHud?.let { hud ->
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 6.dp,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Speaker,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                                Text(
+                                    text = hud.deviceName,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = "${hud.volume}%",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { (hud.volume / 100f).coerceIn(0f, 1f) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainer,
+                            )
+                        }
                     }
                 }
-            )
+            }
         }
     }
 }
