@@ -1824,7 +1824,7 @@ private fun AboutSection(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Smooth Wi-Fi speaker streaming, Bismillah transitions, and instant resume",
+                                "In-app updates via GitHub Releases, background Wi-Fi casting fixes, and crackle-free PCM audio",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2013,24 +2013,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
+                        icon = "⬇️",
+                        title = "In-App Updates from GitHub Releases",
+                        description = "Check for new releases in Settings or from the Home banner, verify SHA-256 & app signing automatically, and install updates right inside Listen Quran."
+                    )
+                    WhatsNewItem(
+                        icon = "⚡",
+                        title = "Zero-Rate-Limit CDN Update Manifest",
+                        description = "Update checks now read a compact update.json asset straight from GitHub Releases CDN instead of hitting GitHub REST API rate limits."
+                    )
+                    WhatsNewItem(
+                        icon = "📡",
+                        title = "Background Wi-Fi Speaker Playback Fix",
+                        description = "Fixed playback halting when switching away from Listen Quran while casting to a Wi-Fi speaker by managing audio focus cleanly and promoting the media service."
+                    )
+                    WhatsNewItem(
                         icon = "🔊",
-                        title = "Live Wi-Fi Speaker Streaming & Speed",
-                        description = "Crackle-free 44.1 kHz live streaming to DLNA speakers with full 0.5x–1.5x playback speed, hardware volume button control, and proactive background discovery."
-                    )
-                    WhatsNewItem(
-                        icon = "🎧",
-                        title = "Unified 'Listening on' Output Picker",
-                        description = "One-tap output switching across phone speaker, Bluetooth earbuds, and Wi-Fi speakers with latency-compensated ayah highlighting."
-                    )
-                    WhatsNewItem(
-                        icon = "✨",
-                        title = "Smooth Surah Fades & Bismillah Cues",
-                        description = "Configurable fade-out, silent gap, automatic reciter-matched Bismillah before surahs that lack it, and soft fade-in."
-                    )
-                    WhatsNewItem(
-                        icon = "▶️",
-                        title = "Session Resume & Home Picks",
-                        description = "Restores your full queue and exact timestamp on cold launch, tracks partially-listened surahs, and adds Jump Back In & Continue Listening shelves."
+                        title = "Crackle-Free Live PCM Audio",
+                        description = "Added source gating, a 1200ms prebuffer, and right-sized AudioTrack buffers so live recitations and Bismillah cues never interleave or burst."
                     )
                 }
             },
