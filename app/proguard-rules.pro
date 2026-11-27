@@ -20,4 +20,11 @@
 -keep class com.listenquran.data.backup.** { *; }
 -keep @com.squareup.moshi.JsonClass class * { *; }
 
+# Keep all KSP-generated Moshi JsonAdapters and Kotlin Metadata
+-keep class **JsonAdapter {
+    public <init>(com.squareup.moshi.Moshi);
+    *;
+}
+-keep class kotlin.Metadata { *; }
+
 

@@ -1804,7 +1804,7 @@ private fun AboutSection(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Material You, adaptive layouts, and more",
+                                "Smooth Wi-Fi speaker streaming, Bismillah transitions, and instant resume",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1881,24 +1881,24 @@ private fun AboutSection(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     WhatsNewItem(
-                        icon = "🎯",
-                        title = "Exact-Ayah Browse Playback",
-                        description = "Individual ayah and verse-range entries in Browse categories and saved playlists now play only the selected verses instead of the entire surah."
+                        icon = "🔊",
+                        title = "Live Wi-Fi Speaker Streaming & Speed",
+                        description = "Crackle-free 44.1 kHz live streaming to DLNA speakers with full 0.5x–1.5x playback speed, hardware volume button control, and proactive background discovery."
                     )
                     WhatsNewItem(
-                        icon = "⏭️",
-                        title = "Gapless Playlist Transitions",
-                        description = "After an ayah entry finishes, playback automatically advances to the next entry in playlist or shuffle order while full-surah entries play completely."
+                        icon = "🎧",
+                        title = "Unified 'Listening on' Output Picker",
+                        description = "One-tap output switching across phone speaker, Bluetooth earbuds, and Wi-Fi speakers with latency-compensated ayah highlighting."
                     )
                     WhatsNewItem(
                         icon = "✨",
-                        title = "Clip-Aware Sync, Scrubber & Casting",
-                        description = "Accurate clip duration, verse/word highlighting, ayah seeking, reciter switching, and DLNA casting boundaries for single-ayah and range entries."
+                        title = "Smooth Surah Fades & Bismillah Cues",
+                        description = "Configurable fade-out, silent gap, automatic reciter-matched Bismillah before surahs that lack it, and soft fade-in."
                     )
                     WhatsNewItem(
-                        icon = "🎙️",
-                        title = "Smart Reciter Fallback",
-                        description = "Automatically falls back to a synced reciter when playing bounded ayah entries with a reciter that lacks verse timestamps."
+                        icon = "▶️",
+                        title = "Session Resume & Home Picks",
+                        description = "Restores your full queue and exact timestamp on cold launch, tracks partially-listened surahs, and adds Jump Back In & Continue Listening shelves."
                     )
                 }
             },
