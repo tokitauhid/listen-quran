@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider
 import com.listenquran.BuildConfig
 import com.listenquran.data.remote.GithubUpdateService
 import com.listenquran.data.remote.dto.GithubReleaseDto
+import com.listenquran.data.remote.dto.UpdateManifestDto
 import com.listenquran.player.AudioPlayerManager
 import com.squareup.moshi.Moshi
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -104,6 +105,34 @@ internal object GithubReleaseMapper {
         )
     }
 
+    fun mapManifestIfNewer(
+        dto: UpdateManifestDto,
+        currentVersionName: String,
+        currentVersionCode: Int,
+    ): UpdateReleaseInfo? {
+        if (dto.assetName.isBlank() || dto.downloadUrl.isBlank()) return null
+        val remoteSemVer = SemVer.parse(dto.versionName.ifBlank { dto.tagName }) ?: return null
+        val currentSemVer = SemVer.parse(currentVersionName) ?: return null
+        val isNewer = remoteSemVer > currentSemVer ||
+            (remoteSemVer == currentSemVer && dto.versionCode > currentVersionCode)
+        if (!isNewer) return null
+
+        return UpdateReleaseInfo(
+            tagName = dto.tagName,
+            versionName = remoteSemVer.toString(),
+            title = dto.title?.takeIf { it.isNotBlank() } ?: "Listen Quran ${dto.tagName}",
+            changelog = dto.changelog?.trim().orEmpty(),
+            htmlUrl = dto.htmlUrl.ifBlank {
+                "https://github.com/tokitauhid/listen-quran/releases/tag/${dto.tagName}"
+            },
+            publishedAt = dto.publishedAt,
+            assetName = dto.assetName,
+            downloadUrl = dto.downloadUrl,
+            sizeBytes = dto.sizeBytes,
+            sha256Digest = dto.sha256,
+        )
+    }
+
     fun shouldAutoCheck(
         autoCheckEnabled: Boolean,
         lastCheckedAtMs: Long,
@@ -129,6 +158,7 @@ class AppUpdateManager @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val releaseAdapter by lazy { moshi.adapter(GithubReleaseDto::class.java) }
+    private val manifestAdapter by lazy { moshi.adapter(UpdateManifestDto::class.java) }
     private val downloadOkHttp by lazy {
         okHttpClient.newBuilder()
             .readTimeout(60, TimeUnit.SECONDS)
@@ -220,6 +250,87 @@ class AppUpdateManager @Inject constructor(
         val snap = prefsStore.getSnapshot()
         val now = System.currentTimeMillis()
 
+        // Primary: zero-rate-limit CDN-hosted update.json on GitHub Releases
+        val manifestReq = Request.Builder()
+            .url(CDN_MANIFEST_URL)
+            .header("Accept", "application/json")
+            .header("User-Agent", "ListenQuran-Android")
+            .apply {
+                if (!snap.eTag.isNullOrBlank()) header("If-None-Match", snap.eTag)
+            }
+            .build()
+
+        val manifestAttempt = runCatching {
+            okHttpClient.newCall(manifestReq).execute().use { resp ->
+                when (resp.code) {
+                    304 -> ManifestCheckOutcome.NotModified
+                    404 -> ManifestCheckOutcome.NotFound
+                    in 200..299 -> {
+                        val rawJson = resp.body?.string().orEmpty()
+                        val dto = runCatching { manifestAdapter.fromJson(rawJson) }.getOrNull()
+                        if (dto == null) {
+                            ManifestCheckOutcome.Failed("Invalid update manifest received.")
+                        } else {
+                            ManifestCheckOutcome.Success(
+                                dto = dto,
+                                rawJson = rawJson,
+                                eTag = resp.header("ETag") ?: resp.header("etag"),
+                            )
+                        }
+                    }
+                    else -> ManifestCheckOutcome.Failed("Update check failed (HTTP ${resp.code}).")
+                }
+            }
+        }
+
+        val outcome = manifestAttempt.getOrElse { err ->
+            if (manual) {
+                _updateState.value = AppUpdateState.Error(
+                    message = err.message?.takeIf { it.isNotBlank() } ?: "Could not reach GitHub. Check your internet connection."
+                )
+            }
+            return
+        }
+
+        when (outcome) {
+            is ManifestCheckOutcome.Success -> {
+                prefsStore.saveCheckResult(eTag = outcome.eTag, releaseJson = outcome.rawJson, checkedAtMs = now)
+                val mapped = GithubReleaseMapper.mapManifestIfNewer(
+                    outcome.dto,
+                    BuildConfig.VERSION_NAME,
+                    BuildConfig.VERSION_CODE,
+                )
+                applyUpdateInfo(mapped, now, manual)
+                return
+            }
+            ManifestCheckOutcome.NotModified -> {
+                prefsStore.updateCheckedTimestamp(now)
+                val cachedManifest = snap.cachedReleaseJson?.let { raw ->
+                    runCatching { manifestAdapter.fromJson(raw) }.getOrNull()
+                }
+                if (cachedManifest != null) {
+                    val mapped = GithubReleaseMapper.mapManifestIfNewer(
+                        cachedManifest,
+                        BuildConfig.VERSION_NAME,
+                        BuildConfig.VERSION_CODE,
+                    )
+                    applyUpdateInfo(mapped, now, manual)
+                    return
+                }
+                // Fallback if cached JSON wasn't a manifest yet
+            }
+            is ManifestCheckOutcome.Failed -> {
+                if (manual) {
+                    _updateState.value = AppUpdateState.Error(outcome.message)
+                }
+                return
+            }
+            ManifestCheckOutcome.NotFound -> {
+                // Fall back to GitHub Releases API below for releases predating update.json
+            }
+        }
+
+        // Secondary fallback: GitHub Releases API (if update.json is missing)
         val response = try {
             githubUpdateService.getLatestRelease(ifNoneMatch = snap.eTag)
         } catch (e: Exception) {
@@ -234,7 +345,8 @@ class AppUpdateManager @Inject constructor(
         if (response.code() == 304) {
             prefsStore.updateCheckedTimestamp(now)
             val cachedDto = snap.cachedReleaseJson?.let { raw -> runCatching { releaseAdapter.fromJson(raw) }.getOrNull() }
-            applyReleaseDto(cachedDto, now, manual)
+            val mapped = cachedDto?.let { GithubReleaseMapper.mapIfNewer(it, BuildConfig.VERSION_NAME) }
+            applyUpdateInfo(mapped, now, manual)
             return
         }
 
@@ -254,11 +366,18 @@ class AppUpdateManager @Inject constructor(
         val newETag = response.headers()["ETag"] ?: response.headers()["etag"]
         val dtoJson = dto?.let { runCatching { releaseAdapter.toJson(it) }.getOrNull() }
         prefsStore.saveCheckResult(eTag = newETag, releaseJson = dtoJson, checkedAtMs = now)
-        applyReleaseDto(dto, now, manual)
+        val mapped = dto?.let { GithubReleaseMapper.mapIfNewer(it, BuildConfig.VERSION_NAME) }
+        applyUpdateInfo(mapped, now, manual)
     }
 
-    private suspend fun applyReleaseDto(dto: GithubReleaseDto?, checkedAtMs: Long, manual: Boolean) {
-        val update = dto?.let { GithubReleaseMapper.mapIfNewer(it, BuildConfig.VERSION_NAME) }
+    private sealed interface ManifestCheckOutcome {
+        data class Success(val dto: UpdateManifestDto, val rawJson: String, val eTag: String?) : ManifestCheckOutcome
+        data object NotModified : ManifestCheckOutcome
+        data object NotFound : ManifestCheckOutcome
+        data class Failed(val message: String) : ManifestCheckOutcome
+    }
+
+    private suspend fun applyUpdateInfo(update: UpdateReleaseInfo?, checkedAtMs: Long, manual: Boolean) {
         if (update == null) {
             _updateState.value = AppUpdateState.UpToDate(checkedAtMs)
             return
@@ -490,5 +609,9 @@ class AppUpdateManager @Inject constructor(
                 }
             }
         }
+    }
+
+    companion object {
+        const val CDN_MANIFEST_URL = "https://github.com/tokitauhid/listen-quran/releases/latest/download/update.json"
     }
 }

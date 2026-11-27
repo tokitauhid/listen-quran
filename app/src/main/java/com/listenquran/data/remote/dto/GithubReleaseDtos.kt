@@ -23,3 +23,18 @@ data class GithubAssetDto(
     @Json(name = "content_type") val contentType: String? = null,
     @Json(name = "browser_download_url") val browserDownloadUrl: String = "",
 )
+
+@JsonClass(generateAdapter = true)
+data class UpdateManifestDto(
+    @Json(name = "tagName") val tagName: String,
+    @Json(name = "versionName") val versionName: String = "",
+    @Json(name = "versionCode") val versionCode: Int = 0,
+    @Json(name = "title") val title: String? = null,
+    @Json(name = "changelog") val changelog: String? = null,
+    @Json(name = "htmlUrl") val htmlUrl: String = "",
+    @Json(name = "publishedAt") val publishedAt: String? = null,
+    @Json(name = "assetName") val assetName: String,
+    @Json(name = "downloadUrl") val downloadUrl: String,
+    @Json(name = "sizeBytes") val sizeBytes: Long = 0L,
+    @Json(name = "sha256") val sha256: String? = null,
+)
