@@ -62,6 +62,12 @@ class PlaybackQueueManager @Inject constructor(
     var currentSourceTitle: String? = null
         private set
 
+    init {
+        scope.launch {
+            runCatching { getAllSurahs() }
+        }
+    }
+
     suspend fun getAllSurahs(): List<Surah> {
         val cached = cachedSurahs
         if (!cached.isNullOrEmpty()) return cached
@@ -198,6 +204,7 @@ class PlaybackQueueManager @Inject constructor(
         reciter: Reciter,
         startIndex: Int = 0,
         startAyah: Int = 1,
+        startPositionMsOverride: Long? = null,
         queueTitle: String? = null,
         autoPlay: Boolean = true,
         withController: ((MediaBrowser) -> Unit) -> Unit
@@ -222,8 +229,8 @@ class PlaybackQueueManager @Inject constructor(
                 mediaItems.add(buildMediaItem(s, reciter, ayah))
             }
 
-            var startPosMs = 0L
-            if (startAyah > 1) {
+            var startPosMs = startPositionMsOverride ?: 0L
+            if (startPositionMsOverride == null && startAyah > 1) {
                 val targetSurah = surahs[clampedIndex]
                 val audioData = quranRepository.getChapterAudio(reciter.id, targetSurah.id)
                 val targetTiming = audioData?.timestamps?.find { it.verseKey == "${targetSurah.id}:$startAyah" }
@@ -556,6 +563,26 @@ class PlaybackQueueManager @Inject constructor(
         }
     }
 
+    fun restoreQueueMetadata(
+        sourceTitle: String?,
+        shuffleEnabled: Boolean,
+        shuffledIndices: List<Int>,
+        controller: MediaBrowser,
+    ) {
+        currentSourceTitle = sourceTitle
+        val itemCount = controller.mediaItemCount
+        if (shuffleEnabled && shuffledIndices.size == itemCount && itemCount > 1) {
+            val order = ControllableShuffleOrder(shuffledIndices.toIntArray())
+            currentShuffleOrder = order
+            runCatching { exoPlayerProvider.get().setShuffleOrder(order) }
+            controller.shuffleModeEnabled = true
+        } else {
+            currentShuffleOrder = null
+            controller.shuffleModeEnabled = false
+        }
+        rebuildQueueState(controller)
+    }
+
     fun toggleShuffle(withController: ((MediaBrowser) -> Unit) -> Unit) {
         withController { controller ->
             val newShuffleState = !controller.shuffleModeEnabled
@@ -784,9 +811,13 @@ class PlaybackQueueManager @Inject constructor(
             val reciterId = parseReciterId(mediaItem.mediaId) ?: defaultReciter.id
             val queueId = parseQueueUid(mediaItem.mediaId) ?: "queue_$i"
 
+            val rawTitle = mediaItem.mediaMetadata.displayTitle?.toString()
+                ?.removePrefix("$surahId. ")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
             val surah = allSurahs.find { it.id == surahId } ?: Surah(
                 id = surahId,
-                nameSimple = mediaItem.mediaMetadata.displayTitle?.toString() ?: "Surah $surahId",
+                nameSimple = rawTitle ?: "Surah $surahId",
                 nameArabic = "",
                 versesCount = 0,
                 revelationPlace = "makkah",

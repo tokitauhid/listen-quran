@@ -92,6 +92,15 @@ fun HomeScreen(
     radioStations: List<RadioStation> = CuratedRadioStations,
     currentRadioStation: RadioStation? = null,
     isRadioPlaying: Boolean = false,
+    statsSummary: ListeningStatsSummary = ListeningStatsSummary(),
+    playbackState: com.listenquran.player.PlaybackState = com.listenquran.player.PlaybackState(),
+    currentPositionMs: Long = 0L,
+    surahProgressList: List<com.listenquran.player.SurahResumeProgress> = emptyList(),
+    defaultReciter: Reciter? = null,
+    onResumeProgress: (com.listenquran.player.SurahResumeProgress) -> Unit = {},
+    onTogglePlayPause: () -> Unit = {},
+    onPlaySurahWithReciter: (Surah, Reciter) -> Unit = { s, _ -> onSurahClick(s) },
+    onOpenFullPlayer: () -> Unit = {},
     onNavigateToRadio: (() -> Unit)? = null,
     onOpenKhatam: (() -> Unit)? = null,
     resetTrigger: Int = 0,
@@ -606,9 +615,75 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 0.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
+                contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 8.dp, bottom = LocalMiniPlayerInset.current + 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // 0. Greeting + Contextual Suggestion + Streak
+                item(key = "home_greeting_header") {
+                    HomeGreetingAndSuggestionHeader(
+                        statsSummary = statsSummary,
+                        surahs = surahs,
+                        onSurahClick = onSurahClick,
+                    )
+                }
+
+                // 0b. Jump Back In Hero Card
+                val activeOrFallback = playbackState.currentSurah?.takeIf { !playbackState.isRadio } != null ||
+                    surahProgressList.isNotEmpty()
+                if (activeOrFallback) {
+                    item(key = "home_jump_back_in") {
+                        JumpBackInHeroCard(
+                            playbackState = playbackState,
+                            currentPositionMs = currentPositionMs,
+                            fallbackProgress = surahProgressList.firstOrNull(),
+                            surahs = surahs,
+                            reciters = reciters,
+                            onTogglePlayPause = onTogglePlayPause,
+                            onResumeProgress = onResumeProgress,
+                            onOpenFullPlayer = onOpenFullPlayer,
+                        )
+                    }
+                }
+
+                // 0c. Continue Listening (partially finished long surahs)
+                val activeSurahId = playbackState.currentSurah?.takeIf { !playbackState.isRadio }?.id
+                val activeReciterId = playbackState.currentReciter?.id
+                val continueEntries = surahProgressList.filterNot {
+                    activeSurahId != null && it.surahId == activeSurahId && it.reciterId == activeReciterId
+                }
+                if (continueEntries.isNotEmpty()) {
+                    item(key = "continue_listening_header", contentType = "section_header") {
+                        SectionHeader(title = "Continue Listening")
+                    }
+                    item(key = "continue_listening_carousel", contentType = "horizontal_carousel") {
+                        ContinueListeningCarousel(
+                            entries = continueEntries,
+                            surahs = surahs,
+                            reciters = reciters,
+                            onResumeProgress = onResumeProgress,
+                        )
+                    }
+                }
+
+                // 0d. Because you listened to [Reciter]
+                val becauseReciter = playbackState.currentReciter
+                    ?: statsSummary.reciterShares.firstOrNull()?.let { share -> reciters.find { it.id == share.reciterId } }
+                    ?: defaultReciter
+                    ?: reciters.firstOrNull()
+                if (becauseReciter != null && surahs.isNotEmpty()) {
+                    item(key = "because_reciter_header", contentType = "section_header") {
+                        SectionHeader(title = "Because you listened to ${becauseReciter.englishName}")
+                    }
+                    item(key = "because_reciter_carousel", contentType = "horizontal_carousel") {
+                        BecauseYouListenedCarousel(
+                            reciter = becauseReciter,
+                            surahs = surahs,
+                            excludeSurahId = activeSurahId,
+                            onPlaySurahWithReciter = onPlaySurahWithReciter,
+                        )
+                    }
+                }
+
                 // 1. Playlists (Liked on Top, Custom Playlists Carousel)
                 if (playlists.isNotEmpty()) {
                     item(key = "playlists_header", contentType = "section_header") {

@@ -38,6 +38,7 @@ fun ListenQuranNavHost(
     onOpenPlaylistDetail: (Playlist) -> Unit,
     onOpenReciterProfile: (Reciter) -> Unit,
     onAddToPlaylist: (Surah) -> Unit,
+    onOpenFullPlayer: () -> Unit = {},
     homeResetTrigger: Int = 0,
     libraryResetTrigger: Int = 0,
     modifier: Modifier = Modifier,
@@ -65,6 +66,9 @@ fun ListenQuranNavHost(
                 val onNavigateToRadio = androidx.compose.runtime.remember(navController) { { navController.navigateToDetail(TopLevelDestination.RADIO.route) } }
                 val radioStations by viewModel.radioStations.collectAsStateWithLifecycle()
                 val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+                val currentPositionMs by viewModel.currentPositionMs.collectAsStateWithLifecycle()
+                val surahProgressList by viewModel.surahProgressList.collectAsStateWithLifecycle()
+                val defaultReciter by viewModel.defaultReciter.collectAsStateWithLifecycle()
 
                 HomeScreen(
                     surahs = surahs,
@@ -76,6 +80,15 @@ fun ListenQuranNavHost(
                     radioStations = radioStations,
                     currentRadioStation = playbackState.currentRadioStation,
                     isRadioPlaying = playbackState.isRadio && playbackState.isPlaying,
+                    statsSummary = statsSummary,
+                    playbackState = playbackState,
+                    currentPositionMs = currentPositionMs,
+                    surahProgressList = surahProgressList,
+                    defaultReciter = defaultReciter,
+                    onResumeProgress = { viewModel.resumeSurahProgress(it) },
+                    onTogglePlayPause = { viewModel.togglePlayPause() },
+                    onPlaySurahWithReciter = { surah, reciter -> viewModel.playSurah(surah, reciter = reciter) },
+                    onOpenFullPlayer = onOpenFullPlayer,
                     onSurahClick = onSurahClick,
                     onPlaylistClick = onOpenPlaylistDetail,
                     onContinueKhatma = onContinueKhatma,
@@ -206,6 +219,9 @@ fun ListenQuranNavHost(
                     },
                     onExportBackup = { viewModel.exportBackupToUri(it) },
                     onImportBackup = { uri, replace -> viewModel.importBackupFromUri(uri, replace) },
+                    onSetTransitionFadeSeconds = { viewModel.setTransitionFadeSeconds(it) },
+                    onSetTransitionGapMs = { viewModel.setTransitionGapMs(it) },
+                    onToggleBismillahBetweenSurahs = { viewModel.setBismillahBetweenSurahs(it) },
                     onBack = { navController.popBackStack() },
                 )
             }

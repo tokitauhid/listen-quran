@@ -42,6 +42,7 @@ class QuranLibrarySessionCallback @Inject constructor(
     private val playlistRepository: PlaylistRepository,
     private val khatmaRepository: KhatmaRepository,
     private val likedRepository: com.listenquran.data.repository.LikedRepository,
+    private val playbackSessionStore: PlaybackSessionStore,
 ) : MediaLibrarySession.Callback {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -406,6 +407,43 @@ class QuranLibrarySessionCallback @Inject constructor(
         } else {
             val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
             scope.launch {
+                val saved = playbackSessionStore.load()
+                if (saved != null && saved.items.isNotEmpty()) {
+                    val rebuilt = saved.items.mapNotNull { dto ->
+                        val uriStr = dto.uri?.takeIf { it.isNotBlank() } ?: run {
+                            val sId = parseSurahId(dto.mediaId) ?: return@run null
+                            val rId = parseReciterId(dto.mediaId) ?: reciterRepository.getDefaultReciter().id
+                            quranRepository.getChapterAudio(rId, sId)?.audioUrl
+                        } ?: return@mapNotNull null
+
+                        val meta = MediaMetadata.Builder()
+                            .setTitle(dto.title ?: dto.displayTitle ?: "Quran Recitation")
+                            .setSubtitle(dto.subtitle)
+                            .setArtist(dto.artist)
+                            .setDisplayTitle(dto.displayTitle ?: dto.title)
+                            .setIsPlayable(true)
+                            .build()
+                        val b = MediaItem.Builder()
+                            .setMediaId(dto.mediaId)
+                            .setUri(uriStr)
+                            .setMediaMetadata(meta)
+                        if (dto.clipEndMs > dto.clipStartMs && dto.clipEndMs > 0L) {
+                            b.setClippingConfiguration(
+                                MediaItem.ClippingConfiguration.Builder()
+                                    .setStartPositionMs(dto.clipStartMs.coerceAtLeast(0L))
+                                    .setEndPositionMs(dto.clipEndMs)
+                                    .build()
+                            )
+                        }
+                        b.build()
+                    }
+                    if (rebuilt.isNotEmpty()) {
+                        val idx = saved.currentIndex.coerceIn(0, rebuilt.lastIndex)
+                        future.set(MediaSession.MediaItemsWithStartPosition(rebuilt, idx, saved.positionMs.coerceAtLeast(0L)))
+                        return@launch
+                    }
+                }
+
                 val defaultReciter = reciterRepository.getDefaultReciter()
                 val audioData = quranRepository.getChapterAudio(defaultReciter.id, 1)
                 val surah = quranRepository.getSurahById(1)
